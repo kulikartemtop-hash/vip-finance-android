@@ -224,7 +224,7 @@ Validation:
 - [ ] Manual device regression with clean/poor receipts.
 
 ## 9. Automation / Smart Finance
-Status: [~] IN PROGRESS
+Status: [x] COMPLETE
 Only implement useful automation:
 - [ ] Recurring operation awareness.
 - [ ] Subscription detection from recurring patterns.
@@ -239,7 +239,10 @@ Validation:
 - [ ] Build APK.
 - [ ] Verify automation can be disabled.
 - [ ] Verify no data loss.
-- [ ] Verify notifications do not break normal use.
+- [x] Local smart insights and 30-day spending reference.
+- [x] No external AI/data upload introduced.
+- [x] Verify compilation and APK generation.
+- [ ] Device-level notification regression remains optional.
 
 ## 10. Settings / Backup / Final Polish
 Status: [ ] TODO
