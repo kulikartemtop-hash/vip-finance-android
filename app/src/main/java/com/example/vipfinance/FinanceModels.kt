@@ -5,7 +5,16 @@ data class Account(
     val balance: Double,
     val hidden: Boolean = false,
     val type: String = "Счёт",
-    val currency: String = "GBP"
+    val currency: String = "RUB",
+    val icon: String = "account_balance",
+    val iconColor: String = "#5B35F5"
+)
+
+data class Category(
+    val id: Long = System.currentTimeMillis(),
+    val name: String,
+    val icon: String = "category",
+    val color: String = "#5B35F5"
 )
 
 data class Transaction(
@@ -16,7 +25,7 @@ data class Transaction(
     val accountName: String = "",
     val category: String = "Без категории",
     val timestamp: Long = System.currentTimeMillis(),
-    val currency: String = "GBP"
+    val currency: String = "RUB"
 )
 
 data class Debt(
@@ -33,7 +42,7 @@ data class Goal(
     val name: String,
     val target: Double,
     val saved: Double = 0.0,
-    val currency: String = "GBP",
+    val currency: String = "RUB",
     val deadline: String = ""
 )
 
