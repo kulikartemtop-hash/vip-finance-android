@@ -28,6 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
@@ -1053,56 +1055,231 @@ private fun More(
         }
 }
 
-@Composable private fun SettingsDialog(c: String, auto: Boolean, theme: String, style: String, menu: Set<String>, time: Long, save: (String, Boolean, String, String, Set<String>) -> Unit, backup: () -> String, close: () -> Unit) {
+@Composable
+private fun SettingsDialog(
+    c: String,
+    auto: Boolean,
+    theme: String,
+    style: String,
+    menu: Set<String>,
+    time: Long,
+    save: (String, Boolean, String, String, Set<String>) -> Unit,
+    backup: () -> String,
+    close: () -> Unit
+) {
     val context = LocalContext.current
-    AlertDialog(
+    Dialog(
         onDismissRequest = close,
-        title = { Text("Настройки") },
-        text = {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.heightIn(max = 560.dp)) {
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.94f)
+                .heightIn(max = 760.dp),
+            shape = RoundedCornerShape(30.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 12.dp
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(bottom = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
                 item {
-                    Text("Основная валюта", fontWeight = FontWeight.Bold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { currencies.forEach { code -> FilterChip(c == code, { save(code, auto, theme, style, menu) }, label = { Text(code) }) } }
-                }
-                item { Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) { Text("Автоконвертация"); Switch(auto, { save(c, it, theme, style, menu) }) } }
-                item {
-                    Text("Тема", fontWeight = FontWeight.Bold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        listOf("system" to "Системная", "light" to "Светлая", "dark" to "Тёмная").forEach { (v, label) -> FilterChip(theme == v, { save(c, auto, v, style, menu) }, label = { Text(label) }) }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.95f),
+                                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.82f)
+                                    )
+                                ),
+                                RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
+                            )
+                            .padding(horizontal = 22.dp, vertical = 22.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Настройки", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            Text(
+                                "Персонализируйте VIP Finance под себя",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f)
+                            )
+                        }
                     }
                 }
                 item {
-                    Text("Стиль", fontWeight = FontWeight.Bold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        listOf("midnight" to "Midnight", "platinum" to "Platinum", "emerald" to "Emerald").forEach { (v, label) -> FilterChip(style == v, { save(c, auto, theme, v, menu) }, label = { Text(label) }) }
+                    SettingsSection("Основная валюта", "В какой валюте показывать общий баланс и аналитику") {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(horizontal = 2.dp)
+                        ) {
+                            items(currencies) { code ->
+                                FilterChip(
+                                    selected = c == code,
+                                    onClick = { save(code, auto, theme, style, menu) },
+                                    label = { Text(code, fontWeight = if (c == code) FontWeight.Bold else FontWeight.Normal) }
+                                )
+                            }
+                        }
                     }
                 }
                 item {
-                    Text("Резервная копия", fontWeight = FontWeight.Bold)
-                    Text("Экспортирует счета, операции, категории, бюджеты, долги, цели, напоминания и настройки в JSON.",style=MaterialTheme.typography.bodySmall)
-                    Button(onClick={
-                        context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply{
-                            type="application/json"
-                            putExtra(Intent.EXTRA_TEXT,backup())
-                        },"Сохранить резервную копию"))
-                    }){Text("Экспортировать JSON")}
+                    SettingsToggleRow(
+                        title = "Автоконвертация",
+                        subtitle = "Автоматически пересчитывать суммы между валютами",
+                        checked = auto,
+                        onCheckedChange = { save(c, it, theme, style, menu) }
+                    )
                 }
-                item { Text("Функции в меню", fontWeight = FontWeight.Bold) }
-                items(pages) { p ->
-                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                        Text(p)
-                        Switch(p in menu, { enabled ->
-                            val updated = menu.toMutableSet()
-                            if (enabled) updated.add(p) else updated.remove(p)
-                            save(c, auto, theme, style, updated)
-                        })
+                item {
+                    SettingsSection("Внешний вид", "Тема и визуальный стиль приложения") {
+                        Text("Тема", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            listOf("system" to "Системная", "light" to "Светлая", "dark" to "Тёмная").forEach { (v, label) ->
+                                FilterChip(
+                                    selected = theme == v,
+                                    onClick = { save(c, auto, v, style, menu) },
+                                    label = { Text(label) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text("Стиль", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            listOf("midnight" to "Midnight", "platinum" to "Platinum", "emerald" to "Emerald").forEach { (v, label) ->
+                                FilterChip(
+                                    selected = style == v,
+                                    onClick = { save(c, auto, theme, v, menu) },
+                                    label = { Text(label) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
                     }
                 }
-                if (time > 0) item { Text("Курсы обновлены: " + SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(time)), style = MaterialTheme.typography.bodySmall) }
+                item {
+                    SettingsSection("Резервная копия", "Экспортируйте данные перед переносом или переустановкой") {
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f)
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(
+                                    Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
+                                    contentAlignment = Alignment.Center
+                                ) { Text("↗", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
+                                Column(Modifier.weight(1f)) {
+                                    Text("JSON-копия", fontWeight = FontWeight.SemiBold)
+                                    Text("Счета, операции, категории, бюджеты, долги, цели и настройки", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                        Button(
+                            onClick = {
+                                context.startActivity(
+                                    Intent.createChooser(
+                                        Intent(Intent.ACTION_SEND).apply {
+                                            type = "application/json"
+                                            putExtra(Intent.EXTRA_TEXT, backup())
+                                        },
+                                        "Сохранить резервную копию"
+                                    )
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp)
+                        ) { Text("Экспортировать JSON", fontWeight = FontWeight.Bold) }
+                    }
+                }
+                item {
+                    SettingsSection("Функции в меню", "Показывайте только те разделы, которыми пользуетесь") {
+                        pages.forEach { pageName ->
+                            SettingsToggleRow(
+                                title = pageName,
+                                subtitle = if (pageName in menu) "Раздел отображается в меню" else "Раздел скрыт из меню",
+                                checked = pageName in menu,
+                                onCheckedChange = { enabled ->
+                                    val updated = menu.toMutableSet()
+                                    if (enabled) updated.add(pageName) else updated.remove(pageName)
+                                    save(c, auto, theme, style, updated)
+                                }
+                            )
+                        }
+                    }
+                }
+                if (time > 0) {
+                    item {
+                        Text(
+                            "Курсы обновлены: " + SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(time)),
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(horizontal = 22.dp)
+                        )
+                    }
+                }
+                item {
+                    TextButton(
+                        onClick = close,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) { Text("Закрыть", fontWeight = FontWeight.Bold) }
+                }
             }
-        },
-        confirmButton = { TextButton(close) { Text("Закрыть") } }
-    )
+        }
+    }
+}
+
+@Composable
+private fun SettingsSection(title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier = Modifier.padding(horizontal = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(9.dp)
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(22.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
+        ) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
+        }
+    }
+}
+
+@Composable
+private fun SettingsToggleRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.30f)
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(title, fontWeight = FontWeight.SemiBold)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Switch(checked = checked, onCheckedChange = onCheckedChange)
+        }
+    }
 }
 
 @Composable
@@ -1161,24 +1338,265 @@ private fun AccountDialog(
 }
 
 @Composable
-private fun TransactionDialog(accounts: List<Account>,categories: List<Category>,defaultIncome:Boolean,source:Transaction?,close:()->Unit,save:(Transaction)->Unit){
- var n by remember{mutableStateOf(source?.title?:"")};var a by remember{mutableStateOf(source?.amount?.toString()?:"")}
- var type by remember{mutableStateOf(source?.operationType?:if(defaultIncome)"income"else"expense")};var cat by remember{mutableStateOf(source?.category?:categories.firstOrNull()?.name.orEmpty())}
- var acc by remember{mutableStateOf(source?.accountName?:accounts.firstOrNull()?.name.orEmpty())};var toAcc by remember{mutableStateOf(source?.toAccountName?:accounts.firstOrNull{it.name!=acc}?.name.orEmpty())}
- var note by remember{mutableStateOf(source?.note?:"")};var rep by remember{mutableStateOf(source?.repeat?:"Не повторять")}
- var dateText by remember{mutableStateOf(source?.timestamp?.let{SimpleDateFormat("dd.MM.yyyy HH:mm",Locale.getDefault()).format(Date(it))}?:SimpleDateFormat("dd.MM.yyyy HH:mm",Locale.getDefault()).format(Date()))}
- val cc=accounts.firstOrNull{it.name==acc}?.currency?:"RUB";val v=a.replace(',','.').toDoubleOrNull();val parsed=runCatching{SimpleDateFormat("dd.MM.yyyy HH:mm",Locale.getDefault()).parse(dateText)?.time}.getOrNull()?:System.currentTimeMillis();val other=accounts.filter{it.name!=acc}
- AlertDialog(onDismissRequest=close,title={Text(if(type=="transfer")"Новый перевод"else if(type=="income")"Новый доход"else"Новый расход")},text={
-  Column(Modifier.heightIn(max=580.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)){
-   OutlinedTextField(n,{n=it},label={Text("Описание")},modifier=Modifier.fillMaxWidth(),singleLine=true);OutlinedTextField(a,{a=it},label={Text("Сумма $cc")},modifier=Modifier.fillMaxWidth(),singleLine=true)
-   Text("Тип операции",fontWeight=FontWeight.Bold);Row(horizontalArrangement=Arrangement.spacedBy(7.dp)){FilterChip(type=="expense",{type="expense"},label={Text("Расход")});FilterChip(type=="income",{type="income"},label={Text("Доход")});FilterChip(type=="transfer",{type="transfer"},label={Text("Перевод")})}
-   Text("Счёт / карта",fontWeight=FontWeight.Bold);LazyRow(horizontalArrangement=Arrangement.spacedBy(5.dp)){items(accounts){x->FilterChip(acc==x.name,{acc=x.name},label={Text(iconText(x.icon)+" "+x.name)})}}
-   if(type=="transfer"){Text("Куда",fontWeight=FontWeight.Bold);LazyRow(horizontalArrangement=Arrangement.spacedBy(5.dp)){items(other){x->FilterChip(toAcc==x.name,{toAcc=x.name},label={Text(iconText(x.icon)+" "+x.name)})}}}
-   else{Text("Категория",fontWeight=FontWeight.Bold);LazyRow(horizontalArrangement=Arrangement.spacedBy(5.dp)){items(categories){x->FilterChip(cat==x.name,{cat=x.name},label={Text(iconText(x.icon)+" "+x.name)})}};OutlinedTextField(cat,{cat=it},label={Text("Своя категория")},modifier=Modifier.fillMaxWidth(),singleLine=true)}
-   OutlinedTextField(note,{note=it},label={Text("Комментарий / заметка")},modifier=Modifier.fillMaxWidth(),minLines=2,maxLines=3);OutlinedTextField(dateText,{dateText=it},label={Text("Дата и время")},modifier=Modifier.fillMaxWidth(),singleLine=true)
-   Text("Повтор",fontWeight=FontWeight.Bold);LazyRow(horizontalArrangement=Arrangement.spacedBy(6.dp)){items(listOf("Не повторять","Ежедневно","Еженедельно","Ежемесячно","Ежегодно")){x->FilterChip(rep==x,{rep=x},label={Text(x)})}}
-  }
-},confirmButton={Button(onClick={save(Transaction(id=source?.id?:System.currentTimeMillis(),title=n.trim(),amount=v?:0.0,income=type=="income",accountName=acc,category=if(type=="transfer")"Перевод"else cat.ifBlank{"Без категории"},timestamp=parsed,currency=cc,operationType=type,toAccountName=if(type=="transfer")toAcc else "",note=note.trim(),repeat=rep))},enabled=n.isNotBlank()&&v!=null&&v>0&&acc.isNotBlank()&&(type!="transfer"||toAcc.isNotBlank())){Text("Сохранить")}},dismissButton={TextButton(close){Text("Отмена")}})
+private fun TransactionDialog(
+    accounts: List<Account>,
+    categories: List<Category>,
+    defaultIncome: Boolean,
+    source: Transaction?,
+    close: () -> Unit,
+    save: (Transaction) -> Unit
+) {
+    var n by remember { mutableStateOf(source?.title ?: "") }
+    var a by remember { mutableStateOf(source?.amount?.toString() ?: "") }
+    var type by remember { mutableStateOf(source?.operationType ?: if (defaultIncome) "income" else "expense") }
+    var cat by remember { mutableStateOf(source?.category ?: categories.firstOrNull()?.name.orEmpty()) }
+    var acc by remember { mutableStateOf(source?.accountName ?: accounts.firstOrNull()?.name.orEmpty()) }
+    var toAcc by remember { mutableStateOf(source?.toAccountName ?: accounts.firstOrNull { it.name != acc }?.name.orEmpty()) }
+    var note by remember { mutableStateOf(source?.note ?: "") }
+    var rep by remember { mutableStateOf(source?.repeat ?: "Не повторять") }
+    var dateText by remember {
+        mutableStateOf(
+            source?.timestamp?.let { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(it)) }
+                ?: SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date())
+        )
+    }
+    val cc = accounts.firstOrNull { it.name == acc }?.currency ?: "RUB"
+    val v = a.replace(',', '.').toDoubleOrNull()
+    val parsed = runCatching { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).parse(dateText)?.time }.getOrNull()
+        ?: System.currentTimeMillis()
+    val other = accounts.filter { it.name != acc }
+    val title = if (type == "transfer") "Новый перевод" else if (type == "income") "Новый доход" else "Новый расход"
+    val amountPreview = v?.let { money(it, cc) } ?: "0,00 $cc"
+
+    Dialog(
+        onDismissRequest = close,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(0.94f).heightIn(max = 790.dp),
+            shape = RoundedCornerShape(30.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 14.dp
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(13.dp)
+            ) {
+                item {
+                    Box(
+                        Modifier.fillMaxWidth()
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        if (type == "income") Color(0xFF00897B) else if (type == "transfer") MaterialTheme.colorScheme.primary else Color(0xFF8E24AA),
+                                        MaterialTheme.colorScheme.primary
+                                    )
+                                ),
+                                RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
+                            )
+                            .padding(horizontal = 22.dp, vertical = 20.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            Text(
+                                if (type == "income") "Добавьте поступление и оно сразу попадёт в баланс"
+                                else if (type == "transfer") "Перемещение средств между счетами"
+                                else "Зафиксируйте расход и сохраните его в истории",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f)
+                            )
+                            Spacer(Modifier.height(5.dp))
+                            Text(
+                                amountPreview,
+                                style = MaterialTheme.typography.displaySmall,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
+                    }
+                }
+                item {
+                    DialogField(
+                        label = "Описание",
+                        supporting = "Например: продукты, бензин, зарплата",
+                        value = n,
+                        onValueChange = { n = it }
+                    )
+                }
+                item {
+                    DialogField(
+                        label = "Сумма $cc",
+                        supporting = "Введите сумму операции",
+                        value = a,
+                        onValueChange = { a = it }
+                    )
+                }
+                item {
+                    DialogGroup("Тип операции") {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            listOf("expense" to "Расход", "income" to "Доход", "transfer" to "Перевод").forEach { (vType, label) ->
+                                FilterChip(
+                                    selected = type == vType,
+                                    onClick = { type = vType },
+                                    label = { Text(label, fontWeight = FontWeight.SemiBold) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                }
+                item {
+                    DialogGroup("Счёт / карта") {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 2.dp)) {
+                            items(accounts) { x ->
+                                FilterChip(
+                                    selected = acc == x.name,
+                                    onClick = { acc = x.name },
+                                    label = { Text(iconText(x.icon) + "  " + x.name) }
+                                )
+                            }
+                        }
+                    }
+                }
+                if (type == "transfer") {
+                    item {
+                        DialogGroup("Куда перевести") {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 2.dp)) {
+                                items(other) { x ->
+                                    FilterChip(
+                                        selected = toAcc == x.name,
+                                        onClick = { toAcc = x.name },
+                                        label = { Text(iconText(x.icon) + "  " + x.name) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    item {
+                        DialogGroup("Категория") {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 2.dp)) {
+                                items(categories) { x ->
+                                    FilterChip(
+                                        selected = cat == x.name,
+                                        onClick = { cat = x.name },
+                                        label = { Text(iconText(x.icon) + "  " + x.name) }
+                                    )
+                                }
+                            }
+                            DialogField(
+                                label = "Своя категория",
+                                supporting = "Можно заменить выбранную категорию своим названием",
+                                value = cat,
+                                onValueChange = { cat = it }
+                            )
+                        }
+                    }
+                }
+                item {
+                    DialogGroup("Дополнительно") {
+                        DialogField(
+                            label = "Комментарий / заметка",
+                            supporting = "Необязательно",
+                            value = note,
+                            onValueChange = { note = it },
+                            minLines = 2
+                        )
+                        DialogField(
+                            label = "Дата и время",
+                            supporting = "Формат: дд.мм.гггг чч:мм",
+                            value = dateText,
+                            onValueChange = { dateText = it }
+                        )
+                    }
+                }
+                item {
+                    DialogGroup("Повтор операции") {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 2.dp)) {
+                            items(listOf("Не повторять", "Ежедневно", "Еженедельно", "Ежемесячно", "Ежегодно")) { x ->
+                                FilterChip(selected = rep == x, onClick = { rep = x }, label = { Text(x) })
+                            }
+                        }
+                    }
+                }
+                item {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = close, modifier = Modifier.weight(1f), shape = RoundedCornerShape(16.dp)) {
+                            Text("Отмена", fontWeight = FontWeight.Bold)
+                        }
+                        Button(
+                            onClick = {
+                                save(
+                                    Transaction(
+                                        id = source?.id ?: System.currentTimeMillis(),
+                                        title = n.trim(),
+                                        amount = v ?: 0.0,
+                                        income = type == "income",
+                                        accountName = acc,
+                                        category = if (type == "transfer") "Перевод" else cat.ifBlank { "Без категории" },
+                                        timestamp = parsed,
+                                        currency = cc,
+                                        operationType = type,
+                                        toAccountName = if (type == "transfer") toAcc else "",
+                                        note = note.trim(),
+                                        repeat = rep
+                                    )
+                                )
+                            },
+                            enabled = n.isNotBlank() && v != null && v > 0 && acc.isNotBlank() && (type != "transfer" || toAcc.isNotBlank()),
+                            modifier = Modifier.weight(1.35f),
+                            shape = RoundedCornerShape(16.dp)
+                        ) { Text("Сохранить", fontWeight = FontWeight.Bold) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DialogGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier = Modifier.padding(horizontal = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(21.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.30f),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.10f))
+        ) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
+        }
+    }
+}
+
+@Composable
+private fun DialogField(
+    label: String,
+    supporting: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    minLines: Int = 1
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(label) },
+            supportingText = { Text(supporting) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = minLines == 1,
+            minLines = minLines,
+            maxLines = if (minLines == 1) 1 else 3,
+            shape = RoundedCornerShape(17.dp)
+        )
+    }
 }
 
 @Composable
