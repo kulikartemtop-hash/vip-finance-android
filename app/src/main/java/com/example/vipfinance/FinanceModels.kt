@@ -49,6 +49,7 @@ data class Debt(
     val amount: Double,
     val mine: Boolean,
     val interest: Boolean = false,
+    val interestRate: Double = 0.0,
     val note: String = ""
 )
 
