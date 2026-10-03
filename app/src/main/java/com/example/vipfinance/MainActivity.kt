@@ -9,6 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -299,66 +300,81 @@ fun FinanceApp(s: FinanceStore) {
 
 @Composable
 private fun Home(
-    total: Double, c: String, accounts: List<Account>, auto: Boolean, r: Map<String, Double>,
+    total: Double, c: String, accounts: List<Account>, auto: Boolean, r: Map<String,Double>,
     selected: String?, income: Double, expense: Double, pick: (String?) -> Unit
 ) {
-    val selectedBalance = selected?.let { n -> accounts.firstOrNull { it.name == n }?.let { conv(it.balance, it.currency, c, auto, r) } } ?: total
+    val visible = accounts.filter { !it.hidden }
+    val selectedBalance = selected?.let { n -> visible.firstOrNull { it.name == n }?.let { conv(it.balance,it.currency,c,auto,r) } } ?: total
+    val net = income - expense
+    val spendRate = if (income > 0) (expense / income).coerceIn(0.0,1.0) else 0.0
     LazyColumn(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
-            Box(
-                Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large)
-                    .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)))
-                    .padding(22.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(if (selected == null) "Общий баланс" else "Баланс • $selected", color = Color.White.copy(alpha = 0.82f), style = MaterialTheme.typography.labelLarge)
-                    Text(money(selectedBalance, c), color = Color.White, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-                    Text(if (auto) "Автоконвертация включена" else "Показ исходных валют", color = Color.White.copy(alpha = 0.82f), style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MetricCard("Доходы", money(income, c), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
-                MetricCard("Расходы", money(expense, c), MaterialTheme.colorScheme.error, Modifier.weight(1f))
-            }
-        }
-        item {
-            Text("Фильтр счетов", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(7.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FilterChip(selected == null, { pick(null) }, label = { Text("Все") })
-                accounts.filter { !it.hidden }.forEach { a -> FilterChip(selected == a.name, { pick(a.name) }, label = { Text(a.name) }) }
-            }
-        }
-        item { Text("Мои счета", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-        items(accounts.filter { !it.hidden }) { a ->
-            ElevatedCard(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(uiColor(a.iconColor)), contentAlignment = Alignment.Center) {
-                            Text(iconText(a.icon), color = Color.White, fontWeight = FontWeight.Bold)
+            Card(modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(28.dp),elevation=CardDefaults.cardElevation(10.dp),colors=CardDefaults.cardColors(containerColor=Color.Transparent)) {
+                Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary,MaterialTheme.colorScheme.tertiary,MaterialTheme.colorScheme.secondary))).padding(22.dp)) {
+                    Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
+                            Column {
+                                Text(if(selected==null)"Общий баланс" else "Баланс • $selected",color=Color.White.copy(.78f),style=MaterialTheme.typography.labelLarge)
+                                Text(money(selectedBalance,c),color=Color.White,style=MaterialTheme.typography.headlineLarge,fontWeight=FontWeight.ExtraBold)
+                            }
+                            Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(Color.White.copy(.16f)),contentAlignment=Alignment.Center){Text("₽",color=Color.White,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleLarge)}
                         }
-                        Spacer(Modifier.width(12.dp))
-                        Column { Text(a.name, fontWeight = FontWeight.Bold); Text(a.type + " • " + a.currency, style = MaterialTheme.typography.bodySmall) }
+                        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                            Surface(shape=RoundedCornerShape(14.dp),color=Color.White.copy(.12f),modifier=Modifier.weight(1f)){Column(Modifier.padding(12.dp)){Text("Доходы",color=Color.White.copy(.72f),style=MaterialTheme.typography.labelSmall);Text(money(income,c),color=Color.White,fontWeight=FontWeight.Bold)}}
+                            Surface(shape=RoundedCornerShape(14.dp),color=Color.White.copy(.12f),modifier=Modifier.weight(1f)){Column(Modifier.padding(12.dp)){Text("Расходы",color=Color.White.copy(.72f),style=MaterialTheme.typography.labelSmall);Text(money(expense,c),color=Color.White,fontWeight=FontWeight.Bold)}}
+                            Surface(shape=RoundedCornerShape(14.dp),color=Color.White.copy(.12f),modifier=Modifier.weight(1f)){Column(Modifier.padding(12.dp)){Text("Остаток",color=Color.White.copy(.72f),style=MaterialTheme.typography.labelSmall);Text(money(net,c),color=Color.White,fontWeight=FontWeight.Bold)}}
+                        }
                     }
-                    Text(money(conv(a.balance, a.currency, c, auto, r), c), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
+        item {
+            Card(shape=RoundedCornerShape(24.dp),elevation=CardDefaults.cardElevation(4.dp)) {
+                Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
+                        Column { Text("Финансовый поток",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium);Text("Доходы → расходы → остаток",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
+                        Text(money(net,c),fontWeight=FontWeight.Bold,color=if(net>=0)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                    }
+                    Canvas(modifier=Modifier.fillMaxWidth().height(12.dp)) {
+                        val w=size.width
+                        drawRoundRect(color=MaterialTheme.colorScheme.surfaceVariant,cornerRadius=androidx.compose.ui.geometry.CornerRadius(20f),size=androidx.compose.ui.geometry.Size(w,size.height))
+                        if(income>0) drawRoundRect(color=MaterialTheme.colorScheme.primary,cornerRadius=androidx.compose.ui.geometry.CornerRadius(20f),size=androidx.compose.ui.geometry.Size(w*spendRate,size.height))
+                    }
+                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Расходовано ${(spendRate*100).toInt()}%",style=MaterialTheme.typography.labelSmall);Text("Осталось ${((1-spendRate)*100).toInt()}%",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary)}
+                }
+            }
+        }
+        item {
+            Column {
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text("Счета",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold);Text("${visible.size}",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)}
+                Spacer(Modifier.height(8.dp))
+                LazyRow(horizontalArrangement=Arrangement.spacedBy(10.dp)){item{FilterChip(selected==null,{pick(null)},label={Text("Все счета")})};items(visible){a->FilterChip(selected==a.name,{pick(a.name)},label={Text(a.name)})}}
+            }
+        }
+        item {
+            LazyRow(horizontalArrangement=Arrangement.spacedBy(12.dp)){items(visible){a->
+                Card(modifier=Modifier.width(210.dp),shape=RoundedCornerShape(22.dp),elevation=CardDefaults.cardElevation(6.dp),colors=CardDefaults.cardColors(containerColor=uiColor(a.iconColor).copy(alpha=.92f))){
+                    Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
+                        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Box(Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(Color.White.copy(.16f)),contentAlignment=Alignment.Center){Text(iconText(a.icon),color=Color.White,fontWeight=FontWeight.Bold)};Text(a.currency,color=Color.White.copy(.78f),style=MaterialTheme.typography.labelSmall)}
+                        Text(a.name,color=Color.White.copy(.82f),style=MaterialTheme.typography.bodySmall)
+                        Text(money(conv(a.balance,a.currency,c,auto,r),c),color=Color.White,fontWeight=FontWeight.ExtraBold,style=MaterialTheme.typography.titleLarge)
+                        Text(a.type,color=Color.White.copy(.68f),style=MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }}
+        }
+        item {
+            Card(shape=RoundedCornerShape(24.dp),elevation=CardDefaults.cardElevation(4.dp)){
+                Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
+                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Column{Text("Бюджеты",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium);Text("Контроль расходов",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)};Text("${(spendRate*100).toInt()}%",style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)}
+                    Text("Добавьте бюджет, чтобы видеть лимит, остаток и предупреждения прямо на главном экране.",style=MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+        item { Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){MetricCard("Доступно",money(selectedBalance,c),MaterialTheme.colorScheme.primary,Modifier.weight(1f));MetricCard("Чистый поток",money(net,c),if(net>=0)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,Modifier.weight(1f))} }
     }
 }
 
-@Composable
-private fun MetricCard(title: String, value: String, accent: Color, modifier: Modifier = Modifier) {
-    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.padding(15.dp)) {
-            Text(title, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(5.dp))
-            Text(value, fontWeight = FontWeight.Bold, color = accent)
-        }
-    }
-}
 @Composable
 private fun Operations(
     ts: List<Transaction>, accounts: List<Account>, filter: String?, setFilter: (String?) -> Unit,
