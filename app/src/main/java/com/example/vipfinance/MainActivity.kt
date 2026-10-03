@@ -307,6 +307,8 @@ private fun Home(
     val selectedBalance = selected?.let { n -> visible.firstOrNull { it.name == n }?.let { conv(it.balance,it.currency,c,auto,r) } } ?: total
     val net = income - expense
     val spendRate = if (income > 0) (expense / income).coerceIn(0.0,1.0) else 0.0
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant
+    val flowColor = MaterialTheme.colorScheme.primary
     LazyColumn(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
             Card(modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(28.dp),elevation=CardDefaults.cardElevation(10.dp),colors=CardDefaults.cardColors(containerColor=Color.Transparent)) {
@@ -337,8 +339,8 @@ private fun Home(
                     }
                     Canvas(modifier=Modifier.fillMaxWidth().height(12.dp)) {
                         val w=size.width
-                        drawRoundRect(color=MaterialTheme.colorScheme.surfaceVariant,cornerRadius=androidx.compose.ui.geometry.CornerRadius(20f),size=androidx.compose.ui.geometry.Size(w,size.height))
-                        if(income>0) drawRoundRect(color=MaterialTheme.colorScheme.primary,cornerRadius=androidx.compose.ui.geometry.CornerRadius(20f),size=androidx.compose.ui.geometry.Size(w*spendRate,size.height))
+                        drawRoundRect(color=trackColor,cornerRadius=androidx.compose.ui.geometry.CornerRadius(20f),size=androidx.compose.ui.geometry.Size(w,size.height))
+                        if(income>0) drawRoundRect(color=flowColor,cornerRadius=androidx.compose.ui.geometry.CornerRadius(20f),size=androidx.compose.ui.geometry.Size(w*spendRate.toFloat(),size.height))
                     }
                     Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Расходовано ${(spendRate*100).toInt()}%",style=MaterialTheme.typography.labelSmall);Text("Осталось ${((1-spendRate)*100).toInt()}%",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary)}
                 }
@@ -372,6 +374,17 @@ private fun Home(
             }
         }
         item { Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){MetricCard("Доступно",money(selectedBalance,c),MaterialTheme.colorScheme.primary,Modifier.weight(1f));MetricCard("Чистый поток",money(net,c),if(net>=0)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,Modifier.weight(1f))} }
+    }
+}
+
+@Composable
+private fun MetricCard(title: String, value: String, accent: Color, modifier: Modifier = Modifier) {
+    Card(modifier = modifier, shape = RoundedCornerShape(18.dp), elevation = CardDefaults.cardElevation(3.dp)) {
+        Column(Modifier.padding(15.dp)) {
+            Text(title, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(5.dp))
+            Text(value, fontWeight = FontWeight.Bold, color = accent)
+        }
     }
 }
 
