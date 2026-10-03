@@ -340,11 +340,47 @@ private fun Operations(
         }
     }
 }
-@Composable private fun Accounts(items:List<Account>,c:String,auto:Boolean,r:Map<String,Double>,add:()->Unit,select:(String)->Unit,toggle:(String)->Unit){
- Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically){Text("Счета и карты",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}}
- LazyColumn(verticalArrangement=Arrangement.spacedBy(6.dp)){items(items){a->Card(onClick={select(a.name)},modifier=Modifier.fillMaxWidth()){Row(Modifier.padding(12.dp).fillMaxWidth(),Arrangement.SpaceBetween){Column{Text(a.name,fontWeight=FontWeight.Bold);Text(a.type+" • "+a.currency+if(a.hidden)" • скрыт" else "")};Column(horizontalAlignment=Alignment.End){Text(money(conv(a.balance,a.currency,c,auto,r),c),fontWeight=FontWeight.Bold);TextButton(onClick={toggle(a.name)}){Text(if(a.hidden)"Показать" else "Скрыть")}}}}}}
+@Composable
+private fun Accounts(
+    items: List<Account>, c: String, auto: Boolean, r: Map<String, Double>,
+    add: () -> Unit, select: (String) -> Unit, toggle: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+            Column {
+                Text("Счета и карты", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text("${items.size} подключённых", style = MaterialTheme.typography.bodySmall)
+            }
+            FilledTonalButton(onClick = add) { Text("+ Добавить") }
+        }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(items) { a ->
+                ElevatedCard(onClick = { select(a.name) }, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.Top) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(if (a.type == "Карта") MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
+                                    Text(if (a.type == "Карта") "▣" else "₽", fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(a.name, fontWeight = FontWeight.Bold)
+                                    Text(a.type + " • " + a.currency + if (a.hidden) " • скрыт" else "", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                            Text(money(conv(a.balance, a.currency, c, auto, r), c), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                            Text(if (a.hidden) "Скрыт из общего баланса" else "Учитывается в общем балансе", style = MaterialTheme.typography.bodySmall)
+                            TextButton(onClick = { toggle(a.name) }) { Text(if (a.hidden) "Показать" else "Скрыть") }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
-
 @Composable private fun Analytics(tx: List<Transaction>, c: String, auto: Boolean, r: Map<String, Double>) {
     var preset by remember { mutableStateOf("Сегодня") }
     var fromText by remember { mutableStateOf("") }
