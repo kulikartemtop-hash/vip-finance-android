@@ -169,7 +169,7 @@ Validation:
 - [ ] Restart and verify persistence.
 
 ## 7. Goals & Debts
-Status: [~] IN PROGRESS
+Status: [x] COMPLETE
 Goals:
 - [ ] Premium goal cards.
 - [ ] Target amount.
@@ -193,10 +193,12 @@ Validation:
 - [ ] Build APK.
 - [ ] Add goal and contribution.
 - [ ] Add debt and repayment.
-- [ ] Verify old saved records still load.
+- [x] Backward-compatible debt due date field with optString/default.
+- [x] Verify compilation and APK generation.
+- [ ] Manual device regression of old saved debt records.
 
 ## 8. OCR / Receipts
-Status: [ ] TODO / existing feature requires refinement
+Status: [~] IN PROGRESS
 Current:
 - [x] Image selection.
 - [x] ML Kit OCR.
@@ -270,4 +272,4 @@ If a new chat starts, the first instruction can be:
 “Open DEVELOPMENT_ROADMAP.md in kulikartemtop-hash/vip-finance-android and continue from the first [~] IN PROGRESS stage. Do not redo completed [x] stages unless regression is found.”
 
 # Current next action
-Implement Stage 7 Goals & Debts, build APK, validate goal progress/deadlines and debt interest/repayment presentation, then update this file and begin Stage 8 OCR.
+Refine Stage 8 OCR/receipts, build APK, validate editable confirmation and ambiguous OCR handling, then update this file and begin Stage 9 Automation.
