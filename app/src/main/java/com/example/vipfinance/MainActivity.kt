@@ -60,7 +60,7 @@ class MainActivity:ComponentActivity(){
     "Конвертер"->Converter(currency,rates,loading)
     "Долги"->Debts(debts,{dialog="debt"}){d->debts=debts.filterNot{it.id==d.id};s.saveDebts(debts)}
     "Цели"->Goals(goals,{dialog="goal"}){g->goals=goals.filterNot{it.id==g.id};s.saveGoals(goals)}
-    "Напоминания"->Reminders(reminders,{dialog="reminder"}){r->reminders=reminders.map{if(it.id==r.id)it.copy(done=!it.done)else it};s.saveReminders(reminders)}{r->reminders=reminders.filterNot{it.id==r.id};s.saveReminders(reminders)}
+    "Напоминания"->Reminders(reminders,{dialog="reminder"},{r->reminders=reminders.map{if(it.id==r.id)it.copy(done=!it.done)else it};s.saveReminders(reminders)},{r->reminders=reminders.filterNot{it.id==r.id};s.saveReminders(reminders)})
     "Чеки"->Receipt(receiptUri,receiptText,{u->receiptUri=u;receiptText=""},{t->receiptText=t}){u->receiptUri=u}
     else->More(currency,auto,theme,style,menu,rateTime,tx){c,a,t,st,m->currency=c;auto=a;theme=t;style=st;menu=m;s.saveCurrency(c);s.saveAutoConversion(a);s.saveTheme(t);s.saveStyle(st);s.saveMenu(m)}
    }
