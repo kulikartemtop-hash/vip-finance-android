@@ -105,7 +105,12 @@ fun FinanceApp(store: FinanceStore) {
         }
     }
 
-    fun toggleAccountHidden(name: String) {\n        accounts = accounts.map { if (it.name == name) it.copy(hidden = !it.hidden) else it }\n        store.saveAccounts(accounts)\n    }\n\n    fun deleteTransaction(transaction: Transaction) {
+    fun toggleAccountHidden(name: String) {
+        accounts = accounts.map { if (it.name == name) it.copy(hidden = !it.hidden) else it }
+        store.saveAccounts(accounts)
+    }
+
+    fun deleteTransaction(transaction: Transaction) {
         transactions = transactions.filterNot { it === transaction }
         store.saveTransactions(transactions)
         if (transaction.accountName.isNotBlank()) {
@@ -215,9 +220,11 @@ fun AccountsScreen(accounts: List<Account>, currency: String, auto: Boolean, rat
                         Text(account.name, fontWeight = FontWeight.Bold)
                         Text(account.type + " • " + account.currency + if (account.hidden) " • скрыт" else "")
                     }
-                    Text(money(converted(account.balance, account.currency, currency, auto, rates), currency), fontWeight = FontWeight.Bold)
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(money(converted(account.balance, account.currency, currency, auto, rates), currency), fontWeight = FontWeight.Bold)
+                        TextButton(onClick = { onToggleHidden(account.name) }) { Text(if (account.hidden) "Показать" else "Скрыть") }
+                    }
                 }
-            }
         }
     }
 }
