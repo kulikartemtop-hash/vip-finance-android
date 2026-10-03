@@ -3,7 +3,8 @@ package com.example.vipfinance
 data class Account(
     val name: String,
     val balance: Double,
-    val hidden: Boolean = false
+    val hidden: Boolean = false,
+    val type: String = "Счёт"
 )
 
 data class Transaction(
