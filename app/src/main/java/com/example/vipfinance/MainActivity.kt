@@ -1,6 +1,5 @@
 package com.example.vipfinance
 
-import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -37,57 +36,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.vipfinance.ui.theme.VIPFinanceTheme
-import org.json.JSONArray
-import org.json.JSONObject
-
-data class Account(val name: String, val balance: Double, val hidden: Boolean = false)
-data class Transaction(val title: String, val amount: Double, val income: Boolean)
-
-class FinanceStore(context: Context) {
-    private val prefs = context.getSharedPreferences("vip_finance", Context.MODE_PRIVATE)
-
-    fun loadAccounts(): List<Account> {
-        val raw = prefs.getString("accounts", "[]") ?: "[]"
-        val a = JSONArray(raw)
-        return List(a.length()) { i ->
-            val o = a.getJSONObject(i)
-            Account(o.getString("name"), o.getDouble("balance"), o.optBoolean("hidden"))
-        }
-    }
-
-    fun saveAccounts(list: List<Account>) {
-        val a = JSONArray()
-        list.forEach {
-            a.put(JSONObject().apply {
-                put("name", it.name)
-                put("balance", it.balance)
-                put("hidden", it.hidden)
-            })
-        }
-        prefs.edit().putString("accounts", a.toString()).apply()
-    }
-
-    fun loadTransactions(): List<Transaction> {
-        val raw = prefs.getString("transactions", "[]") ?: "[]"
-        val a = JSONArray(raw)
-        return List(a.length()) { i ->
-            val o = a.getJSONObject(i)
-            Transaction(o.getString("title"), o.getDouble("amount"), o.getBoolean("income"))
-        }
-    }
-
-    fun saveTransactions(list: List<Transaction>) {
-        val a = JSONArray()
-        list.forEach {
-            a.put(JSONObject().apply {
-                put("title", it.title)
-                put("amount", it.amount)
-                put("income", it.income)
-            })
-        }
-        prefs.edit().putString("transactions", a.toString()).apply()
-    }
-}
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -110,41 +61,88 @@ fun FinanceApp(store: FinanceStore) {
     var showAccountDialog by remember { mutableStateOf(false) }
     var showTransactionDialog by remember { mutableStateOf(false) }
 
-    val total = accounts.filter { !it.hidden }.sumOf { it.balance }
+    val visibleAccounts = accounts.filter { !it.hidden }
+    val total = visibleAccounts.sumOf { it.balance }
     val income = transactions.filter { it.income }.sumOf { it.amount }
     val expense = transactions.filter { !it.income }.sumOf { it.amount }
+
+    fun addTransaction(transaction: Transaction) {
+        transactions = transactions + transaction
+        store.saveTransactions(transactions)
+
+        if (transaction.accountName.isNotBlank()) {
+            val delta = if (transaction.income) transaction.amount else -transaction.amount
+            accounts = accounts.map { account ->
+                if (account.name == transaction.accountName) {
+                    account.copy(balance = account.balance + delta)
+                } else account
+            }
+            store.saveAccounts(accounts)
+        }
+    }
+
+    fun deleteTransaction(transaction: Transaction) {
+        transactions = transactions.filterNot { it === transaction }
+        store.saveTransactions(transactions)
+
+        if (transaction.accountName.isNotBlank()) {
+            val delta = if (transaction.income) -transaction.amount else transaction.amount
+            accounts = accounts.map { account ->
+                if (account.name == transaction.accountName) {
+                    account.copy(balance = account.balance + delta)
+                } else account
+            }
+            store.saveAccounts(accounts)
+        }
+    }
 
     Scaffold(
         bottomBar = {
             NavigationBar {
                 val tabs = listOf("Главная", "Операции", "Счета", "Аналитика", "Ещё")
+                val icons = listOf("⌂", "↕", "▣", "◔", "⋯")
                 tabs.forEachIndexed { index, title ->
                     NavigationBarItem(
                         selected = selected == index,
                         onClick = { selected = index },
-                        icon = { Text(listOf("⌂", "↕", "▣", "◔", "⋯")[index]) },
+                        icon = { Text(icons[index]) },
                         label = { Text(title) }
                     )
                 }
             }
         }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
-            Text("VIP Finance", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp)
+        ) {
+            Text(
+                "VIP Finance",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold
+            )
             Spacer(Modifier.height(12.dp))
 
             when (selected) {
                 0 -> HomeScreen(total, income, expense, accounts)
-                1 -> TransactionsScreen(transactions, onAdd = { showTransactionDialog = true })
+                1 -> TransactionsScreen(
+                    transactions = transactions,
+                    onAdd = { showTransactionDialog = true },
+                    onDelete = ::deleteTransaction
+                )
                 2 -> AccountsScreen(
-                    accounts,
+                    accounts = accounts,
                     onAdd = { showAccountDialog = true },
                     onToggle = { index ->
-                        accounts = accounts.mapIndexed { i, a -> if (i == index) a.copy(hidden = !a.hidden) else a }
+                        accounts = accounts.mapIndexed { i, account ->
+                            if (i == index) account.copy(hidden = !account.hidden) else account
+                        }
                         store.saveAccounts(accounts)
                     }
                 )
-                3 -> AnalyticsScreen(income, expense)
+                3 -> AnalyticsScreen(income, expense, transactions)
                 else -> MoreScreen()
             }
         }
@@ -163,10 +161,10 @@ fun FinanceApp(store: FinanceStore) {
 
     if (showTransactionDialog) {
         AddTransactionDialog(
+            accounts = accounts,
             onDismiss = { showTransactionDialog = false },
-            onSave = { title, amount, isIncome ->
-                transactions = transactions + Transaction(title, amount, isIncome)
-                store.saveTransactions(transactions)
+            onSave = { transaction ->
+                addTransaction(transaction)
                 showTransactionDialog = false
             }
         )
@@ -178,20 +176,32 @@ fun HomeScreen(total: Double, income: Double, expense: Double, accounts: List<Ac
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp)) {
             Text("Общий баланс", style = MaterialTheme.typography.titleMedium)
-            Text("£%.2f".format(total), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+            Text(
+                "£%.2f".format(total),
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold
+            )
             Spacer(Modifier.height(16.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
                 Text("Доходы\n£%.2f".format(income))
                 Text("Расходы\n£%.2f".format(expense))
             }
         }
     }
+
     Spacer(Modifier.height(16.dp))
     Text("Счета", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
     Spacer(Modifier.height(8.dp))
+
     accounts.filter { !it.hidden }.take(4).forEach {
         Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-            Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(
+                Modifier.fillMaxWidth().padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
                 Text(it.name)
                 Text("£%.2f".format(it.balance), fontWeight = FontWeight.Bold)
             }
@@ -200,23 +210,48 @@ fun HomeScreen(total: Double, income: Double, expense: Double, accounts: List<Ac
 }
 
 @Composable
-fun AccountsScreen(accounts: List<Account>, onAdd: () -> Unit, onToggle: (Int) -> Unit) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Text("Счета и карты", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+fun AccountsScreen(
+    accounts: List<Account>,
+    onAdd: () -> Unit,
+    onToggle: (Int) -> Unit
+) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            "Счета и карты",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
         Button(onClick = onAdd) { Text("+ Счёт") }
     }
+
     Spacer(Modifier.height(8.dp))
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(accounts.indices.toList()) { index ->
-            val a = accounts[index]
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(14.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column {
-                            Text(a.name, fontWeight = FontWeight.Bold)
-                            Text("£%.2f".format(a.balance))
+
+    if (accounts.isEmpty()) {
+        Text("Добавь первый счёт или карту.")
+    } else {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(accounts.indices.toList()) { index ->
+                val account = accounts[index]
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(14.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(account.name, fontWeight = FontWeight.Bold)
+                                Text("£%.2f".format(account.balance))
+                            }
+                            FilterChip(
+                                selected = account.hidden,
+                                onClick = { onToggle(index) },
+                                label = { Text(if (account.hidden) "Скрыт" else "Виден") }
+                            )
                         }
-                        FilterChip(selected = a.hidden, onClick = { onToggle(index) }, label = { Text(if (a.hidden) "Скрыт" else "Виден") })
                     }
                 }
             }
@@ -225,24 +260,61 @@ fun AccountsScreen(accounts: List<Account>, onAdd: () -> Unit, onToggle: (Int) -
 }
 
 @Composable
-fun TransactionsScreen(items: List<Transaction>, onAdd: () -> Unit) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Text("Операции", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+fun TransactionsScreen(
+    transactions: List<Transaction>,
+    onAdd: () -> Unit,
+    onDelete: (Transaction) -> Unit
+) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            "Операции",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
         Button(onClick = onAdd) { Text("+ Операция") }
     }
+
     Spacer(Modifier.height(8.dp))
-    if (items.isEmpty()) {
+
+    if (transactions.isEmpty()) {
         Text("Операций пока нет.")
     } else {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(items.asReversed()) { t ->
+            items(transactions.asReversed()) { transaction ->
                 Card(Modifier.fillMaxWidth()) {
-                    Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(t.title)
-                        Text(
-                            (if (t.income) "+" else "−") + " £%.2f".format(t.amount),
-                            fontWeight = FontWeight.Bold
-                        )
+                    Column(Modifier.padding(14.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(transaction.title, fontWeight = FontWeight.Bold)
+                                Text(
+                                    transaction.category +
+                                        if (transaction.accountName.isNotBlank()) {
+                                            " • " + transaction.accountName
+                                        } else ""
+                                )
+                                Text(
+                                    SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
+                                        .format(Date(transaction.timestamp))
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    (if (transaction.income) "+" else "−") +
+                                        " £%.2f".format(transaction.amount),
+                                    fontWeight = FontWeight.Bold
+                                )
+                                TextButton(onClick = { onDelete(transaction) }) {
+                                    Text("Удалить")
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -251,9 +323,18 @@ fun TransactionsScreen(items: List<Transaction>, onAdd: () -> Unit) {
 }
 
 @Composable
-fun AnalyticsScreen(income: Double, expense: Double) {
-    Text("Аналитика", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+fun AnalyticsScreen(
+    income: Double,
+    expense: Double,
+    transactions: List<Transaction>
+) {
+    Text(
+        "Аналитика",
+        style = MaterialTheme.typography.headlineSmall,
+        fontWeight = FontWeight.Bold
+    )
     Spacer(Modifier.height(12.dp))
+
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp)) {
             Text("Доходы", fontWeight = FontWeight.Bold)
@@ -266,13 +347,47 @@ fun AnalyticsScreen(income: Double, expense: Double) {
             Text("£%.2f".format(income - expense), style = MaterialTheme.typography.titleLarge)
         }
     }
+
+    Spacer(Modifier.height(12.dp))
+    Text("По категориям", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+
+    val categories = transactions
+        .filter { !it.income }
+        .groupBy { it.category }
+        .mapValues { (_, list) -> list.sumOf { it.amount } }
+
+    if (categories.isEmpty()) {
+        Text("Пока нет расходов по категориям.")
+    } else {
+        categories.entries.sortedByDescending { it.value }.forEach { entry ->
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(entry.key)
+                Text("£%.2f".format(entry.value), fontWeight = FontWeight.Bold)
+            }
+        }
+    }
 }
 
 @Composable
 fun MoreScreen() {
-    Text("Ещё", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+    Text(
+        "Ещё",
+        style = MaterialTheme.typography.headlineSmall,
+        fontWeight = FontWeight.Bold
+    )
     Spacer(Modifier.height(12.dp))
-    listOf("Долги", "Накопления и цели", "Чеки и OCR", "Напоминания", "Настройки", "Темы оформления").forEach {
+
+    listOf(
+        "Долги",
+        "Накопления и цели",
+        "Чеки и OCR",
+        "Напоминания",
+        "Настройки",
+        "Темы оформления"
+    ).forEach {
         Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
             Text(it, Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium)
         }
@@ -280,54 +395,150 @@ fun MoreScreen() {
 }
 
 @Composable
-fun AddAccountDialog(onDismiss: () -> Unit, onSave: (String, Double) -> Unit) {
+fun AddAccountDialog(
+    onDismiss: () -> Unit,
+    onSave: (String, Double) -> Unit
+) {
     var name by remember { mutableStateOf("") }
     var balance by remember { mutableStateOf("") }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Новый счёт") },
         text = {
             Column {
-                OutlinedTextField(name, { name = it }, label = { Text("Название") }, singleLine = true)
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Название") },
+                    singleLine = true
+                )
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(balance, { balance = it }, label = { Text("Баланс") }, singleLine = true)
+                OutlinedTextField(
+                    value = balance,
+                    onValueChange = { balance = it },
+                    label = { Text("Начальный баланс") },
+                    singleLine = true
+                )
             }
         },
         confirmButton = {
-            Button(onClick = { onSave(name.trim(), balance.replace(',', '.').toDoubleOrNull() ?: 0.0) }, enabled = name.isNotBlank()) {
+            Button(
+                onClick = {
+                    onSave(
+                        name.trim(),
+                        balance.replace(',', '.').toDoubleOrNull() ?: 0.0
+                    )
+                },
+                enabled = name.isNotBlank()
+            ) {
                 Text("Сохранить")
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } }
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Отмена") }
+        }
     )
 }
 
 @Composable
-fun AddTransactionDialog(onDismiss: () -> Unit, onSave: (String, Double, Boolean) -> Unit) {
+fun AddTransactionDialog(
+    accounts: List<Account>,
+    onDismiss: () -> Unit,
+    onSave: (Transaction) -> Unit
+) {
     var title by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     var income by remember { mutableStateOf(false) }
+    var category by remember { mutableStateOf("") }
+    var accountName by remember { mutableStateOf(accounts.firstOrNull()?.name ?: "") }
+
+    val parsedAmount = amount.replace(',', '.').toDoubleOrNull()
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Новая операция") },
         text = {
             Column {
-                OutlinedTextField(title, { title = it }, label = { Text("Описание") }, singleLine = true)
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Описание") },
+                    singleLine = true
+                )
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(amount, { amount = it }, label = { Text("Сумма") }, singleLine = true)
+
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    label = { Text("Сумма") },
+                    singleLine = true
+                )
                 Spacer(Modifier.height(8.dp))
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    FilterChip(selected = income, onClick = { income = true }, label = { Text("Доход") })
+                    FilterChip(
+                        selected = income,
+                        onClick = { income = true },
+                        label = { Text("Доход") }
+                    )
                     Spacer(Modifier.padding(4.dp))
-                    FilterChip(selected = !income, onClick = { income = false }, label = { Text("Расход") })
+                    FilterChip(
+                        selected = !income,
+                        onClick = { income = false },
+                        label = { Text("Расход") }
+                    )
+                }
+
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = category,
+                    onValueChange = { category = it },
+                    label = { Text("Категория") },
+                    singleLine = true
+                )
+
+                Spacer(Modifier.height(8.dp))
+                if (accounts.isEmpty()) {
+                    Text("Сначала добавь счёт.")
+                } else {
+                    Text("Счёт", fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        accounts.take(3).forEach { account ->
+                            FilterChip(
+                                selected = accountName == account.name,
+                                onClick = { accountName = account.name },
+                                label = { Text(account.name) }
+                            )
+                        }
+                    }
                 }
             }
         },
         confirmButton = {
-            Button(onClick = { onSave(title.trim(), amount.replace(',', '.').toDoubleOrNull() ?: 0.0, income) }, enabled = title.isNotBlank() && amount.replace(',', '.').toDoubleOrNull() != null) {
+            Button(
+                onClick = {
+                    onSave(
+                        Transaction(
+                            title = title.trim(),
+                            amount = parsedAmount ?: 0.0,
+                            income = income,
+                            accountName = accountName,
+                            category = category.trim().ifBlank { "Без категории" }
+                        )
+                    )
+                },
+                enabled = title.isNotBlank() &&
+                    parsedAmount != null &&
+                    parsedAmount > 0.0 &&
+                    (accounts.isEmpty() || accountName.isNotBlank())
+            ) {
                 Text("Сохранить")
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } }
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Отмена") }
+        }
     )
 }
