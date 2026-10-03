@@ -69,6 +69,33 @@ private fun uiColor(hex:String)=runCatching{Color(android.graphics.Color.parseCo
 private fun sym(c:String)=when(c){"GBP"->"£";"USD"->"$";"EUR"->"€";"RUB"->"₽";"CNY"->"¥";"JPY"->"¥";"CHF"->"Fr";"CAD"->"C$";"AUD"->"A$";"PLN"->"zł";else->c}
 private fun money(v:Double,c:String)=sym(c)+"%.2f".format(Locale.getDefault(),v)
 private fun conv(v:Double,from:String,to:String,auto:Boolean,r:Map<String,Double>)=if(auto)ExchangeRates.convert(v,from,to,r) else v
+@Composable
+private fun PremiumDialog(
+    onDismissRequest: () -> Unit,
+    title: @Composable () -> Unit,
+    text: @Composable () -> Unit,
+    confirmButton: @Composable () -> Unit,
+    dismissButton: @Composable () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        shape = RoundedCornerShape(30.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 14.dp,
+        shadowElevation = 22.dp,
+        title = {
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+                    .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.secondaryContainer)))
+                    .padding(horizontal = 18.dp, vertical = 14.dp)
+            ) { title() }
+        },
+        text = { Box(Modifier.fillMaxWidth()) { text() } },
+        confirmButton = confirmButton,
+        dismissButton = dismissButton
+    )
+}
+
 
 class MainActivity:ComponentActivity(){
  override fun onCreate(b:Bundle?){super.onCreate(b);enableEdgeToEdge();val s=FinanceStore(this);setContent{VIPFinanceTheme(s.loadTheme(),s.loadStyle()){FinanceApp(s)}}}
