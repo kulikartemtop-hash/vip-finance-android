@@ -119,10 +119,10 @@ Validation:
 - [ ] Test dark/light themes.
 - [ ] Test zero transactions.
 - [ ] Test mixed currencies with existing conversion.
-- [ ] Test chart-to-operation navigation.
+- [ ] Test chart-to-operation navigation (requires navigation callback refactor).
 
 ## 5. Budgets
-Status: [ ] TODO
+Status: [~] IN PROGRESS
 Implement:
 - [ ] Monthly budget.
 - [ ] Weekly budget.
@@ -268,4 +268,4 @@ If a new chat starts, the first instruction can be:
 “Open DEVELOPMENT_ROADMAP.md in kulikartemtop-hash/vip-finance-android and continue from the first [~] IN PROGRESS stage. Do not redo completed [x] stages unless regression is found.”
 
 # Current next action
-Implement Stage 4 Analytics as an isolated change, build APK, validate charts/empty states/theme compatibility, then update this file and begin Stage 5 Budgets.
+Implement Stage 5 Budgets, build APK, validate budget progress/warnings/persistence, then update this file and begin Stage 6 Accounts & Cards.
