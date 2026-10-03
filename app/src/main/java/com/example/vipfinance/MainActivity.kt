@@ -303,11 +303,11 @@ fun ConverterScreen(mainCurrency: String, rates: Map<String, Double>, loading: B
     OutlinedTextField(amount, { amount = it }, label = { Text("Сумма") }, singleLine = true, modifier = Modifier.fillMaxWidth())
     Spacer(Modifier.height(10.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        supportedCurrencies.take(5).forEach { code -> FilterChip(from == code, { from = code }, label = { Text(code) }) }
+        supportedCurrencies.forEach { code -> FilterChip(from == code, { from = code }, label = { Text(code) }) }
     }
     Spacer(Modifier.height(8.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        supportedCurrencies.take(5).forEach { code -> FilterChip(to == code, { to = code }, label = { Text(code) }) }
+        supportedCurrencies.forEach { code -> FilterChip(to == code, { to = code }, label = { Text(code) }) }
     }
     Spacer(Modifier.height(14.dp))
     if (loading) Text("Обновляю курсы…")
@@ -327,7 +327,7 @@ fun MoreScreen(currency: String, auto: Boolean, ratesDate: Long, onSettings: (St
             Text("Сейчас: $currency")
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                supportedCurrencies.take(6).forEach { code -> FilterChip(currency == code, { onSettings(code, auto) }, label = { Text(code) }) }
+                supportedCurrencies.forEach { code -> FilterChip(currency == code, { onSettings(code, auto) }, label = { Text(code) }) }
             }
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
@@ -365,7 +365,7 @@ fun AddAccountDialog(onDismiss: () -> Unit, onSave: (String, Double, String, Str
             Spacer(Modifier.height(8.dp))
             Text("Валюта счёта", fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                supportedCurrencies.take(5).forEach { code -> FilterChip(accountCurrency == code, { accountCurrency = code }, label = { Text(code) }) }
+                supportedCurrencies.forEach { code -> FilterChip(accountCurrency == code, { accountCurrency = code }, label = { Text(code) }) }
             }
         }
     }, confirmButton = {
