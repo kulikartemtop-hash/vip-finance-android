@@ -26,13 +26,13 @@ class FinanceStore(context: Context) {
     fun loadTransactions(): List<Transaction> = runCatching {
         val a=JSONArray(prefs.getString("transactions","[]"))
         buildList {
-            for(i in 0 until a.length()) { val o=a.getJSONObject(i); add(Transaction(o.optLong("id"),o.optString("title"),o.optDouble("amount"),o.optBoolean("income"),o.optString("accountName"),o.optString("category","Без категории"),o.optLong("timestamp",System.currentTimeMillis()),o.optString("currency","RUB"))) }
+            for(i in 0 until a.length()) { val o=a.getJSONObject(i); add(Transaction(o.optLong("id"),o.optString("title"),o.optDouble("amount"),o.optBoolean("income"),o.optString("accountName"),o.optString("category","Без категории"),o.optLong("timestamp",System.currentTimeMillis()),o.optString("currency","RUB"),o.optString("operationType",if(o.optBoolean("income"))"income" else "expense"),o.optString("toAccountName",""),o.optString("note",""),o.optString("repeat","Не повторять"))) }
         }
     }.getOrDefault(emptyList())
 
     fun saveTransactions(items: List<Transaction>) {
         val a=JSONArray()
-        items.forEach { x -> a.put(JSONObject().apply { put("id",x.id);put("title",x.title);put("amount",x.amount);put("income",x.income);put("accountName",x.accountName);put("category",x.category);put("timestamp",x.timestamp);put("currency",x.currency) }) }
+        items.forEach { x -> a.put(JSONObject().apply { put("id",x.id);put("title",x.title);put("amount",x.amount);put("income",x.income);put("accountName",x.accountName);put("category",x.category);put("timestamp",x.timestamp);put("currency",x.currency);put("operationType",x.operationType);put("toAccountName",x.toAccountName);put("note",x.note);put("repeat",x.repeat) }) }
         prefs.edit().putString("transactions",a.toString()).apply()
     }
 
@@ -86,3 +86,13 @@ class FinanceStore(context: Context) {
     fun loadRates(): Map<String, Double> =runCatching{val j=JSONObject(prefs.getString("rates","{}"));buildMap{j.keys().forEach{k->put(k,j.optDouble(k))}}}.getOrDefault(emptyMap())
     fun loadRatesTime():Long=prefs.getLong("rates_time",0L)
 }
+
+
+    fun loadBudgets(): List<Budget> = runCatching {
+        val a=JSONArray(prefs.getString("budgets","[]"))
+        buildList { for(i in 0 until a.length()){val o=a.getJSONObject(i);add(Budget(o.optLong("id"),o.optString("name"),o.optString("category"),o.optString("accountName"),o.optDouble("limit"),o.optString("currency","RUB"),o.optString("period","Месяц"))) } }
+    }.getOrDefault(emptyList())
+
+    fun saveBudgets(items: List<Budget>) {
+        val a=JSONArray();items.forEach{x->a.put(JSONObject().apply{put("id",x.id);put("name",x.name);put("category",x.category);put("accountName",x.accountName);put("limit",x.limit);put("currency",x.currency);put("period",x.period)})};prefs.edit().putString("budgets",a.toString()).apply()
+    }
