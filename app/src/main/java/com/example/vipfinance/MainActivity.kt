@@ -396,6 +396,13 @@ private fun Operations(
     repeat: (Transaction) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Card(shape = RoundedCornerShape(22.dp), elevation = CardDefaults.cardElevation(4.dp)) {
+            Row(Modifier.fillMaxWidth().padding(15.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MetricCard("Доходы", money(ts.filter { it.income && it.operationType != "transfer" }.sumOf { conv(it.amount, it.currency, c, auto, r) }, c), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+                MetricCard("Расходы", money(ts.filter { !it.income && it.operationType != "transfer" }.sumOf { conv(it.amount, it.currency, c, auto, r) }, c), MaterialTheme.colorScheme.error, Modifier.weight(1f))
+                MetricCard("Операций", ts.size.toString(), MaterialTheme.colorScheme.secondary, Modifier.weight(1f))
+            }
+        }
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Column { Text("Операции", style=MaterialTheme.typography.headlineMedium, fontWeight=FontWeight.Bold); Text("${ts.size} операций", style=MaterialTheme.typography.bodySmall) }
             FilledTonalButton(onClick=add){Text("+ Добавить")}
