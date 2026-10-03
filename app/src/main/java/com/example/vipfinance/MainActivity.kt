@@ -602,13 +602,73 @@ private fun parseDateEnd(s: String): Long? = runCatching { SimpleDateFormat("dd.
 }
 
 @Composable
-private fun Budgets(budgets:List<Budget>,transactions:List<Transaction>,c:String,auto:Boolean,rates:Map<String,Double>,accounts:List<Account>,add:()->Unit,remove:(Budget)->Unit){
- val cal=Calendar.getInstance();val month=(cal.clone() as Calendar).apply{set(Calendar.DAY_OF_MONTH,1);set(Calendar.HOUR_OF_DAY,0);set(Calendar.MINUTE,0);set(Calendar.SECOND,0);set(Calendar.MILLISECOND,0)}.timeInMillis;val week=(cal.clone() as Calendar).apply{add(Calendar.DAY_OF_MONTH,-6);set(Calendar.HOUR_OF_DAY,0);set(Calendar.MINUTE,0);set(Calendar.SECOND,0);set(Calendar.MILLISECOND,0)}.timeInMillis
- Column(verticalArrangement=Arrangement.spacedBy(10.dp)){Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically){Column{Text("Бюджеты",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold);Text("Лимиты по расходам",style=MaterialTheme.typography.bodySmall)};FilledTonalButton(onClick=add){Text("+ Бюджет")}}
-  LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){items(budgets,key={it.id}){x->val start=if(x.period=="Неделя")week else month;val spent=transactions.filter{!it.income&&it.operationType!="transfer"&&it.timestamp>=start&&(x.category.isBlank()||it.category==x.category)&&(x.accountName.isBlank()||it.accountName==x.accountName)}.sumOf{conv(it.amount,it.currency,x.currency,auto,rates)};val p=if(x.limit>0)(spent/x.limit).coerceIn(0.0,1.0).toFloat()else 0f
-   ElevatedCard(Modifier.fillMaxWidth(),elevation=CardDefaults.elevatedCardElevation(5.dp)){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){Row(verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(x.name,fontWeight=FontWeight.Bold);Text(listOf(x.period,x.category.ifBlank{"Все категории"},x.accountName.ifBlank{"Все счета"}).joinToString(" • "),style=MaterialTheme.typography.bodySmall)};TextButton(onClick={remove(x)}){Text("Удалить")}};LinearProgressIndicator(progress={p},Modifier.fillMaxWidth());Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text(money(spent,x.currency));Text(money(x.limit,x.currency),fontWeight=FontWeight.Bold)};Text(if(spent>=x.limit)"Лимит превышен"else if(spent>=x.limit*.9)"Осталось меньше 10%"else if(spent>=x.limit*.75)"Использовано больше 75%"else"В норме",color=if(spent>=x.limit)MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,fontWeight=FontWeight.SemiBold)}}}
-  }
- }
+private fun Budgets(budgets: List<Budget>, transactions: List<Transaction>, c: String, auto: Boolean, rates: Map<String, Double>, accounts: List<Account>, add: () -> Unit, remove: (Budget) -> Unit) {
+    val cal = Calendar.getInstance()
+    val month = (cal.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, 1); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
+    val week = (cal.clone() as Calendar).apply { add(Calendar.DAY_OF_MONTH, -6); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
+    val current = budgets.map { budget ->
+        val start = if (budget.period == "Неделя") week else month
+        val spent = transactions.filter { !it.income && it.operationType != "transfer" && it.timestamp >= start && (budget.category.isBlank() || it.category == budget.category) && (budget.accountName.isBlank() || it.accountName == budget.accountName) }.sumOf { conv(it.amount, it.currency, budget.currency, auto, rates) }
+        budget to spent
+    }
+    val totalLimit = current.sumOf { it.first.limit }
+    val totalSpent = current.sumOf { it.second }
+    val totalRemaining = (totalLimit - totalSpent).coerceAtLeast(0.0)
+    val totalPercent = if (totalLimit > 0) totalSpent / totalLimit * 100 else 0.0
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+            Column { Text("Бюджеты", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold); Text("Контроль лимитов и расходов", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            FilledTonalButton(onClick = add) { Text("+ Бюджет") }
+        }
+        if (budgets.isNotEmpty()) {
+            Card(shape = RoundedCornerShape(24.dp), elevation = CardDefaults.cardElevation(4.dp)) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Text("Сводка", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MetricCard("Лимит", money(totalLimit, c), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+                        MetricCard("Потрачено", money(totalSpent, c), MaterialTheme.colorScheme.error, Modifier.weight(1f))
+                    }
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) { Text("Осталось", fontWeight = FontWeight.SemiBold); Text(money(totalRemaining, c), fontWeight = FontWeight.Bold, color = if (totalRemaining > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
+                    LinearProgressIndicator(progress = { (totalPercent / 100.0).toFloat().coerceIn(0f, 1f) }, Modifier.fillMaxWidth().height(8.dp))
+                    Text(totalPercent.toInt().toString() + "% использовано", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
+        if (budgets.isEmpty()) {
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
+                Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Бюджетов пока нет", fontWeight = FontWeight.SemiBold)
+                    Text("Создайте первый лимит, чтобы видеть остаток и предупреждения.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(current, key = { it.first.id }) { pair ->
+                val x = pair.first
+                val spent = pair.second
+                val ratio = if (x.limit > 0) spent / x.limit else 0.0
+                val progress = ratio.coerceIn(0.0, 1.0).toFloat()
+                val remaining = (x.limit - spent).coerceAtLeast(0.0)
+                val status = when { spent >= x.limit -> "Лимит превышен"; spent >= x.limit * .9 -> "Осталось меньше 10%"; spent >= x.limit * .75 -> "Использовано больше 75%"; else -> "В норме" }
+                val statusColor = if (spent >= x.limit) MaterialTheme.colorScheme.error else if (spent >= x.limit * .75) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary
+                ElevatedCard(Modifier.fillMaxWidth(), elevation = CardDefaults.elevatedCardElevation(5.dp)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) { Text(x.name, fontWeight = FontWeight.Bold); Text(listOf(x.period, x.category.ifBlank { "Все категории" }, x.accountName.ifBlank { "Все счета" }).joinToString(" • "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            TextButton(onClick = { remove(x) }) { Text("Удалить") }
+                        }
+                        LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth().height(8.dp), color = statusColor)
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                            Column { Text("Потрачено", style = MaterialTheme.typography.labelSmall); Text(money(spent, x.currency), fontWeight = FontWeight.Bold) }
+                            Column(horizontalAlignment = Alignment.End) { Text("Осталось", style = MaterialTheme.typography.labelSmall); Text(money(remaining, x.currency), fontWeight = FontWeight.Bold) }
+                        }
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) { Text((ratio * 100).toInt().toString() + "% использовано", style = MaterialTheme.typography.labelMedium, color = statusColor); Text("из " + money(x.limit, x.currency), style = MaterialTheme.typography.labelMedium) }
+                        Text(status, color = statusColor, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+    }
 }
 @Composable
 private fun BudgetDialog(accounts:List<Account>,categories:List<Category>,c:String,close:()->Unit,save:(Budget)->Unit){
