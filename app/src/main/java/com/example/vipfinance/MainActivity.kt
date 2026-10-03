@@ -1150,7 +1150,7 @@ private fun SettingsDialog(
                         Spacer(Modifier.height(4.dp))
                         Text("Стиль", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                            listOf("midnight" to "Midnight", "platinum" to "Platinum", "emerald" to "Emerald").forEach { (v, label) ->
+                            listOf("midnight" to "Midnight", "platinum" to "Platinum", "emerald" to "Emerald", "royal" to "Royal", "rose" to "Rose").forEach { (v, label) ->
                                 FilterChip(
                                     selected = style == v,
                                     onClick = { save(c, auto, theme, v, menu) },
@@ -1283,58 +1283,73 @@ private fun SettingsToggleRow(
 }
 
 @Composable
-private fun AccountDialog(
-    close: () -> Unit,
-    save: (String, Double, String, String, String, String) -> Unit
-) {
-    var n by remember { mutableStateOf("") }
-    var b by remember { mutableStateOf("") }
-    var t by remember { mutableStateOf("Счёт") }
-    var c by remember { mutableStateOf("RUB") }
-    var icon by remember { mutableStateOf(if (t == "Карта") "credit_card" else "account_balance") }
-    var iconColor by remember { mutableStateOf(colorChoices.first()) }
+private fun AccountDialog(close: () -> Unit, save: (String, Double, String, String, String, String) -> Unit) {
+    var n by remember { mutableStateOf("") }; var b by remember { mutableStateOf("") }
+    var t by remember { mutableStateOf("Счёт") }; var c by remember { mutableStateOf("RUB") }
+    var icon by remember { mutableStateOf("account_balance") }; var iconColor by remember { mutableStateOf(colorChoices.first()) }
     val balance = b.replace(',', '.').toDoubleOrNull()
-    AlertDialog(
-        onDismissRequest = close,
-        title = { Text(if (t == "Карта") "Новая карта" else "Новый счёт") },
-        text = {
-            Column(
-                Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedTextField(n, { n = it }, label = { Text("Название") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                OutlinedTextField(b, { b = it }, label = { Text("Начальный баланс $c") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                Text("Тип", fontWeight = FontWeight.Bold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(t == "Счёт", { t = "Счёт"; if (icon == "credit_card") icon = "account_balance" }, label = { Text("Счёт") })
-                    FilterChip(t == "Карта", { t = "Карта"; if (icon == "account_balance") icon = "credit_card" }, label = { Text("Карта") })
-                }
-                Text("Валюта", fontWeight = FontWeight.Bold)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) { items(currencies) { x -> FilterChip(c == x, { c = x }, label = { Text(x) }) } }
-                Text("Значок", fontWeight = FontWeight.Bold)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(iconChoices) { x ->
-                        FilterChip(icon == x, { icon = x }, label = { Text(iconText(x)) })
+    val title = if (t == "Карта") "Новая карта" else "Новый счёт"
+    Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxWidth(0.94f).heightIn(max = 760.dp), shape = RoundedCornerShape(30.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 14.dp) {
+            LazyColumn(contentPadding = PaddingValues(bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                item {
+                    Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)), RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)).padding(22.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(15.dp)) {
+                            Box(Modifier.size(58.dp).clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) { Text(iconText(icon), color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
+                            Column(Modifier.weight(1f)) { Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text("Настройте внешний вид и валюту счёта", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.78f)) }
+                        }
                     }
                 }
-                Text("Цвет значка", fontWeight = FontWeight.Bold)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(colorChoices) { x ->
-                        FilterChip(iconColor == x, { iconColor = x }, label = {
-                            Box(Modifier.size(18.dp).clip(RoundedCornerShape(6.dp)).background(uiColor(x)))
-                        })
+                item { DialogGroup("Основная информация") {
+                    DialogField("Название", "Например: Основная карта", n, { n = it })
+                    DialogField("Начальный баланс " + c, "Можно оставить 0", b, { b = it })
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        FilterChip(t == "Счёт", { t = "Счёт"; if (icon == "credit_card") icon = "account_balance" }, label = { Text("Счёт") }, modifier = Modifier.weight(1f))
+                        FilterChip(t == "Карта", { t = "Карта"; if (icon == "account_balance") icon = "credit_card" }, label = { Text("Карта") }, modifier = Modifier.weight(1f))
                     }
+                } }
+                item { DialogGroup("Валюта") { LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { items(currencies) { x -> FilterChip(c == x, { c = x }, label = { Text(x, fontWeight = FontWeight.SemiBold) }) } } } }
+                item { DialogGroup("Иконка") { Text("Выберите характер счёта", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant); IconChoiceGrid(icon) { icon = it } } }
+                item { DialogGroup("Цвет акцента") {
+                    ColorChoiceRow(iconColor) { iconColor = it }
+                    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), color = uiColor(iconColor).copy(alpha = 0.12f)) {
+                        Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(uiColor(iconColor)), contentAlignment = Alignment.Center) { Text(iconText(icon), color = Color.White, fontWeight = FontWeight.Bold) }
+                            Column { Text(if (n.isBlank()) title else n, fontWeight = FontWeight.Bold); Text(c + " • " + if (t == "Карта") "Карта" else "Счёт", style = MaterialTheme.typography.bodySmall) }
+                        }
+                    }
+                } }
+                item { Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    TextButton(close, Modifier.weight(1f), shape = RoundedCornerShape(16.dp)) { Text("Отмена", fontWeight = FontWeight.Bold) }
+                    Button({ save(n.trim(), balance ?: 0.0, t, c, icon, iconColor) }, enabled = n.isNotBlank() && balance != null, modifier = Modifier.weight(1.25f), shape = RoundedCornerShape(16.dp)) { Text("Создать", fontWeight = FontWeight.Bold) }
+                } }
+            }
+        }
+    }
+}
+
+@Composable
+private fun IconChoiceGrid(selected: String, onSelected: (String) -> Unit) {
+    val rows = iconChoices.chunked(5)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { rows.forEach { row ->
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            row.forEach { icon ->
+                val active = selected == icon
+                Surface(Modifier.weight(1f).height(56.dp).clickable { onSelected(icon) }, shape = RoundedCornerShape(16.dp), color = if (active) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface, border = androidx.compose.foundation.BorderStroke(1.dp, if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))) {
+                    Box(contentAlignment = Alignment.Center) { Text(iconText(icon), style = MaterialTheme.typography.titleLarge, color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface) }
                 }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = { save(n.trim(), balance ?: 0.0, t, c, icon, iconColor) },
-                enabled = n.isNotBlank() && balance != null
-            ) { Text("Сохранить") }
-        },
-        dismissButton = { TextButton(close) { Text("Отмена") } }
-    )
+            repeat(5 - row.size) { Spacer(Modifier.weight(1f)) }
+        }
+    } }
+}
+
+@Composable
+private fun ColorChoiceRow(selected: String, onSelected: (String) -> Unit) {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 3.dp)) { items(colorChoices) { color ->
+        val active = selected == color
+        Box(Modifier.size(if (active) 46.dp else 40.dp).clip(RoundedCornerShape(15.dp)).background(uiColor(color)).clickable { onSelected(color) }.then(if (active) Modifier.border(3.dp, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(15.dp)) else Modifier), contentAlignment = Alignment.Center) { if (active) Text("✓", color = Color.White, fontWeight = FontWeight.ExtraBold) }
+    } }
 }
 
 @Composable
@@ -1601,44 +1616,34 @@ private fun DialogField(
 
 @Composable
 private fun CategoryDialog(existing: Category?, close: () -> Unit, save: (Category) -> Unit) {
-    var name by remember { mutableStateOf(existing?.name ?: "") }
-    var icon by remember { mutableStateOf(existing?.icon ?: "category") }
-    var color by remember { mutableStateOf(existing?.color ?: colorChoices.first()) }
-    AlertDialog(
-        onDismissRequest = close,
-        title = { Text(if (existing == null) "Новая категория" else "Изменить категорию") },
-        text = {
-            Column(
-                Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedTextField(name, { name = it }, label = { Text("Название категории") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                Text("Значок", fontWeight = FontWeight.Bold)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    items(iconChoices) { x -> FilterChip(icon == x, { icon = x }, label = { Text(iconText(x)) }) }
-                }
-                Text("Цвет", fontWeight = FontWeight.Bold)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(colorChoices) { x ->
-                        FilterChip(color == x, { color = x }, label = {
-                            Box(Modifier.size(20.dp).clip(RoundedCornerShape(7.dp)).background(uiColor(x)))
-                        })
+    var name by remember { mutableStateOf(existing?.name ?: "") }; var icon by remember { mutableStateOf(existing?.icon ?: "category") }; var color by remember { mutableStateOf(existing?.color ?: colorChoices.first()) }
+    Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxWidth(0.94f).heightIn(max = 720.dp), shape = RoundedCornerShape(30.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 14.dp) {
+            LazyColumn(contentPadding = PaddingValues(bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                item { Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(uiColor(color).copy(alpha = 0.92f), MaterialTheme.colorScheme.primary)), RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)).padding(22.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(15.dp)) {
+                        Box(Modifier.size(58.dp).clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha = 0.17f)), contentAlignment = Alignment.Center) { Text(iconText(icon), color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
+                        Column { Text(if (existing == null) "Новая категория" else "Изменить категорию", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text("Создайте свой визуальный стиль категории", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.78f)) }
                     }
-                }
-                Card(colors = CardDefaults.cardColors(containerColor = uiColor(color).copy(alpha = 0.16f))) {
-                    Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(uiColor(color)), contentAlignment = Alignment.Center) {
-                            Text(iconText(icon), color = Color.White, fontWeight = FontWeight.Bold)
+                } }
+                item { DialogGroup("Название") { DialogField("Название категории", "Например: Кафе, Авто, Дом", name, { name = it }) } }
+                item { DialogGroup("Иконка") { IconChoiceGrid(icon) { icon = it } } }
+                item { DialogGroup("Цвет") {
+                    ColorChoiceRow(color) { color = it }
+                    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), color = uiColor(color).copy(alpha = 0.12f)) {
+                        Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(uiColor(color)), contentAlignment = Alignment.Center) { Text(iconText(icon), color = Color.White, fontWeight = FontWeight.Bold) }
+                            Text(if (name.isBlank()) "Предпросмотр категории" else name, fontWeight = FontWeight.Bold)
                         }
-                        Spacer(Modifier.width(10.dp))
-                        Text(if (name.isBlank()) "Предпросмотр" else name, fontWeight = FontWeight.SemiBold)
                     }
-                }
+                } }
+                item { Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    TextButton(close, Modifier.weight(1f), shape = RoundedCornerShape(16.dp)) { Text("Отмена", fontWeight = FontWeight.Bold) }
+                    Button({ save(Category(existing?.id ?: System.currentTimeMillis(), name.trim(), icon, color)) }, enabled = name.isNotBlank(), modifier = Modifier.weight(1.25f), shape = RoundedCornerShape(16.dp)) { Text("Сохранить", fontWeight = FontWeight.Bold) }
+                } }
             }
-        },
-        confirmButton = { Button({ save(Category(existing?.id ?: System.currentTimeMillis(), name.trim(), icon, color)) }, enabled = name.isNotBlank()) { Text("Сохранить") } },
-        dismissButton = { TextButton(close) { Text("Отмена") } }
-    )
+        }
+    }
 }
 
 @Composable
