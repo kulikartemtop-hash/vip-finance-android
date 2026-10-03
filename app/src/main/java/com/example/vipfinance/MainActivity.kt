@@ -18,6 +18,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.example.vipfinance.ui.theme.VIPFinanceTheme
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -111,7 +114,8 @@ class MainActivity:ComponentActivity(){
 }
 
 @Composable private fun Receipt(uri:Uri?,text:String,setUri:(Uri?)->Unit,pick:(Uri)->Unit){
- val launcher=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){u->if(u!=null)pick(u)}
+ val context=LocalContext.current
+ val launcher=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){u->if(u!=null){pick(u);runCatching{InputImage.fromFilePath(context,u)}.onSuccess{image->TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(image).addOnSuccessListener{ }}}}
  Text("Чеки и OCR",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button({launcher.launch("image/*")}){Text("Выбрать фото чека")};if(uri!=null)Text("Фото выбрано: "+uri.lastPathSegment);Card(Modifier.fillMaxWidth()){Text(if(text.isBlank())"Фото подготовлено для OCR." else text,Modifier.padding(12.dp))}
 }
 
