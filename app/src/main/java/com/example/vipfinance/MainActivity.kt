@@ -461,39 +461,49 @@ private fun Categories(
 }
 
 @Composable
-private fun Accounts(
-    items: List<Account>, c: String, auto: Boolean, r: Map<String, Double>,
-    add: () -> Unit, select: (String) -> Unit, toggle: (String) -> Unit
-) {
+private fun Accounts(items: List<Account>, c: String, auto: Boolean, r: Map<String, Double>, add: () -> Unit, select: (String) -> Unit, toggle: (String) -> Unit) {
+    val visible = items.filter { !it.hidden }
+    val total = visible.sumOf { conv(it.balance, it.currency, c, auto, r) }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-            Column {
-                Text("Счета и карты", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text("${items.size} подключённых", style = MaterialTheme.typography.bodySmall)
-            }
+            Column { Text("Счета и карты", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold); Text(items.size.toString() + " финансовых объектов", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             FilledTonalButton(onClick = add) { Text("+ Добавить") }
         }
+        Card(shape = RoundedCornerShape(26.dp), elevation = CardDefaults.cardElevation(5.dp)) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text("Общий баланс", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(money(total, c), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Text("Учитываются только открытые счета", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        if (items.isEmpty()) {
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
+                Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Счетов пока нет", fontWeight = FontWeight.SemiBold)
+                    Text("Добавьте банковский счёт, карту или наличные.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(items) { a ->
-                ElevatedCard(onClick = { select(a.name) }, modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(items, key = { it.name }) { account ->
+                val converted = conv(account.balance, account.currency, c, auto, r)
+                ElevatedCard(onClick = { select(account.name) }, modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.elevatedCardElevation(4.dp)) {
+                    Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.Top) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(uiColor(a.iconColor)), contentAlignment = Alignment.Center) {
-                                    Text(iconText(a.icon), color = Color.White, fontWeight = FontWeight.Bold)
-                                }
+                                Box(Modifier.size(52.dp).clip(RoundedCornerShape(17.dp)).background(uiColor(account.iconColor)), contentAlignment = Alignment.Center) { Text(iconText(account.icon), color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium) }
                                 Spacer(Modifier.width(12.dp))
-                                Column {
-                                    Text(a.name, fontWeight = FontWeight.Bold)
-                                    Text(a.type + " • " + a.currency + if (a.hidden) " • скрыт" else "", style = MaterialTheme.typography.bodySmall)
-                                }
+                                Column { Text(account.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium); Text(account.type + " • " + account.currency, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                             }
-                            Text(money(conv(a.balance, a.currency, c, auto, r), c), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(money(converted, c), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = if (converted >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                                if (account.currency != c) Text("≈ " + money(converted, c), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                            Text(if (a.hidden) "Скрыт из общего баланса" else "Учитывается в общем балансе", style = MaterialTheme.typography.bodySmall)
-                            TextButton(onClick = { toggle(a.name) }) { Text(if (a.hidden) "Показать" else "Скрыть") }
+                            Text(if (account.hidden) "Скрыт из общего баланса" else "В общем балансе", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            TextButton(onClick = { toggle(account.name) }) { Text(if (account.hidden) "Показать" else "Скрыть") }
                         }
                     }
                 }
