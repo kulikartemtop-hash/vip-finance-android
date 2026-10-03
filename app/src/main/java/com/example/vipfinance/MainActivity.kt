@@ -87,6 +87,7 @@ fun FinanceApp(s: FinanceStore) {
     var selected by remember { mutableStateOf<String?>(null) }
     var receiptUri by remember { mutableStateOf<Uri?>(null) }
     var receiptText by remember { mutableStateOf("") }
+    var receiptDraft by remember { mutableStateOf<Transaction?>(null) }
     var drawerOpen by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(if (drawerOpen) DrawerValue.Open else DrawerValue.Closed)
 
@@ -267,7 +268,7 @@ fun FinanceApp(s: FinanceStore) {
                         "Долги" -> Debts(debts, { dialog = "debt" }) { d -> debts = debts.filterNot { it.id == d.id }; s.saveDebts(debts) }
                         "Цели" -> Goals(goals, { dialog = "goal" }, { g -> editingGoal = g; dialog = "goalProgress" }) { g -> goals = goals.filterNot { it.id == g.id }; s.saveGoals(goals) }
                         "Напоминания" -> Reminders(reminders, { dialog = "reminder" }, { r -> reminders = reminders.map { if (it.id == r.id) it.copy(done = !it.done) else it }; s.saveReminders(reminders) }, { r -> reminders = reminders.filterNot { it.id == r.id }; s.saveReminders(reminders) })
-                        "Чеки" -> Receipt(receiptUri, receiptText, { u -> receiptUri = u; receiptText = "" }, { t -> receiptText = t }) { u -> receiptUri = u }
+                        "Чеки" -> Receipt(receiptUri, receiptText, { u -> receiptUri = u; receiptText = "" }, { t -> receiptText = t }, accounts.firstOrNull(), categories) { draft -> receiptDraft = draft; dialog = "receiptExpense" }
                     }
                 }
             }
@@ -290,7 +291,8 @@ fun FinanceApp(s: FinanceStore) {
             "goalProgress" -> GoalProgressDialog(editingGoal, { dialog = ""; editingGoal = null }) { updated -> goals = goals.map { if (it.id == updated.id) updated else it }; s.saveGoals(goals); dialog = ""; editingGoal = null }
             "reminder" -> ReminderDialog({ dialog = "" }) { reminders = reminders + it; s.saveReminders(reminders); dialog = "" }
             "budget" -> BudgetDialog(accounts, categories, currency, { dialog = "" }) { budgets = budgets + it; s.saveBudgets(budgets); dialog = "" }
-            "settings" -> SettingsDialog(currency, auto, theme, style, menu, rateTime, { c: String, a: Boolean, t: String, st: String, m: Set<String> -> saveSettings(c, a, t, st, m) }) { dialog = "" }
+            "receiptExpense" -> TransactionDialog(accounts, categories, false, receiptDraft, { dialog = ""; receiptDraft = null }) { add(it); dialog = ""; receiptDraft = null }
+            "settings" -> SettingsDialog(currency, auto, theme, style, menu, rateTime, { c: String, a: Boolean, t: String, st: String, m: Set<String> -> saveSettings(c, a, t, st, m) }, { s.exportBackupJson() }) { dialog = "" }
         }
     }
 }
@@ -592,10 +594,58 @@ private fun BudgetDialog(accounts:List<Account>,categories:List<Category>,c:Stri
  Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text("Напоминания",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}};items.forEach{r->Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){Row(Modifier.padding(12.dp).fillMaxWidth(),Arrangement.SpaceBetween){Column(Modifier.weight(1f)){Text(r.title,fontWeight=FontWeight.Bold);Text(r.date+" • "+r.repeat)};Switch(r.done,{toggle(r)});TextButton(onClick={remove(r)}){Text("Удалить")}}}}
 }
 
-@Composable private fun Receipt(uri:Uri?,text:String,setUri:(Uri?)->Unit,setText:(String)->Unit,pick:(Uri)->Unit){
- val context=LocalContext.current
- val launcher=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){u->if(u!=null){pick(u);runCatching{InputImage.fromFilePath(context,u)}.onSuccess{image->TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(image).addOnSuccessListener{result->setText(result.text.ifBlank{"Текст не найден."})}.addOnFailureListener{setText("Не удалось распознать текст.")}}}}
- Text("Чеки и OCR",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button({launcher.launch("image/*")}){Text("Выбрать фото чека")};if(uri!=null)Text("Фото выбрано: "+uri.lastPathSegment);Card(Modifier.fillMaxWidth()){Text(if(text.isBlank())"Фото подготовлено для OCR." else text,Modifier.padding(12.dp))}
+private fun parseReceiptDraft(text:String, account:Account?, categories:List<Category>):Transaction? {
+    if(account==null) return null
+    val amountRegex=Regex("""(?i)(итого|к оплате|сумма|total|amount)[^0-9]{0,20}([0-9]{1,6}(?:[ .][0-9]{3})*(?:[.,][0-9]{2})?)""")
+    val fallbackRegex=Regex("""[0-9]{1,6}(?:[ .][0-9]{3})*(?:[.,][0-9]{2})""")
+    val keyword=amountRegex.findAll(text).lastOrNull()?.groupValues?.getOrNull(2)
+    val raw=keyword ?: fallbackRegex.findAll(text).lastOrNull()?.value ?: return null
+    val amount=raw.replace(" ","").replace(".","").replace(',','.').toDoubleOrNull() ?: return null
+    val lines=text.lines().map{it.trim()}.filter{it.isNotBlank()}
+    val title=lines.firstOrNull()?.take(60)?.ifBlank{"Покупка"} ?: "Покупка"
+    val dateMatch=Regex("""([0-3][0-9])[./-]([0-1][0-9])[./-]([0-9]{4})""").find(text)
+    val timestamp=dateMatch?.let{
+        runCatching{SimpleDateFormat("dd.MM.yyyy",Locale.getDefault()).parse(it.value.replace('/','.').replace('-','.'))?.time}.getOrNull()
+    } ?: System.currentTimeMillis()
+    val category=categories.firstOrNull{it.name.equals("Покупки",true)}?.name ?: categories.firstOrNull()?.name ?: "Без категории"
+    return Transaction(title=title,amount=amount,income=false,accountName=account.name,category=category,timestamp=timestamp,currency=account.currency,operationType="expense")
+}
+
+@Composable private fun Receipt(uri:Uri?,text:String,setUri:(Uri?)->Unit,setText:(String)->Unit,account:Account?,categories:List<Category>,prepare:(Transaction)->Unit){
+    val context=LocalContext.current
+    val launcher=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){u->
+        if(u!=null){
+            setUri(u)
+            runCatching{InputImage.fromFilePath(context,u)}.onSuccess{image->
+                TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(image)
+                    .addOnSuccessListener{result->setText(result.text.ifBlank{"Текст не найден."})}
+                    .addOnFailureListener{setText("Не удалось распознать текст.")}
+            }
+        }
+    }
+    Column(verticalArrangement=Arrangement.spacedBy(10.dp)){
+        Text("Чеки и OCR",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
+        Text("Распознай чек и проверь операцию перед сохранением.",style=MaterialTheme.typography.bodySmall)
+        Button({launcher.launch("image/*")}){Text("Выбрать фото чека")}
+        if(uri!=null)Text("Фото выбрано: "+uri.lastPathSegment)
+        if(text.isNotBlank()){
+            Card(Modifier.fillMaxWidth()){Text(text,Modifier.padding(12.dp))}
+            val draft=parseReceiptDraft(text,account,categories)
+            if(draft!=null){
+                Card(colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.primaryContainer)){
+                    Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(5.dp)){
+                        Text("Найдена операция",fontWeight=FontWeight.Bold)
+                        Text(draft.title)
+                        Text(money(draft.amount,draft.currency),style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
+                        Text("Дата: "+SimpleDateFormat("dd.MM.yyyy",Locale.getDefault()).format(Date(draft.timestamp)))
+                        Button({prepare(draft)}){Text("Проверить и добавить")}
+                    }
+                }
+            } else {
+                Text("Сумма в чеке не найдена. Проверьте распознанный текст.",color=MaterialTheme.colorScheme.error)
+            }
+        } else Card(Modifier.fillMaxWidth()){Text("После выбора фото здесь появится распознанный текст.",Modifier.padding(12.dp))}
+    }
 }
 
 @Composable
@@ -770,12 +820,13 @@ private fun More(
         }
 }
 
-@Composable private fun SettingsDialog(c: String, auto: Boolean, theme: String, style: String, menu: Set<String>, time: Long, save: (String, Boolean, String, String, Set<String>) -> Unit, close: () -> Unit) {
+@Composable private fun SettingsDialog(c: String, auto: Boolean, theme: String, style: String, menu: Set<String>, time: Long, save: (String, Boolean, String, String, Set<String>) -> Unit, backup: () -> String, close: () -> Unit) {
+    val context = LocalContext.current
     AlertDialog(
         onDismissRequest = close,
         title = { Text("Настройки") },
         text = {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.heightIn(max = 520.dp)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.heightIn(max = 560.dp)) {
                 item {
                     Text("Основная валюта", fontWeight = FontWeight.Bold)
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { currencies.forEach { code -> FilterChip(c == code, { save(code, auto, theme, style, menu) }, label = { Text(code) }) } }
@@ -792,6 +843,16 @@ private fun More(
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         listOf("midnight" to "Midnight", "platinum" to "Platinum", "emerald" to "Emerald").forEach { (v, label) -> FilterChip(style == v, { save(c, auto, theme, v, menu) }, label = { Text(label) }) }
                     }
+                }
+                item {
+                    Text("Резервная копия", fontWeight = FontWeight.Bold)
+                    Text("Экспортирует счета, операции, категории, бюджеты, долги, цели, напоминания и настройки в JSON.",style=MaterialTheme.typography.bodySmall)
+                    Button(onClick={
+                        context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply{
+                            type="application/json"
+                            putExtra(Intent.EXTRA_TEXT,backup())
+                        },"Сохранить резервную копию"))
+                    }){Text("Экспортировать JSON")}
                 }
                 item { Text("Функции в меню", fontWeight = FontWeight.Bold) }
                 items(pages) { p ->
