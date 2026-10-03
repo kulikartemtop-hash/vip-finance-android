@@ -10,6 +10,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -395,15 +396,10 @@ private fun Operations(
     search: String, setSearch: (String) -> Unit, newest: Boolean, setNewest: (Boolean) -> Unit,
     repeat: (Transaction) -> Unit
 ) {
-    var period by remember { mutableStateOf("Все") }
-    var kind by remember { mutableStateOf("Все") }
-    val now=Calendar.getInstance()
-    val start=when(period){"Сегодня"->startOfDay(now).timeInMillis;"7 дней"->daysAgoStart(6).timeInMillis;"Месяц"->daysAgoStart(29).timeInMillis;else->0L}
-    val filtered=ts.filter{it.timestamp>=start&&(kind=="Все"||(kind=="Доходы"&&it.income)||(kind=="Расходы"&&!it.income)||(kind=="Переводы"&&it.operationType=="transfer"))}
-        .filter{filter==null||it.accountName==filter}
-        .filter{search.isBlank()||it.title.contains(search,true)||it.category.contains(search,true)||it.accountName.contains(search,true)}
-    val ordered=if(newest)filtered.sortedByDescending{it.timestamp}else filtered.sortedBy{it.timestamp}
-    val groups=ordered.groupBy{SimpleDateFormat("dd MMMM",Locale.getDefault()).format(Date(it.timestamp))}
+    var period by remember { mutableStateOf("Все") }; var kind by remember { mutableStateOf("Все") }
+    val now=Calendar.getInstance(); val start=when(period){"Сегодня"->startOfDay(now).timeInMillis;"7 дней"->daysAgoStart(6).timeInMillis;"Месяц"->daysAgoStart(29).timeInMillis;else->0L}
+    val filtered=ts.filter{it.timestamp>=start&&(kind=="Все"||(kind=="Доходы"&&it.income)||(kind=="Расходы"&&!it.income)||(kind=="Переводы"&&it.operationType=="transfer"))}.filter{filter==null||it.accountName==filter}.filter{search.isBlank()||it.title.contains(search,true)||it.category.contains(search,true)||it.accountName.contains(search,true)}
+    val ordered=if(newest)filtered.sortedByDescending{it.timestamp}else filtered.sortedBy{it.timestamp}; val groups=ordered.groupBy{SimpleDateFormat("dd MMMM",Locale.getDefault()).format(Date(it.timestamp))}
     Column(verticalArrangement=Arrangement.spacedBy(10.dp)){
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Column{Text("Операции",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold);Text("${filtered.size} операций",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)};FilledTonalButton(onClick=add){Text("+ Добавить")}}
         Card(shape=RoundedCornerShape(22.dp),elevation=CardDefaults.cardElevation(3.dp)){Column(Modifier.padding(14.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
@@ -413,22 +409,15 @@ private fun Operations(
             Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)){FilterChip(filter==null,{setFilter(null)},label={Text("Все счета")});accounts.forEach{ac->FilterChip(filter==ac.name,{setFilter(ac.name)},label={Text(ac.name)})}}
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("Сначала новые",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall);Switch(newest,setNewest)}
         }}
-        LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){
-            groups.forEach{(day,dayItems)->
-                item(key="day_${day}"){Text(day,style=MaterialTheme.typography.labelLarge,fontWeight=FontWeight.Bold,color=MaterialTheme.colorScheme.primary,modifier=Modifier.padding(top=5.dp))}
-                items(dayItems,key={it.id}){t->
-                    val transfer=t.operationType=="transfer"
-                    Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(20.dp),elevation=CardDefaults.cardElevation(2.dp),colors=CardDefaults.cardColors(containerColor=if(transfer)MaterialTheme.colorScheme.secondaryContainer.copy(.45f)else if(t.income)MaterialTheme.colorScheme.primaryContainer.copy(.30f)else MaterialTheme.colorScheme.surface)){
-                        Row(Modifier.fillMaxWidth().padding(13.dp),verticalAlignment=Alignment.CenterVertically){
-                            Box(Modifier.size(46.dp).clip(RoundedCornerShape(15.dp)).background(if(transfer)MaterialTheme.colorScheme.secondaryContainer else if(t.income)MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer),contentAlignment=Alignment.Center){Text(if(transfer)"⇄"else if(t.income)"↗"else"↘",color=if(transfer)MaterialTheme.colorScheme.secondary else if(t.income)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)}
-                            Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f)){Text(t.title,fontWeight=FontWeight.SemiBold);Text(if(transfer)"${t.accountName} → ${t.toAccountName}" else "${t.category} • ${t.accountName}",style=MaterialTheme.typography.bodySmall);if(t.note.isNotBlank())Text(t.note,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant);Text(SimpleDateFormat("HH:mm",Locale.getDefault()).format(Date(t.timestamp)),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
-                            Column(horizontalAlignment=Alignment.End){Text((if(transfer)"⇄"else if(t.income)"+"else"−")+" "+money(conv(t.amount,t.currency,c,auto,r),c),fontWeight=FontWeight.Bold,color=if(transfer)MaterialTheme.colorScheme.secondary else if(t.income)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error);Row{TextButton(onClick={repeat(t)}){Text("Повтор")};TextButton(onClick={remove(t)}){Text("Удалить")}}}
-                        }
-                    }
+        LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){groups.forEach{(day,dayItems)->item(key="day_${day}"){Text(day,style=MaterialTheme.typography.labelLarge,fontWeight=FontWeight.Bold,color=MaterialTheme.colorScheme.primary,modifier=Modifier.padding(top=5.dp))};items(dayItems,key={it.id}){t->
+            val transfer=t.operationType=="transfer"
+            Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(20.dp),elevation=CardDefaults.cardElevation(2.dp),colors=CardDefaults.cardColors(containerColor=if(transfer)MaterialTheme.colorScheme.secondaryContainer.copy(.45f)else if(t.income)MaterialTheme.colorScheme.primaryContainer.copy(.30f)else MaterialTheme.colorScheme.surface)){
+                Row(Modifier.fillMaxWidth().padding(13.dp),verticalAlignment=Alignment.CenterVertically){Box(Modifier.size(46.dp).clip(RoundedCornerShape(15.dp)).background(if(transfer)MaterialTheme.colorScheme.secondaryContainer else if(t.income)MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer),contentAlignment=Alignment.Center){Text(if(transfer)"⇄"else if(t.income)"↗"else"↘",color=if(transfer)MaterialTheme.colorScheme.secondary else if(t.income)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,fontWeight=FontWeight.Bold)}
+                    Spacer(Modifier.width(12.dp));Column(Modifier.weight(1f)){Text(t.title,fontWeight=FontWeight.SemiBold);Text(if(transfer)"${t.accountName} → ${t.toAccountName}" else "${t.category} • ${t.accountName}",style=MaterialTheme.typography.bodySmall);Text(SimpleDateFormat("HH:mm",Locale.getDefault()).format(Date(t.timestamp)),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+                    Column(horizontalAlignment=Alignment.End){Text((if(transfer)"⇄"else if(t.income)"+"else"−")+" "+money(conv(t.amount,t.currency,c,auto,r),c),fontWeight=FontWeight.Bold,color=if(transfer)MaterialTheme.colorScheme.secondary else if(t.income)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error);Row{TextButton(onClick={repeat(t)}){Text("Повтор")};TextButton(onClick={remove(t)}){Text("Удалить")}}}
                 }
             }
-        }
+        }}}}
     }
 }
 @Composable
@@ -479,39 +468,28 @@ private fun Accounts(
             FilledTonalButton(onClick = add) { Text("+ Добавить") }
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-          @Composable
+            items(items) { a ->
+                ElevatedCard(onClick = { select(a.name) }, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.Top) {
+                            Row(verticalAlignment = Alignment.Ce@Composable
 private fun Analytics(tx: List<Transaction>, c: String, auto: Boolean, r: Map<String,Double>) {
-    var preset by remember { mutableStateOf("Месяц") }
-    val now=Calendar.getInstance()
-    val from=when(preset){"Сегодня"->startOfDay(now).timeInMillis;"7 дней"->daysAgoStart(6).timeInMillis;else->daysAgoStart(29).timeInMillis}
-    val to=endOfDay(now).timeInMillis
-    val periodTx=tx.filter{it.timestamp in from..to&&it.operationType!="transfer"}
-    val income=periodTx.filter{it.income}.sumOf{conv(it.amount,it.currency,c,auto,r)}
-    val expense=periodTx.filter{!it.income}.sumOf{conv(it.amount,it.currency,c,auto,r)}
-    val net=income-expense
-    val cats=periodTx.filter{!it.income}.groupBy{it.category}.mapValues{(_,v)->v.sumOf{conv(it.amount,it.currency,c,auto,r)}}.toList().sortedByDescending{it.second}
-    val maxCat=cats.maxOfOrNull{it.second}?.coerceAtLeast(1.0)?:1.0
+    var preset by remember { mutableStateOf("Месяц") }; val now=Calendar.getInstance()
+    val from=when(preset){"Сегодня"->startOfDay(now).timeInMillis;"7 дней"->daysAgoStart(6).timeInMillis;else->daysAgoStart(29).timeInMillis}; val to=endOfDay(now).timeInMillis
+    val periodTx=tx.filter{it.timestamp in from..to&&it.operationType!="transfer"}; val income=periodTx.filter{it.income}.sumOf{conv(it.amount,it.currency,c,auto,r)}; val expense=periodTx.filter{!it.income}.sumOf{conv(it.amount,it.currency,c,auto,r)}; val net=income-expense
+    val cats=periodTx.filter{!it.income}.groupBy{it.category}.mapValues{(_,v)->v.sumOf{conv(it.amount,it.currency,c,auto,r)}}.toList().sortedByDescending{it.second}; val maxCat=cats.maxOfOrNull{it.second}?.coerceAtLeast(1.0)?:1.0
     val maxDay=periodTx.filter{!it.income}.groupBy{SimpleDateFormat("dd.MM",Locale.getDefault()).format(Date(it.timestamp))}.mapValues{(_,v)->v.sumOf{conv(it.amount,it.currency,c,auto,r)}}.values.maxOrNull()?.coerceAtLeast(1.0)?:1.0
     val dayData=(0..6).map{offset->val cal=Calendar.getInstance().apply{add(Calendar.DAY_OF_YEAR,-offset)};val key=SimpleDateFormat("dd.MM",Locale.getDefault()).format(cal.time);key to periodTx.filter{!it.income&&SimpleDateFormat("dd.MM",Locale.getDefault()).format(Date(it.timestamp))==key}.sumOf{conv(it.amount,it.currency,c,auto,r)}}.reversed()
     LazyColumn(verticalArrangement=Arrangement.spacedBy(12.dp)){
         item{Column{Text("Аналитика",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold);Text("Поток, категории и динамика расходов",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
         item{Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)){listOf("Сегодня","7 дней","Месяц").forEach{x->FilterChip(preset==x,{preset=x},label={Text(x)})}}}
         item{Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){MetricCard("Доходы",money(income,c),MaterialTheme.colorScheme.primary,Modifier.weight(1f));MetricCard("Расходы",money(expense,c),MaterialTheme.colorScheme.error,Modifier.weight(1f));MetricCard("Поток",money(net,c),if(net>=0)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,Modifier.weight(1f))}}
-        item{Card(shape=RoundedCornerShape(24.dp),elevation=CardDefaults.cardElevation(4.dp)){Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){Text("Расходы по дням",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium);Row(Modifier.fillMaxWidth().height(150.dp),horizontalArrangement=Arrangement.spacedBy(7.dp),verticalAlignment=Alignment.Bottom){dayData.forEach{(label,value)->Column(Modifier.weight(1f),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(5.dp)){Box(Modifier.fillMaxWidth(.7f).height((8f+112f*(value/maxDay).toFloat()).dp).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.primary));Text(label.substringBefore("."),style=MaterialTheme.typography.labelSmall)}}}}}}
-        item{Card(shape=RoundedCornerShape(24.dp),elevation=CardDefaults.cardElevation(4.dp)){Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){Text("Куда уходят деньги",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium);cats.take(6).forEach{(cat,value)->val pct=value/expense.coerceAtLeast(1.0);Column(verticalArrangement=Arrangement.spacedBy(5.dp)){Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(cat,fontWeight=FontWeight.SemiBold);Text("${(pct*100).toInt()}% • "+money(value,c),style=MaterialTheme.typography.bodySmall)}LinearProgressIndicator(progress={(value/maxCat).toFloat()},modifier=Modifier.fillMaxWidth().height(8.dp))}}}}}
-        item{Card(shape=RoundedCornerShape(24.dp),elevation=CardDefaults.cardElevation(4.dp)){Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(7.dp)){Text("Финансовый вывод",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium);Text(if(net>=0)"За период доходы превышают расходы на "+money(net,c) else "Расходы превышают доходы на "+money(-net,c));Text("${periodTx.size} операций учтено",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
+        item{Card(shape=RoundedCornerShape(24.dp),elevation=CardDefaults.cardElevation(4.dp)){Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){Text("Расходы по дням",fontWeight=FontWeight.Bold);Row(Modifier.fillMaxWidth().height(150.dp),horizontalArrangement=Arrangement.spacedBy(7.dp),verticalAlignment=Alignment.Bottom){dayData.forEach{(label,value)->Column(Modifier.weight(1f),horizontalAlignment=Alignment.CenterHorizontally){Box(Modifier.fillMaxWidth(.7f).height((8f+112f*(value/maxDay).toFloat()).dp).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.primary));Text(label.substringBefore("."),style=MaterialTheme.typography.labelSmall)}}}}}}
+        item{Card(shape=RoundedCornerShape(24.dp),elevation=CardDefaults.cardElevation(4.dp)){Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){Text("Куда уходят деньги",fontWeight=FontWeight.Bold);cats.take(6).forEach{(cat,value)->val pct=value/expense.coerceAtLeast(1.0);Column{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(cat,fontWeight=FontWeight.SemiBold);Text("${(pct*100).toInt()}% • "+money(value,c),style=MaterialTheme.typography.bodySmall)};LinearProgressIndicator(progress={(value/maxCat).toFloat()},modifier=Modifier.fillMaxWidth().height(8.dp))}}}}}
+        item{Card(shape=RoundedCornerShape(24.dp),elevation=CardDefaults.cardElevation(4.dp)){Column(Modifier.padding(18.dp)){Text("Финансовый вывод",fontWeight=FontWeight.Bold);Text(if(net>=0)"Доходы превышают расходы на "+money(net,c) else "Расходы превышают доходы на "+money(-net,c));Text("${periodTx.size} операций учтено",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
     }
 }
-eLine = true)
-            }
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MetricCard("Доходы", money(income, c), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
-                MetricCard("Расходы", money(expense, c), MaterialTheme.colorScheme.error, Modifier.weight(1f))
-            }
-        }
-        item {
+
             Box(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.secondaryContainer))).padding(18.dp)) {
                 Column {
                     Text("Итог за период", style = MaterialTheme.typography.titleMedium)
