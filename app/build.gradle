@@ -9,11 +9,11 @@ android {
     namespace = 'com.example.vipfinance'
     compileSdk 36
     defaultConfig {
-        applicationId "com.example.vipfinance"
+        applicationId "com.example.vipfinance.sleek"
         minSdk 24
         targetSdk 36
-        versionCode 204
-        versionName "2.4"
+        versionCode 302
+        versionName "3.0-sleek"
     }
     buildTypes {
         release {
