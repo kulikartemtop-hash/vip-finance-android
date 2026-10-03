@@ -743,21 +743,46 @@ private fun BudgetDialog(accounts:List<Account>,categories:List<Category>,c:Stri
  Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text("Напоминания",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}};items.forEach{r->Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){Row(Modifier.padding(12.dp).fillMaxWidth(),Arrangement.SpaceBetween){Column(Modifier.weight(1f)){Text(r.title,fontWeight=FontWeight.Bold);Text(r.date+" • "+r.repeat)};Switch(r.done,{toggle(r)});TextButton(onClick={remove(r)}){Text("Удалить")}}}}
 }
 
-private fun parseReceiptDraft(text:String, account:Account?, categories:List<Category>):Transaction? {
-    if(account==null) return null
-    val amountRegex=Regex("""(?i)(итого|к оплате|сумма|total|amount)[^0-9]{0,20}([0-9]{1,6}(?:[ .][0-9]{3})*(?:[.,][0-9]{2})?)""")
-    val fallbackRegex=Regex("""[0-9]{1,6}(?:[ .][0-9]{3})*(?:[.,][0-9]{2})""")
-    val keyword=amountRegex.findAll(text).lastOrNull()?.groupValues?.getOrNull(2)
-    val raw=keyword ?: fallbackRegex.findAll(text).lastOrNull()?.value ?: return null
-    val amount=raw.replace(" ","").replace(".","").replace(',','.').toDoubleOrNull() ?: return null
-    val lines=text.lines().map{it.trim()}.filter{it.isNotBlank()}
-    val title=lines.firstOrNull()?.take(60)?.ifBlank{"Покупка"} ?: "Покупка"
-    val dateMatch=Regex("""([0-3][0-9])[./-]([0-1][0-9])[./-]([0-9]{4})""").find(text)
-    val timestamp=dateMatch?.let{
-        runCatching{SimpleDateFormat("dd.MM.yyyy",Locale.getDefault()).parse(it.value.replace('/','.').replace('-','.'))?.time}.getOrNull()
+private fun normalizeReceiptAmount(raw: String): Double? {
+    val cleaned = raw.replace(" ", "")
+    val lastComma = cleaned.lastIndexOf(',')
+    val lastDot = cleaned.lastIndexOf('.')
+    val normalized = when {
+        lastComma >= 0 && lastDot >= 0 -> {
+            val decimal = maxOf(lastComma, lastDot)
+            cleaned.filterIndexed { index, ch -> ch.isDigit() || (index == decimal && ch == cleaned[decimal]) }.let { value ->
+                value.replace(',', '.')
+            }
+        }
+        lastComma >= 0 -> cleaned.replace('.', '').replace(',', '.')
+        lastDot >= 0 && cleaned.length - lastDot - 1 == 2 -> cleaned
+        else -> cleaned.replace(".", "")
+    }
+    return normalized.toDoubleOrNull()
+}
+
+private fun parseReceiptDraft(text: String, account: Account?, categories: List<Category>): Transaction? {
+    if (account == null) return null
+    val amountRegex = Regex("""(?i)(итого|к\s*оплате|сумма|total|amount)[^0-9]{0,20}([0-9]{1,8}(?:[ .][0-9]{3})*(?:[.,][0-9]{2})?)""")
+    val fallbackRegex = Regex("""[0-9]{1,8}(?:[ .][0-9]{3})*(?:[.,][0-9]{2})?""")
+    val keyword = amountRegex.findAll(text).lastOrNull()?.groupValues?.getOrNull(2)
+    val raw = keyword ?: fallbackRegex.findAll(text).lastOrNull()?.value ?: return null
+    val amount = normalizeReceiptAmount(raw) ?: return null
+    val lines = text.lines().map { it.trim() }.filter { it.isNotBlank() }
+    val title = lines.firstOrNull { line -> line.length >= 2 && line.any { it.isLetter() } }?.take(60)?.ifBlank { "Покупка" } ?: "Покупка"
+    val dateMatch = Regex("""([0-3][0-9])[./-]([0-1][0-9])[./-]([0-9]{4})""").find(text)
+    val timestamp = dateMatch?.let {
+        runCatching { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).parse(it.value.replace('/', '.').replace('-', '.'))?.time }.getOrNull()
     } ?: System.currentTimeMillis()
-    val category=categories.firstOrNull{it.name.equals("Покупки",true)}?.name ?: categories.firstOrNull()?.name ?: "Без категории"
-    return Transaction(title=title,amount=amount,income=false,accountName=account.name,category=category,timestamp=timestamp,currency=account.currency,operationType="expense")
+    val lower = text.lowercase(Locale.getDefault())
+    val category = when {
+        listOf("продукт", "супермаркет", "магазин", "молоко", "хлеб", "еда").any { it in lower } -> categories.firstOrNull { it.name.equals("Продукты", true) }?.name
+        listOf("такси", "бензин", "заправ", "метро", "автобус").any { it in lower } -> categories.firstOrNull { it.name.equals("Транспорт", true) }?.name
+        listOf("аптек", "лекар", "медицин", "врач").any { it in lower } -> categories.firstOrNull { it.name.equals("Здоровье", true) }?.name
+        listOf("кино", "игр", "театр", "развлеч").any { it in lower } -> categories.firstOrNull { it.name.equals("Развлечения", true) }?.name
+        else -> categories.firstOrNull { it.name.equals("Покупки", true) }?.name ?: categories.firstOrNull()?.name ?: "Без категории"
+    } ?: categories.firstOrNull()?.name ?: "Без категории"
+    return Transaction(title = title, amount = amount, income = false, accountName = account.name, category = category, timestamp = timestamp, currency = account.currency, operationType = "expense")
 }
 
 @Composable private fun Receipt(uri:Uri?,text:String,setUri:(Uri?)->Unit,setText:(String)->Unit,account:Account?,categories:List<Category>,prepare:(Transaction)->Unit){
