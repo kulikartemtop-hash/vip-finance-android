@@ -71,9 +71,9 @@ class FinanceStore(context: Context) {
     fun saveTheme(v:String)=prefs.edit().putString("theme",v).apply()
     fun loadStyle():String=prefs.getString("style","classic") ?: "classic"
     fun saveStyle(v:String)=prefs.edit().putString("style",v).apply()
-    fun loadMenu():Set<String>=prefs.getStringSet("menu",setOf("Главная","Операции","Счета","Аналитика","Конвертер","Долги","Цели","Напоминания","Чеки","Ещё")) ?: emptySet()
+    fun loadMenu(): Set<String> =prefs.getStringSet("menu",setOf("Главная","Операции","Счета","Аналитика","Конвертер","Долги","Цели","Напоминания","Чеки","Ещё")) ?: emptySet()
     fun saveMenu(v:Set<String>)=prefs.edit().putStringSet("menu",v).apply()
     fun saveRates(rates:Map<String,Double>){val j=JSONObject();rates.forEach{(k,v)->j.put(k,v)};prefs.edit().putString("rates",j.toString()).putLong("rates_time",System.currentTimeMillis()).apply()}
-    fun loadRates():Map<String,Double>=runCatching{val j=JSONObject(prefs.getString("rates","{}"));buildMap{j.keys().forEach{k->put(k,j.optDouble(k))}}}.getOrDefault(emptyMap())
+    fun loadRates(): Map<String, Double> =runCatching{val j=JSONObject(prefs.getString("rates","{}"));buildMap{j.keys().forEach{k->put(k,j.optDouble(k))}}}.getOrDefault(emptyMap())
     fun loadRatesTime():Long=prefs.getLong("rates_time",0L)
 }
