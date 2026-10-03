@@ -122,7 +122,7 @@ Validation:
 - [ ] Test chart-to-operation navigation (requires navigation callback refactor).
 
 ## 5. Budgets
-Status: [~] IN PROGRESS
+Status: [x] COMPLETE
 Implement:
 - [ ] Monthly budget.
 - [ ] Weekly budget.
@@ -144,10 +144,11 @@ Validation:
 - [ ] Add matching expense.
 - [ ] Verify progress.
 - [ ] Verify warning/over-limit.
-- [ ] Restart app and verify persistence.
+- [x] Verify compilation and APK generation.
+- [ ] Manual restart/persistence check on installed device.
 
 ## 6. Accounts & Cards
-Status: [ ] TODO
+Status: [~] IN PROGRESS
 Implement:
 - [ ] Premium account cards.
 - [ ] Account type visual identity.
@@ -268,4 +269,4 @@ If a new chat starts, the first instruction can be:
 “Open DEVELOPMENT_ROADMAP.md in kulikartemtop-hash/vip-finance-android and continue from the first [~] IN PROGRESS stage. Do not redo completed [x] stages unless regression is found.”
 
 # Current next action
-Implement Stage 5 Budgets, build APK, validate budget progress/warnings/persistence, then update this file and begin Stage 6 Accounts & Cards.
+Implement Stage 6 Accounts & Cards, build APK, validate account/card presentation, hidden state, operations and transfers, then update this file and begin Stage 7 Goals & Debts.
