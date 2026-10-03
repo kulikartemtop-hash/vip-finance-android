@@ -85,18 +85,6 @@ class FinanceStore(context: Context) {
     fun saveRates(rates:Map<String,Double>){val j=JSONObject();rates.forEach{(k,v)->j.put(k,v)};prefs.edit().putString("rates",j.toString()).putLong("rates_time",System.currentTimeMillis()).apply()}
     fun loadRates(): Map<String, Double> =runCatching{val j=JSONObject(prefs.getString("rates","{}"));buildMap{j.keys().forEach{k->put(k,j.optDouble(k))}}}.getOrDefault(emptyMap())
     fun loadRatesTime():Long=prefs.getLong("rates_time",0L)
-}
-
-
-    fun loadBudgets(): List<Budget> = runCatching {
-        val a=JSONArray(prefs.getString("budgets","[]"))
-        buildList { for(i in 0 until a.length()){val o=a.getJSONObject(i);add(Budget(o.optLong("id"),o.optString("name"),o.optString("category"),o.optString("accountName"),o.optDouble("limit"),o.optString("currency","RUB"),o.optString("period","Месяц"))) } }
-    }.getOrDefault(emptyList())
-
-    fun saveBudgets(items: List<Budget>) {
-        val a=JSONArray();items.forEach{x->a.put(JSONObject().apply{put("id",x.id);put("name",x.name);put("category",x.category);put("accountName",x.accountName);put("limit",x.limit);put("currency",x.currency);put("period",x.period)})};prefs.edit().putString("budgets",a.toString()).apply()
-    
-
     fun loadBudgets(): List<Budget> = runCatching {
         val a=JSONArray(prefs.getString("budgets","[]"))
         buildList { for(i in 0 until a.length()){val o=a.getJSONObject(i);add(Budget(o.optLong("id"),o.optString("name"),o.optString("category"),o.optString("accountName"),o.optDouble("limit"),o.optString("currency","RUB"),o.optString("period","Месяц"))) } }
