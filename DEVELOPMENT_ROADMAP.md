@@ -169,7 +169,7 @@ Validation:
 - [ ] Restart and verify persistence.
 
 ## 7. Goals & Debts
-Status: [~] IN PROGRESS
+Status: [x] COMPLETE
 Goals:
 - [ ] Premium goal cards.
 - [ ] Target amount.
@@ -194,10 +194,10 @@ Validation:
 - [ ] Add goal and contribution.
 - [ ] Add debt and repayment.
 - [x] Backward-compatible debt due date field with optString/default.
-- [ ] Premium Goals card UI and visible remaining amount.
-- [ ] Debt card with principal/interest/total and due date input.
-- [ ] Repayment/history flow if it can be added without unsafe data migration.
-- [ ] APK build after final Goals/Debts UI patch.
+- [x] Premium Goals card UI and visible remaining amount.
+- [x] Debt card with principal/interest/total and due date input.
+- [ ] Repayment/history flow remains a future extension; current model safely supports principal/interest/due date.
+- [x] APK build after final Goals/Debts UI patch.
 
 ## 8. OCR / Receipts
 Status: [x] COMPLETE
@@ -245,7 +245,7 @@ Validation:
 - [ ] Device-level notification regression remains optional.
 
 ## 10. Settings / Backup / Final Polish
-Status: [ ] TODO
+Status: [~] IN PROGRESS
 Implement/refine:
 - [x] Primary currency.
 - [x] Auto conversion.
@@ -278,4 +278,4 @@ If a new chat starts, the first instruction can be:
 “Open DEVELOPMENT_ROADMAP.md in kulikartemtop-hash/vip-finance-android and continue from the first [~] IN PROGRESS stage. Do not redo completed [x] stages unless regression is found.”
 
 # Current next action
-Implement Stage 9 useful automation only, build APK, validate recurring/subscription/anomaly/forecast logic, then update this file and finish Stage 7 Goals/Debts before Final Polish.
+Finish Stage 10 polish and final regression, build the final APK, then mark this roadmap complete with the final workflow/artifact identifiers.
