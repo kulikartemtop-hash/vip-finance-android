@@ -26,7 +26,21 @@ data class Transaction(
     val accountName: String = "",
     val category: String = "Без категории",
     val timestamp: Long = System.currentTimeMillis(),
-    val currency: String = "RUB"
+    val currency: String = "RUB",
+    val operationType: String = if (income) "income" else "expense",
+    val toAccountName: String = "",
+    val note: String = "",
+    val repeat: String = "Не повторять"
+)
+
+data class Budget(
+    val id: Long = System.currentTimeMillis(),
+    val name: String,
+    val category: String = "",
+    val accountName: String = "",
+    val limit: Double,
+    val currency: String = "RUB",
+    val period: String = "Месяц"
 )
 
 data class Debt(
