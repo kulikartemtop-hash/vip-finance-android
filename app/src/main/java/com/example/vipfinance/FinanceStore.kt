@@ -50,6 +50,12 @@ class FinanceStore(context: Context) {
         }
     }
 
+    fun loadCurrency(): String = prefs.getString("currency", "GBP") ?: "GBP"
+
+    fun saveCurrency(currency: String) {
+        prefs.edit().putString("currency", currency).apply()
+    }
+
     fun saveTransactions(list: List<Transaction>) {
         val a = JSONArray()
         list.forEach {
