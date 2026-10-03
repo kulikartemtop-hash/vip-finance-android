@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.window.Dialog
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
@@ -38,21 +39,100 @@ import java.util.Locale
 private val currencies=listOf("RUB","GBP","EUR","USD","CNY","JPY","CHF","CAD","AUD","PLN")
 private val pages=listOf("Главная","Операции","Счета","Категории","Аналитика","Конвертер","Долги","Цели","Напоминания","Чеки")
 private val defaultCategories=listOf(
-    Category(name="Продукты",icon="shopping_cart",color="#43A047"), Category(name="Транспорт",icon="directions_car",color="#1E88E5"),
-    Category(name="Жильё",icon="home",color="#8E24AA"), Category(name="Зарплата",icon="payments",color="#00897B"),
-    Category(name="Развлечения",icon="movie",color="#FB8C00"), Category(name="Здоровье",icon="favorite",color="#E53935"),
-    Category(name="Покупки",icon="shopping_bag",color="#6D4C41"), Category(name="Связь",icon="phone",color="#3949AB"),
-    Category(name="Подписки",icon="subscriptions",color="#5E35B1"), Category(name="Образование",icon="school",color="#039BE5"),
-    Category(name="Путешествия",icon="flight",color="#00ACC1"), Category(name="Другое",icon="category",color="#757575")
+    Category(name="Продукты",kind="expense",icon="shopping_cart",color="#43A047"),
+    Category(name="Транспорт",kind="expense",icon="directions_car",color="#1E88E5"),
+    Category(name="Жильё",kind="expense",icon="home",color="#8E24AA"),
+    Category(name="Развлечения",kind="expense",icon="movie",color="#FB8C00"),
+    Category(name="Здоровье",kind="expense",icon="favorite",color="#E53935"),
+    Category(name="Покупки",kind="expense",icon="shopping_bag",color="#6D4C41"),
+    Category(name="Связь",kind="expense",icon="phone",color="#3949AB"),
+    Category(name="Подписки",kind="expense",icon="subscriptions",color="#5E35B1"),
+    Category(name="Образование",kind="expense",icon="school",color="#039BE5"),
+    Category(name="Путешествия",kind="expense",icon="flight",color="#00ACC1"),
+    Category(name="Автомобиль",kind="expense",icon="directions_car",color="#546E7A"),
+    Category(name="Коммунальные услуги",kind="expense",icon="home",color="#7B1FA2"),
+    Category(name="Другое",kind="expense",icon="category",color="#757575"),
+    Category(name="Зарплата",kind="income",icon="payments",color="#00897B"),
+    Category(name="Подработка",kind="income",icon="payments",color="#2E7D32"),
+    Category(name="Премия",kind="income",icon="savings",color="#F9A825"),
+    Category(name="Подарок",kind="income",icon="favorite",color="#D81B60"),
+    Category(name="Возврат денег",kind="income",icon="wallet",color="#1565C0"),
+    Category(name="Проценты",kind="income",icon="savings",color="#00838F"),
+    Category(name="Продажа",kind="income",icon="shopping_bag",color="#6D4C41"),
+    Category(name="Инвестиционный доход",kind="income",icon="trending_up",color="#00796B"),
+    Category(name="Другое",kind="income",icon="category",color="#757575")
 )
-private val iconChoices=listOf("account_balance","credit_card","wallet","savings","shopping_cart","home","directions_car","payments","favorite","phone","school","flight","movie","subscriptions","category")
+private val iconChoices=listOf("account_balance","credit_card","wallet","savings","shopping_cart","home","directions_car","payments","favorite","phone","school","flight","movie","subscriptions","trending_up","category")
 private val colorChoices=listOf("#5B35F5","#00A7B5","#007A5A","#E53935","#FB8C00","#1E88E5","#8E24AA","#D81B60","#6D4C41","#757575")
-private fun iconText(icon:String)=when(icon){"account_balance"->"▥";"credit_card"->"▣";"wallet"->"◫";"savings"->"◉";"shopping_cart"->"🛒";"home"->"⌂";"directions_car"->"🚗";"payments"->"₽";"favorite"->"♥";"phone"->"☎";"school"->"◆";"flight"->"✈";"movie"->"▶";"subscriptions"->"◉";"shopping_bag"->"▱";else->"•"}
+private fun iconText(icon:String)=when(icon){"account_balance"->"▥";"credit_card"->"▣";"wallet"->"◫";"savings"->"◉";"shopping_cart"->"🛒";"home"->"⌂";"directions_car"->"🚗";"payments"->"₽";"favorite"->"♥";"phone"->"☎";"school"->"◆";"flight"->"✈";"movie"->"▶";"subscriptions"->"◉";"shopping_bag"->"▱";"trending_up"->"↗";else->"•"}
 private fun uiColor(hex:String)=runCatching{Color(android.graphics.Color.parseColor(hex))}.getOrDefault(Color(0xFF5B35F5))
 
 private fun sym(c:String)=when(c){"GBP"->"£";"USD"->"$";"EUR"->"€";"RUB"->"₽";"CNY"->"¥";"JPY"->"¥";"CHF"->"Fr";"CAD"->"C$";"AUD"->"A$";"PLN"->"zł";else->c}
 private fun money(v:Double,c:String)=sym(c)+"%.2f".format(Locale.getDefault(),v)
 private fun conv(v:Double,from:String,to:String,auto:Boolean,r:Map<String,Double>)=if(auto)ExchangeRates.convert(v,from,to,r) else v
+
+@Composable
+private fun PremiumDialog(
+    onDismissRequest: () -> Unit,
+    title: @Composable () -> Unit,
+    text: @Composable () -> Unit,
+    confirmButton: @Composable () -> Unit,
+    dismissButton: @Composable () -> Unit
+) {
+    Dialog(onDismissRequest = onDismissRequest) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            shape = RoundedCornerShape(30.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 20.dp),
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)
+            )
+        ) {
+            Column {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.linearGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.primaryContainer,
+                                    MaterialTheme.colorScheme.secondaryContainer,
+                                    MaterialTheme.colorScheme.tertiaryContainer
+                                )
+                            )
+                        )
+                        .padding(horizontal = 22.dp, vertical = 18.dp)
+                ) {
+                    ProvideTextStyle(
+                        MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+                    ) { title() }
+                }
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 18.dp)
+                ) {
+                    text()
+                }
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    dismissButton()
+                    Spacer(Modifier.width(8.dp))
+                    confirmButton()
+                }
+            }
+        }
+    }
+}
 
 class MainActivity:ComponentActivity(){
  override fun onCreate(b:Bundle?){super.onCreate(b);enableEdgeToEdge();val s=FinanceStore(this);setContent{VIPFinanceTheme(s.loadTheme(),s.loadStyle()){FinanceApp(s)}}}
@@ -376,26 +456,67 @@ private fun Categories(
     edit: (Category) -> Unit,
     remove: (Category) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-            Column {
-                Text("Категории", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text("Стандартные и ваши категории", style = MaterialTheme.typography.bodySmall)
-            }
-            FilledTonalButton(onClick = add) { Text("+ Добавить") }
+    var tab by remember { mutableStateOf("expense") }
+    val filtered = items.filter { it.kind == tab }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(tab == "expense", { tab = "expense" }, label = { Text("Расходы") })
+            FilterChip(tab == "income", { tab = "income" }, label = { Text("Доходы") })
         }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(items) { c0 ->
-                ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-                    Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(uiColor(c0.color)),
-                            contentAlignment = Alignment.Center
-                        ) { Text(iconText(c0.icon), color = Color.White, fontWeight = FontWeight.Bold) }
-                        Spacer(Modifier.width(12.dp))
-                        Text(c0.name, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
-                        TextButton(onClick = { edit(c0) }) { Text("Изменить") }
-                        TextButton(onClick = { remove(c0) }) { Text("Удалить") }
+        ElevatedCard(
+            colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    if (tab == "expense") "Категории расходов" else "Категории доходов",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    if (tab == "expense") "На что уходят деньги" else "Откуда приходят деньги",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Button(onClick = add, modifier = Modifier.fillMaxWidth()) {
+            Text(if (tab == "expense") "＋ Добавить категорию расхода" else "＋ Добавить категорию дохода")
+        }
+        if (filtered.isEmpty()) {
+            Card(Modifier.fillMaxWidth()) {
+                Text("Категорий пока нет", Modifier.padding(18.dp))
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f, fill = false),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(filtered, key = { it.id }) { c ->
+                    ElevatedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp)
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(uiColor(c.color)),
+                                contentAlignment = Alignment.Center
+                            ) { Text(iconText(c.icon), color = Color.White, fontWeight = FontWeight.Bold) }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(c.name, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    if (c.kind == "income") "Доход" else "Расход",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            TextButton(onClick = { edit(c) }) { Text("Изменить") }
+                            TextButton(onClick = { remove(c) }) { Text("Удалить") }
+                        }
                     }
                 }
             }
@@ -709,7 +830,7 @@ private fun More(
 }
 
 @Composable private fun SettingsDialog(c: String, auto: Boolean, theme: String, style: String, menu: Set<String>, time: Long, save: (String, Boolean, String, String, Set<String>) -> Unit, close: () -> Unit) {
-    AlertDialog(
+    PremiumDialog(
         onDismissRequest = close,
         title = { Text("Настройки") },
         text = {
@@ -761,7 +882,7 @@ private fun AccountDialog(
     var icon by remember { mutableStateOf(if (t == "Карта") "credit_card" else "account_balance") }
     var iconColor by remember { mutableStateOf(colorChoices.first()) }
     val balance = b.replace(',', '.').toDoubleOrNull()
-    AlertDialog(
+    PremiumDialog(
         onDismissRequest = close,
         title = { Text(if (t == "Карта") "Новая карта" else "Новый счёт") },
         text = {
@@ -815,11 +936,11 @@ private fun TransactionDialog(
     var n by remember { mutableStateOf("") }
     var a by remember { mutableStateOf("") }
     var inc by remember { mutableStateOf(defaultIncome) }
-    var cat by remember { mutableStateOf(categories.firstOrNull()?.name ?: "") }
+    var cat by remember { mutableStateOf(categories.firstOrNull { it.kind == if (defaultIncome) "income" else "expense" }?.name ?: "") }
     var acc by remember { mutableStateOf(accounts.firstOrNull()?.name ?: "") }
     val c = accounts.firstOrNull { it.name == acc }?.currency ?: "RUB"
     val v = a.replace(',', '.').toDoubleOrNull()
-    AlertDialog(
+    PremiumDialog(
         onDismissRequest = close,
         title = { Text(if (inc) "Новый доход" else "Новый расход") },
         text = {
@@ -837,7 +958,7 @@ private fun TransactionDialog(
                 Text("Категория", fontWeight = FontWeight.Bold)
                 OutlinedTextField(cat, { cat = it }, label = { Text("Можно ввести свою") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    items(categories) { x ->
+                    items(categories.filter { it.kind == if (inc) "income" else "expense" }) { x ->
                         FilterChip(cat == x.name, { cat = x.name }, label = { Text(iconText(x.icon) + " " + x.name) })
                     }
                 }
@@ -862,9 +983,10 @@ private fun TransactionDialog(
 @Composable
 private fun CategoryDialog(existing: Category?, close: () -> Unit, save: (Category) -> Unit) {
     var name by remember { mutableStateOf(existing?.name ?: "") }
+    var kind by remember { mutableStateOf(existing?.kind ?: "expense") }
     var icon by remember { mutableStateOf(existing?.icon ?: "category") }
     var color by remember { mutableStateOf(existing?.color ?: colorChoices.first()) }
-    AlertDialog(
+    PremiumDialog(
         onDismissRequest = close,
         title = { Text(if (existing == null) "Новая категория" else "Изменить категорию") },
         text = {
@@ -873,6 +995,11 @@ private fun CategoryDialog(existing: Category?, close: () -> Unit, save: (Catego
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 OutlinedTextField(name, { name = it }, label = { Text("Название категории") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Text("Тип категории", fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(kind == "expense", { kind = "expense" }, label = { Text("Расход") })
+                    FilterChip(kind == "income", { kind = "income" }, label = { Text("Доход") })
+                }
                 Text("Значок", fontWeight = FontWeight.Bold)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     items(iconChoices) { x -> FilterChip(icon == x, { icon = x }, label = { Text(iconText(x)) }) }
@@ -896,7 +1023,7 @@ private fun CategoryDialog(existing: Category?, close: () -> Unit, save: (Catego
                 }
             }
         },
-        confirmButton = { Button({ save(Category(existing?.id ?: System.currentTimeMillis(), name.trim(), icon, color)) }, enabled = name.isNotBlank()) { Text("Сохранить") } },
+        confirmButton = { Button({ save(Category(existing?.id ?: System.currentTimeMillis(), name.trim(), kind, icon, color)) }, enabled = name.isNotBlank()) { Text("Сохранить") } },
         dismissButton = { TextButton(close) { Text("Отмена") } }
     )
 }
@@ -904,7 +1031,7 @@ private fun CategoryDialog(existing: Category?, close: () -> Unit, save: (Catego
 @Composable
 private fun DebtDialog(close:()->Unit,save:(Debt)->Unit){
  var p by remember{mutableStateOf("")};var a by remember{mutableStateOf("")};var mine by remember{mutableStateOf(false)};var interest by remember{mutableStateOf(false)};var note by remember{mutableStateOf("")}
- AlertDialog(onDismissRequest=close,title={Text("Новый долг")},text={
+ PremiumDialog(onDismissRequest=close,title={Text("Новый долг")},text={
   Column(Modifier.heightIn(max=520.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)){
    OutlinedTextField(p,{p=it},label={Text("Человек")},modifier=Modifier.fillMaxWidth())
    OutlinedTextField(a,{a=it},label={Text("Сумма RUB")},modifier=Modifier.fillMaxWidth())
@@ -917,11 +1044,11 @@ private fun DebtDialog(close:()->Unit,save:(Debt)->Unit){
 
 @Composable private fun GoalDialog(c:String,close:()->Unit,save:(Goal)->Unit){
  var n by remember{mutableStateOf("")};var t by remember{mutableStateOf("")};var d by remember{mutableStateOf("")}
- AlertDialog(onDismissRequest=close,title={Text("Новая цель")},text={Column{OutlinedTextField(n,{n=it},label={Text("Название")});OutlinedTextField(t,{t=it},label={Text("Цель "+c)});OutlinedTextField(d,{d=it},label={Text("Срок")})}},confirmButton={Button({save(Goal(name=n,target=t.replace(',','.').toDoubleOrNull()?:0.0,currency=c,deadline=d))},enabled=n.isNotBlank()){Text("Сохранить")}},dismissButton={TextButton(close){Text("Отмена")}})
+ PremiumDialog(onDismissRequest=close,title={Text("Новая цель")},text={Column{OutlinedTextField(n,{n=it},label={Text("Название")});OutlinedTextField(t,{t=it},label={Text("Цель "+c)});OutlinedTextField(d,{d=it},label={Text("Срок")})}},confirmButton={Button({save(Goal(name=n,target=t.replace(',','.').toDoubleOrNull()?:0.0,currency=c,deadline=d))},enabled=n.isNotBlank()){Text("Сохранить")}},dismissButton={TextButton(close){Text("Отмена")}})
 }
 @Composable private fun ReminderDialog(close:()->Unit,save:(Reminder)->Unit){
  var n by remember{mutableStateOf("")};var d by remember{mutableStateOf("")};var rep by remember{mutableStateOf("Один раз")}
- AlertDialog(onDismissRequest=close,title={Text("Напоминание")},text={
+ PremiumDialog(onDismissRequest=close,title={Text("Напоминание")},text={
   Column(Modifier.heightIn(max=520.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)){
    OutlinedTextField(n,{n=it},label={Text("Что напомнить")},modifier=Modifier.fillMaxWidth())
    OutlinedTextField(d,{d=it},label={Text("Дата")},modifier=Modifier.fillMaxWidth())
