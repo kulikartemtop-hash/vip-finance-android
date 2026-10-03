@@ -94,4 +94,44 @@ class FinanceStore(context: Context) {
         val a=JSONArray();items.forEach{x->a.put(JSONObject().apply{put("id",x.id);put("name",x.name);put("category",x.category);put("accountName",x.accountName);put("limit",x.limit);put("currency",x.currency);put("period",x.period)})};prefs.edit().putString("budgets",a.toString()).apply()
     }
 
+    fun exportBackupJson(): String {
+        val root = JSONObject()
+        root.put("format", "VIP Finance backup")
+        root.put("version", 1)
+        fun arr(block: (JSONArray) -> Unit): JSONArray = JSONArray().also(block)
+
+        root.put("accounts", arr { a -> loadAccounts().forEach { x ->
+            a.put(JSONObject().apply { put("name",x.name);put("balance",x.balance);put("hidden",x.hidden);put("type",x.type);put("currency",x.currency);put("icon",x.icon);put("iconColor",x.iconColor) })
+        }})
+        root.put("transactions", arr { a -> loadTransactions().forEach { x ->
+            a.put(JSONObject().apply { put("id",x.id);put("title",x.title);put("amount",x.amount);put("income",x.income);put("accountName",x.accountName);put("category",x.category);put("timestamp",x.timestamp);put("currency",x.currency);put("operationType",x.operationType);put("toAccountName",x.toAccountName);put("note",x.note);put("repeat",x.repeat) })
+        }})
+        root.put("categories", arr { a -> loadCategories().forEach { x ->
+            a.put(JSONObject().apply { put("id",x.id);put("name",x.name);put("kind",x.kind);put("icon",x.icon);put("color",x.color) })
+        }})
+        root.put("budgets", arr { a -> loadBudgets().forEach { x ->
+            a.put(JSONObject().apply { put("id",x.id);put("name",x.name);put("category",x.category);put("accountName",x.accountName);put("limit",x.limit);put("currency",x.currency);put("period",x.period) })
+        }})
+        root.put("debts", arr { a -> loadDebts().forEach { x ->
+            a.put(JSONObject().apply { put("id",x.id);put("person",x.person);put("amount",x.amount);put("mine",x.mine);put("interest",x.interest);put("interestRate",x.interestRate);put("note",x.note) })
+        }})
+        root.put("goals", arr { a -> loadGoals().forEach { x ->
+            a.put(JSONObject().apply { put("id",x.id);put("name",x.name);put("target",x.target);put("saved",x.saved);put("currency",x.currency);put("deadline",x.deadline) })
+        }})
+        root.put("reminders", arr { a -> loadReminders().forEach { x ->
+            a.put(JSONObject().apply { put("id",x.id);put("title",x.title);put("amount",x.amount);put("date",x.date);put("repeat",x.repeat);put("done",x.done) })
+        }})
+        root.put("settings", JSONObject().apply {
+            put("currency", loadCurrency())
+            put("autoConversion", loadAutoConversion())
+            put("theme", loadTheme())
+            put("style", loadStyle())
+            put("menu", JSONArray(loadMenu().toList()))
+            put("rates", JSONObject().apply { loadRates().forEach { (k,v) -> put(k,v) } })
+            put("ratesTime", loadRatesTime())
+        })
+        return root.toString(2)
+    }
+
+
 }
