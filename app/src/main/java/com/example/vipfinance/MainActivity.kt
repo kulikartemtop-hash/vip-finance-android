@@ -42,7 +42,7 @@ class MainActivity:ComponentActivity(){
  var page by remember{mutableStateOf("Главная")};var currency by remember{mutableStateOf(s.loadCurrency())};var auto by remember{mutableStateOf(s.loadAutoConversion())}
  var theme by remember{mutableStateOf(s.loadTheme())};var style by remember{mutableStateOf(s.loadStyle())};var menu by remember{mutableStateOf(s.loadMenu().ifEmpty{pages.toSet()})}
  var rates by remember{mutableStateOf(s.loadRates())};var rateTime by remember{mutableStateOf(s.loadRatesTime())};var loading by remember{mutableStateOf(false)}
- var dialog by remember{mutableStateOf("")};var filter by remember{mutableStateOf<String?>(null)};var search by remember{mutableStateOf("")};var selected by remember{mutableStateOf<String?>(null)}
+ var dialog by remember{mutableStateOf("")};var filter by remember{mutableStateOf<String?>(null)};var newest by remember{mutableStateOf(true)};var search by remember{mutableStateOf("")};var selected by remember{mutableStateOf<String?>(null)}
  var receiptUri by remember{mutableStateOf<Uri?>(null)};var receiptText by remember{mutableStateOf("")}
  LaunchedEffect(Unit){loading=true;runCatching{ExchangeRates.loadEcbRates()}.onSuccess{rates=it;s.saveRates(it);rateTime=s.loadRatesTime()};loading=false}
  val visible=accounts.filter{!it.hidden};val total=visible.sumOf{conv(it.balance,it.currency,currency,auto,rates)}
@@ -54,7 +54,7 @@ class MainActivity:ComponentActivity(){
   Column(Modifier.fillMaxSize().padding(pad).padding(16.dp)){Text("VIP Finance",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold);Spacer(Modifier.height(10.dp))
    when(page){
     "Главная"->Home(total,currency,accounts,auto,rates,selected){selected=it}
-    "Операции"->Operations(shown,accounts,filter,{filter=it},{dialog="tx"},::remove,currency,auto,rates,search){search=it}
+    "Операции"->Operations(shown,accounts,filter,{filter=it},{dialog="tx"},::remove,currency,auto,rates,search,{search=it},newest){newest=it}
     "Счета"->Accounts(accounts,currency,auto,rates,{dialog="account"},{selected=it}){n->accounts=accounts.map{if(it.name==n)it.copy(hidden=!it.hidden)else it};s.saveAccounts(accounts)}
     "Аналитика"->Analytics(inc,exp,shown,currency,auto,rates)
     "Конвертер"->Converter(currency,rates,loading)
@@ -81,8 +81,8 @@ class MainActivity:ComponentActivity(){
 
 @Composable private fun Operations(ts:List<Transaction>,accounts:List<Account>,filter:String?,setFilter:(String?)->Unit,add:()->Unit,remove:(Transaction)->Unit,c:String,auto:Boolean,r:Map<String,Double>){
  Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically){Text("Операции",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}}
- OutlinedTextField(search,setSearch,label={Text("Поиск операций")},singleLine=true,modifier=Modifier.fillMaxWidth());Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){FilterChip(filter==null,{setFilter(null)},label={Text("Все")});accounts.forEach{a->FilterChip(filter==a.name,{setFilter(a.name)},label={Text(a.name)})}}
- LazyColumn(verticalArrangement=Arrangement.spacedBy(6.dp)){items(ts.asReversed()){t->Card(Modifier.fillMaxWidth()){Row(Modifier.padding(12.dp).fillMaxWidth(),Arrangement.SpaceBetween){Column(Modifier.weight(1f)){Text(t.title,fontWeight=FontWeight.Bold);Text(t.category+" • "+t.accountName);Text(SimpleDateFormat("dd.MM.yyyy HH:mm",Locale.getDefault()).format(Date(t.timestamp)))};Column(horizontalAlignment=Alignment.End){Text((if(t.income)"+" else "−")+" "+money(conv(t.amount,t.currency,c,auto,r),c),fontWeight=FontWeight.Bold);TextButton(onClick={remove(t)}){Text("Удалить")}}}}}}
+ OutlinedTextField(search,setSearch,label={Text("Поиск операций")},singleLine=true,modifier=Modifier.fillMaxWidth());Row(verticalAlignment=Alignment.CenterVertically){Text("Сначала новые");Switch(newest,setNewest)};Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){FilterChip(filter==null,{setFilter(null)},label={Text("Все")});accounts.forEach{a->FilterChip(filter==a.name,{setFilter(a.name)},label={Text(a.name)})}}
+ LazyColumn(verticalArrangement=Arrangement.spacedBy(6.dp)){items(if(newest)ts.sortedByDescending{it.timestamp}else ts.sortedBy{it.timestamp}){t->Card(Modifier.fillMaxWidth()){Row(Modifier.padding(12.dp).fillMaxWidth(),Arrangement.SpaceBetween){Column(Modifier.weight(1f)){Text(t.title,fontWeight=FontWeight.Bold);Text(t.category+" • "+t.accountName);Text(SimpleDateFormat("dd.MM.yyyy HH:mm",Locale.getDefault()).format(Date(t.timestamp)))};Column(horizontalAlignment=Alignment.End){Text((if(t.income)"+" else "−")+" "+money(conv(t.amount,t.currency,c,auto,r),c),fontWeight=FontWeight.Bold);TextButton(onClick={remove(t)}){Text("Удалить")}}}}}}
 }
 
 @Composable private fun Accounts(items:List<Account>,c:String,auto:Boolean,r:Map<String,Double>,add:()->Unit,select:(String)->Unit,toggle:(String)->Unit){
