@@ -297,12 +297,49 @@ private fun MetricCard(title: String, value: String, accent: Color, modifier: Mo
         }
     }
 }
-@Composable private fun Operations(ts:List<Transaction>,accounts:List<Account>,filter:String?,setFilter:(String?)->Unit,add:()->Unit,remove:(Transaction)->Unit,c:String,auto:Boolean,r:Map<String,Double>,search:String,setSearch:(String)->Unit,newest:Boolean,setNewest:(Boolean)->Unit){
- Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically){Text("Операции",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}}
- OutlinedTextField(search,setSearch,label={Text("Поиск операций")},singleLine=true,modifier=Modifier.fillMaxWidth());Row(verticalAlignment=Alignment.CenterVertically){Text("Сначала новые");Switch(newest,setNewest)};Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){FilterChip(filter==null,{setFilter(null)},label={Text("Все")});accounts.forEach{a->FilterChip(filter==a.name,{setFilter(a.name)},label={Text(a.name)})}}
- LazyColumn(verticalArrangement=Arrangement.spacedBy(6.dp)){items(if(newest)ts.sortedByDescending{it.timestamp}else ts.sortedBy{it.timestamp}){t->Card(Modifier.fillMaxWidth()){Row(Modifier.padding(12.dp).fillMaxWidth(),Arrangement.SpaceBetween){Column(Modifier.weight(1f)){Text(t.title,fontWeight=FontWeight.Bold);Text(t.category+" • "+t.accountName);Text(SimpleDateFormat("dd.MM.yyyy HH:mm",Locale.getDefault()).format(Date(t.timestamp)))};Column(horizontalAlignment=Alignment.End){Text((if(t.income)"+" else "−")+" "+money(conv(t.amount,t.currency,c,auto,r),c),fontWeight=FontWeight.Bold);TextButton(onClick={remove(t)}){Text("Удалить")}}}}}}
+@Composable
+private fun Operations(
+    ts: List<Transaction>, accounts: List<Account>, filter: String?, setFilter: (String?) -> Unit,
+    add: () -> Unit, remove: (Transaction) -> Unit, c: String, auto: Boolean, r: Map<String, Double>,
+    search: String, setSearch: (String) -> Unit, newest: Boolean, setNewest: (Boolean) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+            Column {
+                Text("Операции", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text("${ts.size} операций", style = MaterialTheme.typography.bodySmall)
+            }
+            FilledTonalButton(onClick = add) { Text("+ Добавить") }
+        }
+        OutlinedTextField(search, setSearch, label = { Text("Поиск операций") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium)
+        Row(verticalAlignment = Alignment.CenterVertically) { Text("Сначала новые", modifier = Modifier.weight(1f)); Switch(newest, setNewest) }
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            FilterChip(filter == null, { setFilter(null) }, label = { Text("Все") })
+            accounts.forEach { a -> FilterChip(filter == a.name, { setFilter(a.name) }, label = { Text(a.name) }) }
+        }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(if (newest) ts.sortedByDescending { it.timestamp } else ts.sortedBy { it.timestamp }) { t ->
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (t.income) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f) else MaterialTheme.colorScheme.surface)) {
+                    Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(if (t.income) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer), contentAlignment = Alignment.Center) {
+                            Text(if (t.income) "↗" else "↘", color = if (t.income) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(t.title, fontWeight = FontWeight.SemiBold)
+                            Text(t.category + " • " + t.accountName, style = MaterialTheme.typography.bodySmall)
+                            Text(SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(t.timestamp)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text((if (t.income) "+" else "−") + " " + money(conv(t.amount, t.currency, c, auto, r), c), fontWeight = FontWeight.Bold, color = if (t.income) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                            TextButton(onClick = { remove(t) }) { Text("Удалить") }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
-
 @Composable private fun Accounts(items:List<Account>,c:String,auto:Boolean,r:Map<String,Double>,add:()->Unit,select:(String)->Unit,toggle:(String)->Unit){
  Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically){Text("Счета и карты",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}}
  LazyColumn(verticalArrangement=Arrangement.spacedBy(6.dp)){items(items){a->Card(onClick={select(a.name)},modifier=Modifier.fillMaxWidth()){Row(Modifier.padding(12.dp).fillMaxWidth(),Arrangement.SpaceBetween){Column{Text(a.name,fontWeight=FontWeight.Bold);Text(a.type+" • "+a.currency+if(a.hidden)" • скрыт" else "")};Column(horizontalAlignment=Alignment.End){Text(money(conv(a.balance,a.currency,c,auto,r),c),fontWeight=FontWeight.Bold);TextButton(onClick={toggle(a.name)}){Text(if(a.hidden)"Показать" else "Скрыть")}}}}}}
