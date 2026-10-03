@@ -23,6 +23,7 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.example.vipfinance.ui.theme.VIPFinanceTheme
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -36,6 +37,7 @@ class MainActivity:ComponentActivity(){
  override fun onCreate(b:Bundle?){super.onCreate(b);enableEdgeToEdge();val s=FinanceStore(this);setContent{VIPFinanceTheme(s.loadTheme(),s.loadStyle()){FinanceApp(s)}}}
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FinanceApp(s: FinanceStore) {
     var accounts by remember { mutableStateOf(s.loadAccounts()) }
@@ -102,7 +104,7 @@ fun FinanceApp(s: FinanceStore) {
 
     fun saveSettings(c: String, a: Boolean, t: String, st: String, m: Set<String>) {
         currency = c; auto = a; theme = t; style = st; menu = m.filter { it in pages }.toSet()
-        s.saveCurrency(c); s.saveAutoConversion(a); s.saveTheme(t); s.saveStyle(st); s.saveMenu(menu)
+        s.saveCurrency(c); s.saveAutoConversion(a); s.saveTheme(t); s.saveStyle(st); s.saveMenu(menu.toSet())
     }
 
     VIPFinanceTheme(theme = theme, style = style) {
@@ -162,7 +164,7 @@ fun FinanceApp(s: FinanceStore) {
         "debt" -> DebtDialog({ dialog = "" }) { debts = debts + it; s.saveDebts(debts); dialog = "" }
         "goal" -> GoalDialog(currency, { dialog = "" }) { goals = goals + it; s.saveGoals(goals); dialog = "" }
         "reminder" -> ReminderDialog({ dialog = "" }) { reminders = reminders + it; s.saveReminders(reminders); dialog = "" }
-        "settings" -> SettingsDialog(currency, auto, theme, style, menu, rateTime, { c, a, t, st, m -> saveSettings(c, a, t, st, m) }) { dialog = "" }
+        "settings" -> SettingsDialog(currency, auto, theme, style, menu, rateTime, { c: String, a: Boolean, t: String, st: String, m: Set<String> -> saveSettings(c, a, t, st, m) }) { dialog = "" }
     }
 }
 
