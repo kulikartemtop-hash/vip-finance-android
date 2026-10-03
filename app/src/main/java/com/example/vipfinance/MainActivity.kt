@@ -232,6 +232,7 @@ fun FinanceApp(s: FinanceStore) {
                         "Главная" -> Home(total, currency, accounts, auto, rates, selected, inc, exp) { selected = it }
                         "Операции" -> Operations(shown, accounts, filter, { filter = it }, { dialog = "expense" }, ::remove, currency, auto, rates, search, { search = it }, newest) { newest = it }
                         "Счета" -> Accounts(accounts, currency, auto, rates, { dialog = "account" }, { selected = it }) { n -> val updated = accounts.map { if (it.name == n) it.copy(hidden = !it.hidden) else it }; accounts = updated; s.saveAccounts(updated) }
+                        "Категории" -> Categories(categories, { editingCategory = null; dialog = "category" }, { editingCategory = it; dialog = "category" }, { c0 -> categories = categories.filterNot { it.id == c0.id }; s.saveCategories(categories) })
                         "Аналитика" -> Analytics(tx, currency, auto, rates)
                         "Конвертер" -> Converter(currency, rates, loading)
                         "Долги" -> Debts(debts, { dialog = "debt" }) { d -> debts = debts.filterNot { it.id == d.id }; s.saveDebts(debts) }
@@ -244,14 +245,22 @@ fun FinanceApp(s: FinanceStore) {
         }
     }
 
-    when (dialog) {
-        "account" -> AccountDialog({ dialog = "" }) { n, b, t, c -> accounts = accounts + Account(n, b, false, t, c); s.saveAccounts(accounts); dialog = "" }
-        "expense" -> TransactionDialog(accounts, false, { dialog = "" }) { add(it); dialog = "" }
-        "income" -> TransactionDialog(accounts, true, { dialog = "" }) { add(it); dialog = "" }
-        "debt" -> DebtDialog({ dialog = "" }) { debts = debts + it; s.saveDebts(debts); dialog = "" }
-        "goal" -> GoalDialog(currency, { dialog = "" }) { goals = goals + it; s.saveGoals(goals); dialog = "" }
-        "reminder" -> ReminderDialog({ dialog = "" }) { reminders = reminders + it; s.saveReminders(reminders); dialog = "" }
-        "settings" -> SettingsDialog(currency, auto, theme, style, menu, rateTime, { c: String, a: Boolean, t: String, st: String, m: Set<String> -> saveSettings(c, a, t, st, m) }) { dialog = "" }
+    VIPFinanceTheme(theme = theme, style = style) {
+        when (dialog) {
+            "account" -> AccountDialog({ dialog = "" }) { n, b, t, c, icon, iconColor ->
+                accounts = accounts + Account(n, b, false, t, c, icon, iconColor); s.saveAccounts(accounts); dialog = ""
+            }
+            "category" -> CategoryDialog(editingCategory, { dialog = ""; editingCategory = null }) { category ->
+                categories = if (categories.any { it.id == category.id }) categories.map { if (it.id == category.id) category else it } else categories + category
+                s.saveCategories(categories); dialog = ""; editingCategory = null
+            }
+            "expense" -> TransactionDialog(accounts, categories, false, { dialog = "" }) { add(it); dialog = "" }
+            "income" -> TransactionDialog(accounts, categories, true, { dialog = "" }) { add(it); dialog = "" }
+            "debt" -> DebtDialog({ dialog = "" }) { debts = debts + it; s.saveDebts(debts); dialog = "" }
+            "goal" -> GoalDialog(currency, { dialog = "" }) { goals = goals + it; s.saveGoals(goals); dialog = "" }
+            "reminder" -> ReminderDialog({ dialog = "" }) { reminders = reminders + it; s.saveReminders(reminders); dialog = "" }
+            "settings" -> SettingsDialog(currency, auto, theme, style, menu, rateTime, { c: String, a: Boolean, t: String, st: String, m: Set<String> -> saveSettings(c, a, t, st, m) }) { dialog = "" }
+        }
     }
 }
 
