@@ -38,11 +38,11 @@ class FinanceStore(context: Context) {
 
     fun loadCategories(): List<Category> = runCatching {
         val a=JSONArray(prefs.getString("categories","[]"))
-        buildList { for(i in 0 until a.length()){ val o=a.getJSONObject(i); add(Category(o.optLong("id"),o.optString("name"),o.optString("icon","category"),o.optString("color","#5B35F5"))) } }
+        buildList { for(i in 0 until a.length()){ val o=a.getJSONObject(i); add(Category(o.optLong("id"),o.optString("name"),o.optString("kind","expense"),o.optString("icon","category"),o.optString("color","#5B35F5"))) } }
     }.getOrDefault(emptyList())
 
     fun saveCategories(items: List<Category>) {
-        val a=JSONArray();items.forEach{x->a.put(JSONObject().apply{put("id",x.id);put("name",x.name);put("icon",x.icon);put("color",x.color)})};prefs.edit().putString("categories",a.toString()).apply()
+        val a=JSONArray();items.forEach{x->a.put(JSONObject().apply{put("id",x.id);put("name",x.name);put("kind",x.kind);put("icon",x.icon);put("color",x.color)})};prefs.edit().putString("categories",a.toString()).apply()
     }
 
     fun loadDebts(): List<Debt> = runCatching {
