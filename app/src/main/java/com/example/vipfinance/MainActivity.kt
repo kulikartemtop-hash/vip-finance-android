@@ -50,7 +50,7 @@ fun FinanceApp(s: FinanceStore) {
     var auto by remember { mutableStateOf(s.loadAutoConversion()) }
     var theme by remember { mutableStateOf(s.loadTheme()) }
     var style by remember { mutableStateOf(s.loadStyle()) }
-    var menu by remember { mutableStateOf(s.loadMenu().filter { it in pages }.ifEmpty { pages.toSet() }) }
+    var menu by remember { mutableStateOf(s.loadMenu().filter { it in pages }.toSet().ifEmpty { pages.toSet() }) }
     var rates by remember { mutableStateOf(s.loadRates()) }
     var rateTime by remember { mutableStateOf(s.loadRatesTime()) }
     var loading by remember { mutableStateOf(false) }
