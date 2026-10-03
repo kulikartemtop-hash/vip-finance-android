@@ -40,6 +40,19 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+private fun currencySymbol(code: String): String = when (code) {
+    "GBP" -> "£"
+    "USD" -> "$"
+    "EUR" -> "€"
+    "RUB" -> "₽"
+    "CNY" -> "¥"
+    "JPY" -> "¥"
+    else -> code
+}
+
+private fun money(value: Double, currency: String): String =
+    currencySymbol(currency) + "%.2f".format(Locale.getDefault(), value)
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,6 +71,7 @@ fun FinanceApp(store: FinanceStore) {
     var transactionAccountFilter by remember { mutableStateOf<String?>(null) }
     var showAccountDialog by remember { mutableStateOf(false) }
     var showTransactionDialog by remember { mutableStateOf(false) }
+    var currency by remember { mutableStateOf(store.loadCurrency()) }
 
     val visibleAccounts = accounts.filter { !it.hidden }
     val selectedBalance = selectedAccount?.let { name -> accounts.firstOrNull { it.name == name }?.balance }
@@ -105,11 +119,14 @@ fun FinanceApp(store: FinanceStore) {
             Text("VIP Finance", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
             when (selectedTab) {
-                0 -> HomeScreen(total, selectedAccount, selectedBalance, accounts) { selectedAccount = it }
-                1 -> TransactionsScreen(shownTransactions, accounts, transactionAccountFilter, { transactionAccountFilter = it }, { showTransactionDialog = true }, ::deleteTransaction)
+                0 -> HomeScreen(total, selectedAccount, selectedBalance, accounts, currency) { selectedAccount = it }
+                1 -> TransactionsScreen(shownTransactions, accounts, transactionAccountFilter, { transactionAccountFilter = it }, { showTransactionDialog = true }, ::deleteTransaction, currency)
                 2 -> AccountsScreen(accounts, { showAccountDialog = true }) { selectedAccount = it }
-                3 -> AnalyticsScreen(shownIncome, shownExpense, shownTransactions)
-                else -> MoreScreen()
+                3 -> AnalyticsScreen(shownIncome, shownExpense, shownTransactions, currency)
+                else -> MoreScreen(currency) { newCurrency ->
+                    currency = newCurrency
+                    store.saveCurrency(newCurrency)
+                }
             }
         }
     }
@@ -134,11 +151,11 @@ fun FinanceApp(store: FinanceStore) {
 }
 
 @Composable
-fun HomeScreen(total: Double, selectedAccount: String?, selectedBalance: Double?, accounts: List<Account>, onSelect: (String?) -> Unit) {
+fun HomeScreen(total: Double, selectedAccount: String?, selectedBalance: Double?, accounts: List<Account>, currency: String, onSelect: (String?) -> Unit) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp)) {
             Text(if (selectedAccount == null) "Общий баланс" else "Баланс: $selectedAccount", style = MaterialTheme.typography.titleMedium)
-            Text("£%.2f".format(selectedBalance ?: total), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+            Text(money(selectedBalance ?: total, currency), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 FilterChip(selectedAccount == null, { onSelect(null) }, label = { Text("Все") })
@@ -158,7 +175,7 @@ fun HomeScreen(total: Double, selectedAccount: String?, selectedBalance: Double?
                     Text(account.name, fontWeight = FontWeight.Bold)
                     Text(account.type)
                 }
-                Text("£%.2f".format(account.balance), fontWeight = FontWeight.Bold)
+                Text(money(account.balance, currency), fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -194,7 +211,8 @@ fun TransactionsScreen(
     selectedFilter: String?,
     onFilter: (String?) -> Unit,
     onAdd: () -> Unit,
-    onDelete: (Transaction) -> Unit
+    onDelete: (Transaction) -> Unit,
+    currency: String
 ) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Text("Операции", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -220,7 +238,7 @@ fun TransactionsScreen(
                             Text(SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(transaction.timestamp)))
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text((if (transaction.income) "+" else "−") + " £%.2f".format(transaction.amount), fontWeight = FontWeight.Bold)
+                            Text((if (transaction.income) "+" else "−") + " " + money(transaction.amount, currency), fontWeight = FontWeight.Bold)
                             TextButton(onClick = { onDelete(transaction) }) { Text("Удалить") }
                         }
                     }
@@ -231,19 +249,19 @@ fun TransactionsScreen(
 }
 
 @Composable
-fun AnalyticsScreen(income: Double, expense: Double, transactions: List<Transaction>) {
+fun AnalyticsScreen(income: Double, expense: Double, transactions: List<Transaction>, currency: String) {
     Text("Аналитика", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
     Spacer(Modifier.height(12.dp))
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp)) {
             Text("Доходы", fontWeight = FontWeight.Bold)
-            Text("£%.2f".format(income), style = MaterialTheme.typography.titleLarge)
+            Text(money(income, currency), style = MaterialTheme.typography.titleLarge)
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
             Text("Расходы", fontWeight = FontWeight.Bold)
-            Text("£%.2f".format(expense), style = MaterialTheme.typography.titleLarge)
+            Text(money(expense, currency), style = MaterialTheme.typography.titleLarge)
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
             Text("Разница", fontWeight = FontWeight.Bold)
-            Text("£%.2f".format(income - expense), style = MaterialTheme.typography.titleLarge)
+            Text(money(income - expense, currency), style = MaterialTheme.typography.titleLarge)
         }
     }
     Spacer(Modifier.height(12.dp))
@@ -253,15 +271,30 @@ fun AnalyticsScreen(income: Double, expense: Double, transactions: List<Transact
     else categories.entries.sortedByDescending { it.value }.forEach { entry ->
         Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(entry.key)
-            Text("£%.2f".format(entry.value), fontWeight = FontWeight.Bold)
+            Text(money(entry.value, currency), fontWeight = FontWeight.Bold)
         }
     }
 }
 
 @Composable
-fun MoreScreen() {
+fun MoreScreen(currency: String, onCurrencyChange: (String) -> Unit) {
     Text("Ещё", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
     Spacer(Modifier.height(12.dp))
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Text("Основная валюта", fontWeight = FontWeight.Bold)
+            Text("Сейчас: " + currency)
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("GBP", "EUR", "USD", "RUB", "CNY", "JPY").forEach { code ->
+                    FilterChip(currency == code, { onCurrencyChange(code) }, label = { Text(code) })
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text("Смена валюты меняет отображение сумм. Конвертацию по курсу добавим отдельно.")
+        }
+    }
+    Spacer(Modifier.height(8.dp))
     listOf("Долги", "Накопления и цели", "Чеки и OCR", "Напоминания", "Настройки", "Темы оформления").forEach {
         Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) { Text(it, Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium) }
     }
