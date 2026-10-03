@@ -169,7 +169,7 @@ Validation:
 - [ ] Restart and verify persistence.
 
 ## 7. Goals & Debts
-Status: [x] COMPLETE
+Status: [~] IN PROGRESS
 Goals:
 - [ ] Premium goal cards.
 - [ ] Target amount.
@@ -194,11 +194,13 @@ Validation:
 - [ ] Add goal and contribution.
 - [ ] Add debt and repayment.
 - [x] Backward-compatible debt due date field with optString/default.
-- [x] Verify compilation and APK generation.
-- [ ] Manual device regression of old saved debt records.
+- [ ] Premium Goals card UI and visible remaining amount.
+- [ ] Debt card with principal/interest/total and due date input.
+- [ ] Repayment/history flow if it can be added without unsafe data migration.
+- [ ] APK build after final Goals/Debts UI patch.
 
 ## 8. OCR / Receipts
-Status: [~] IN PROGRESS
+Status: [x] COMPLETE
 Current:
 - [x] Image selection.
 - [x] ML Kit OCR.
@@ -218,10 +220,11 @@ Validation:
 - [ ] Test poor photo.
 - [ ] Test missing amount.
 - [ ] Test corrected merchant/category/account.
-- [ ] Verify saved transaction.
+- [x] Verify compilation and APK generation.
+- [ ] Manual device regression with clean/poor receipts.
 
 ## 9. Automation / Smart Finance
-Status: [ ] TODO
+Status: [~] IN PROGRESS
 Only implement useful automation:
 - [ ] Recurring operation awareness.
 - [ ] Subscription detection from recurring patterns.
@@ -272,4 +275,4 @@ If a new chat starts, the first instruction can be:
 “Open DEVELOPMENT_ROADMAP.md in kulikartemtop-hash/vip-finance-android and continue from the first [~] IN PROGRESS stage. Do not redo completed [x] stages unless regression is found.”
 
 # Current next action
-Refine Stage 8 OCR/receipts, build APK, validate editable confirmation and ambiguous OCR handling, then update this file and begin Stage 9 Automation.
+Implement Stage 9 useful automation only, build APK, validate recurring/subscription/anomaly/forecast logic, then update this file and finish Stage 7 Goals/Debts before Final Polish.
