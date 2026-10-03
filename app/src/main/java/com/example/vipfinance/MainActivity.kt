@@ -53,7 +53,7 @@ class MainActivity:ComponentActivity(){
  Scaffold(bottomBar={NavigationBar{menu.filter{it!="Ещё"}.take(4).forEach{p->NavigationBarItem(selected=page==p,onClick={page=p},icon={Text(p.take(1))},label={Text(p)})};NavigationBarItem(selected=page=="Ещё",onClick={page="Ещё"},icon={Text("⋯")},label={Text("Ещё")})}}){pad->
   Column(Modifier.fillMaxSize().padding(pad).padding(16.dp)){Text("VIP Finance",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold);Spacer(Modifier.height(10.dp))
    when(page){
-    "Главная"->Home(total,currency,accounts,auto,rates,selected){selected=it}
+    "Главная"->Home(total,currency,accounts,auto,rates,selected,inc,exp){selected=it}
     "Операции"->Operations(shown,accounts,filter,{filter=it},{dialog="tx"},::remove,currency,auto,rates,search,{search=it},newest){newest=it}
     "Счета"->Accounts(accounts,currency,auto,rates,{dialog="account"},{selected=it}){n->accounts=accounts.map{if(it.name==n)it.copy(hidden=!it.hidden)else it};s.saveAccounts(accounts)}
     "Аналитика"->Analytics(inc,exp,shown,currency,auto,rates)
@@ -73,8 +73,8 @@ class MainActivity:ComponentActivity(){
  if(dialog=="reminder")ReminderDialog({dialog=""}){reminders=reminders+it;s.saveReminders(reminders);dialog=""}
 }
 
-@Composable private fun Home(total:Double,c:String,accounts:List<Account>,auto:Boolean,r:Map<String,Double>,selected:String?,pick:(String?)->Unit){
- Card(Modifier.fillMaxWidth()){Column(Modifier.padding(18.dp)){Text(if(selected==null)"Общий баланс" else "Баланс: "+selected);val v=selected?.let{n->accounts.firstOrNull{it.name==n}?.let{conv(it.balance,it.currency,c,auto,r)}}?:total;Text(money(v,c),style=MaterialTheme.typography.headlineLarge,fontWeight=FontWeight.Bold);Text(if(auto)"Автоконвертация включена" else "Показ исходных валют")}}
+@Composable private fun Home(total:Double,c:String,accounts:List<Account>,auto:Boolean,r:Map<String,Double>,selected:String?,income:Double,expense:Double,pick:(String?)->Unit){
+ Card(Modifier.fillMaxWidth()){Column(Modifier.padding(18.dp)){Text(if(selected==null)"Общий баланс" else "Баланс: "+selected);val v=selected?.let{n->accounts.firstOrNull{it.name==n}?.let{conv(it.balance,it.currency,c,auto,r)}}?:total;Text(money(v,c),style=MaterialTheme.typography.headlineLarge,fontWeight=FontWeight.Bold);Text(if(auto)"Автоконвертация включена" else "Показ исходных валют");Spacer(Modifier.height(8.dp));Text("Доходы: "+money(income,c));Text("Расходы: "+money(expense,c))}}
  Spacer(Modifier.height(10.dp));Row(horizontalArrangement=Arrangement.spacedBy(5.dp)){FilterChip(selected==null,{pick(null)},label={Text("Все")});accounts.filter{!it.hidden}.forEach{a->FilterChip(selected==a.name,{pick(a.name)},label={Text(a.name)})}}
  Spacer(Modifier.height(10.dp));accounts.filter{!it.hidden}.forEach{a->Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){Row(Modifier.padding(12.dp).fillMaxWidth(),Arrangement.SpaceBetween){Column{Text(a.name,fontWeight=FontWeight.Bold);Text(a.type+" • "+a.currency)};Text(money(conv(a.balance,a.currency,c,auto,r),c),fontWeight=FontWeight.Bold)}}}
 }
