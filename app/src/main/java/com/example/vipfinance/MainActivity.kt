@@ -551,20 +551,43 @@ private fun BudgetDialog(accounts:List<Account>,categories:List<Category>,c:Stri
  AlertDialog(onDismissRequest=close,title={Text("Новый бюджет")},text={Column(Modifier.heightIn(max=560.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)){OutlinedTextField(n,{n=it},label={Text("Название")},modifier=Modifier.fillMaxWidth(),singleLine=true);OutlinedTextField(lim,{lim=it},label={Text("Лимит $c")},modifier=Modifier.fillMaxWidth(),singleLine=true);Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){FilterChip(per=="Месяц",{per="Месяц"},label={Text("Месяц")});FilterChip(per=="Неделя",{per="Неделя"},label={Text("Неделя")})};Text("Категория",fontWeight=FontWeight.Bold);LazyRow(horizontalArrangement=Arrangement.spacedBy(5.dp)){items(categories){z->FilterChip(cat==z.name,{cat=z.name},label={Text(iconText(z.icon)+" "+z.name)})}};Text("Счёт",fontWeight=FontWeight.Bold);LazyRow(horizontalArrangement=Arrangement.spacedBy(5.dp)){items(accounts){z->FilterChip(acc==z.name,{acc=z.name},label={Text(iconText(z.icon)+" "+z.name)})}}}},confirmButton={Button(onClick={save(Budget(name=n.trim(),category=cat,accountName=acc,limit=lim.replace(',','.').toDoubleOrNull()?:0.0,currency=c,period=per))},enabled=n.isNotBlank()&&(lim.replace(',','.').toDoubleOrNull()?:0.0)>0){Text("Создать")}},dismissButton={TextButton(close){Text("Отмена")}})
 }
 @Composable private fun Debts(items:List<Debt>,add:()->Unit,remove:(Debt)->Unit){
- Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text("Долги",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}};items.forEach{d->Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){Column(Modifier.padding(12.dp)){Text(if(d.mine)"Я должен: "+d.person else "Мне должны: "+d.person,fontWeight=FontWeight.Bold);Text("%.2f".format(d.amount));Text(if(d.interest)"Проценты включены" else "Без процентов");if(d.note.isNotBlank())Text(d.note);TextButton(onClick={remove(d)}){Text("Удалить")}}}}
+    Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){
+        Text("Долги",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
+        Button(add){Text("+")}
+    }
+    items.forEach{d->
+        Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){
+            Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
+                Text(if(d.mine)"Я должен: "+d.person else "Мне должны: "+d.person,fontWeight=FontWeight.Bold)
+                Text("%.2f RUB".format(d.amount),style=MaterialTheme.typography.titleMedium)
+                Text(if(d.interest)"Проценты: %.2f%%".format(d.interestRate) else "Без процентов",color=MaterialTheme.colorScheme.primary)
+                if(d.note.isNotBlank())Text(d.note)
+                TextButton(onClick={remove(d)}){Text("Удалить")}
+            }
+        }
+    }
 }
-
 @Composable private fun Goals(items:List<Goal>,add:()->Unit,progress:(Goal)->Unit,remove:(Goal)->Unit){
- Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text("Цели",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}}
- items.forEach{g->Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
-   Text(g.name,fontWeight=FontWeight.Bold);Text(money(g.saved,g.currency)+" / "+money(g.target,g.currency))
-   LinearProgressIndicator({if(g.target>0)(g.saved/g.target).toFloat().coerceIn(0f,1f) else 0f},Modifier.fillMaxWidth())
-   Text(String.format(Locale.getDefault(),"%.1f%%",if(g.target>0)g.saved/g.target*100 else 0.0),style=MaterialTheme.typography.bodySmall)
-   if(g.deadline.isNotBlank())Text("Срок: "+g.deadline)
-   Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){TextButton(onClick={progress(g)}){Text("Пополнить")};TextButton(onClick={remove(g)}){Text("Удалить")}}
- }}}}
+    Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){
+        Text("Цели",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
+        Button(add){Text("+")}
+    }
+    items.forEach{g->
+        Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){
+            Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
+                Text(g.name,fontWeight=FontWeight.Bold)
+                Text(money(g.saved,g.currency)+" / "+money(g.target,g.currency))
+                LinearProgressIndicator({if(g.target>0)(g.saved/g.target).toFloat().coerceIn(0f,1f) else 0f},Modifier.fillMaxWidth())
+                Text(String.format(Locale.getDefault(),"%.1f%%",if(g.target>0)g.saved/g.target*100 else 0.0),style=MaterialTheme.typography.bodySmall)
+                if(g.deadline.isNotBlank())Text("Срок: "+g.deadline)
+                Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){
+                    TextButton(onClick={progress(g)}){Text("Пополнить")}
+                    TextButton(onClick={remove(g)}){Text("Удалить")}
+                }
+            }
+        }
+    }
 }
-
 @Composable private fun Reminders(items:List<Reminder>,add:()->Unit,toggle:(Reminder)->Unit,remove:(Reminder)->Unit){
  Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text("Напоминания",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}};items.forEach{r->Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){Row(Modifier.padding(12.dp).fillMaxWidth(),Arrangement.SpaceBetween){Column(Modifier.weight(1f)){Text(r.title,fontWeight=FontWeight.Bold);Text(r.date+" • "+r.repeat)};Switch(r.done,{toggle(r)});TextButton(onClick={remove(r)}){Text("Удалить")}}}}
 }
