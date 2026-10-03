@@ -36,7 +36,7 @@ import java.util.Date
 import java.util.Locale
 
 private val currencies=listOf("RUB","GBP","EUR","USD","CNY","JPY","CHF","CAD","AUD","PLN")
-private val pages=listOf("Главная","Операции","Счета","Категории","Аналитика","Конвертер","Долги","Цели","Напоминания","Чеки")
+private val pages=listOf("Главная","Операции","Счета","Категории","Бюджеты","Аналитика","Конвертер","Долги","Цели","Напоминания","Чеки")
 private val defaultCategories=listOf(
     Category(name="Продукты",kind="expense",icon="shopping_cart",color="#43A047"),
     Category(name="Транспорт",kind="expense",icon="directions_car",color="#1E88E5"),
@@ -82,6 +82,7 @@ fun FinanceApp(s: FinanceStore) {
     var debts by remember { mutableStateOf(s.loadDebts()) }
     var goals by remember { mutableStateOf(s.loadGoals()) }
     var reminders by remember { mutableStateOf(s.loadReminders()) }
+    var budgets by remember { mutableStateOf(s.loadBudgets()) }
     var categories by remember { mutableStateOf(s.loadCategories().ifEmpty { defaultCategories }) }
     var editingCategory by remember { mutableStateOf<Category?>(null) }
     var page by remember { mutableStateOf("Главная") }
@@ -94,6 +95,7 @@ fun FinanceApp(s: FinanceStore) {
     var rateTime by remember { mutableStateOf(s.loadRatesTime()) }
     var loading by remember { mutableStateOf(false) }
     var dialog by remember { mutableStateOf("") }
+    var repeatSource by remember { mutableStateOf<Transaction?>(null) }
     var filter by remember { mutableStateOf<String?>(null) }
     var newest by remember { mutableStateOf(true) }
     var search by remember { mutableStateOf("") }
@@ -119,7 +121,21 @@ fun FinanceApp(s: FinanceStore) {
     fun add(t: Transaction) {
         tx = tx + t
         s.saveTransactions(tx)
-        if (t.accountName.isNotBlank()) {
+        val source = accounts.firstOrNull { it.name == t.accountName }
+        if (t.operationType == "transfer") {
+            val target = accounts.firstOrNull { it.name == t.toAccountName }
+            if (source != null && target != null) {
+                val converted = ExchangeRates.convert(t.amount, source.currency, target.currency, rates)
+                accounts = accounts.map {
+                    when (it.name) {
+                        source.name -> it.copy(balance = it.balance - t.amount)
+                        target.name -> it.copy(balance = it.balance + converted)
+                        else -> it
+                    }
+                }
+                s.saveAccounts(accounts)
+            }
+        } else if (source != null) {
             val delta = if (t.income) t.amount else -t.amount
             accounts = accounts.map { if (it.name == t.accountName) it.copy(balance = it.balance + delta) else it }
             s.saveAccounts(accounts)
@@ -128,19 +144,34 @@ fun FinanceApp(s: FinanceStore) {
     fun remove(t: Transaction) {
         tx = tx.filterNot { it.id == t.id }
         s.saveTransactions(tx)
-        if (t.accountName.isNotBlank()) {
+        val source = accounts.firstOrNull { it.name == t.accountName }
+        if (t.operationType == "transfer") {
+            val target = accounts.firstOrNull { it.name == t.toAccountName }
+            if (source != null && target != null) {
+                val converted = ExchangeRates.convert(t.amount, source.currency, target.currency, rates)
+                accounts = accounts.map {
+                    when (it.name) {
+                        source.name -> it.copy(balance = it.balance + t.amount)
+                        target.name -> it.copy(balance = it.balance - converted)
+                        else -> it
+                    }
+                }
+                s.saveAccounts(accounts)
+            }
+        } else if (source != null) {
             val delta = if (t.income) -t.amount else t.amount
             accounts = accounts.map { if (it.name == t.accountName) it.copy(balance = it.balance + delta) else it }
             s.saveAccounts(accounts)
         }
+    }
     }
 
     val visible = accounts.filter { !it.hidden }
     val total = visible.sumOf { conv(it.balance, it.currency, currency, auto, rates) }
     val shown0 = filter?.let { name -> tx.filter { it.accountName == name } } ?: tx
     val shown = shown0.filter { search.isBlank() || it.title.contains(search, true) || it.category.contains(search, true) || it.accountName.contains(search, true) }
-    val inc = shown.filter { it.income }.sumOf { conv(it.amount, it.currency, currency, auto, rates) }
-    val exp = shown.filter { !it.income }.sumOf { conv(it.amount, it.currency, currency, auto, rates) }
+    val inc = shown.filter { it.income && it.operationType != "transfer" }.sumOf { conv(it.amount, it.currency, currency, auto, rates) }
+    val exp = shown.filter { !it.income && it.operationType != "transfer" }.sumOf { conv(it.amount, it.currency, currency, auto, rates) }
 
     fun saveSettings(c: String, a: Boolean, t: String, st: String, m: Set<String>) {
         currency = c; auto = a; theme = t; style = st; menu = m.filter { it in pages }.toSet()
@@ -246,9 +277,10 @@ fun FinanceApp(s: FinanceStore) {
                 ) {
                     when (page) {
                         "Главная" -> Home(total, currency, accounts, auto, rates, selected, inc, exp) { selected = it }
-                        "Операции" -> Operations(shown, accounts, filter, { filter = it }, { dialog = "expense" }, ::remove, currency, auto, rates, search, { search = it }, newest) { newest = it }
+                        "Операции" -> Operations(shown, accounts, filter, { filter = it }, { dialog = "expense" }, ::remove, currency, auto, rates, search, { search = it }, newest, { newest = it }, { original -> repeatSource = original; dialog = if (original.income) "income" else "expense" })
                         "Счета" -> Accounts(accounts, currency, auto, rates, { dialog = "account" }, { selected = it }) { n -> val updated = accounts.map { if (it.name == n) it.copy(hidden = !it.hidden) else it }; accounts = updated; s.saveAccounts(updated) }
                         "Категории" -> Categories(categories, { editingCategory = null; dialog = "category" }, { editingCategory = it; dialog = "category" }, { c0 -> categories = categories.filterNot { it.id == c0.id }; s.saveCategories(categories) })
+                        "Бюджеты" -> Budgets(budgets, tx, currency, auto, rates, accounts, { dialog = "budget" }) { b0 -> budgets = budgets.filterNot { it.id == b0.id }; s.saveBudgets(budgets) }
                         "Аналитика" -> Analytics(tx, currency, auto, rates)
                         "Конвертер" -> Converter(currency, rates, loading)
                         "Долги" -> Debts(debts, { dialog = "debt" }) { d -> debts = debts.filterNot { it.id == d.id }; s.saveDebts(debts) }
@@ -270,11 +302,12 @@ fun FinanceApp(s: FinanceStore) {
                 categories = if (categories.any { it.id == category.id }) categories.map { if (it.id == category.id) category else it } else categories + category
                 s.saveCategories(categories); dialog = ""; editingCategory = null
             }
-            "expense" -> TransactionDialog(accounts, categories, false, { dialog = "" }) { add(it); dialog = "" }
-            "income" -> TransactionDialog(accounts, categories, true, { dialog = "" }) { add(it); dialog = "" }
+            "expense" -> TransactionDialog(accounts, categories, false, repeatSource, { dialog = ""; repeatSource = null }) { add(it); dialog = ""; repeatSource = null }
+            "income" -> TransactionDialog(accounts, categories, true, repeatSource, { dialog = ""; repeatSource = null }) { add(it); dialog = ""; repeatSource = null }
             "debt" -> DebtDialog({ dialog = "" }) { debts = debts + it; s.saveDebts(debts); dialog = "" }
             "goal" -> GoalDialog(currency, { dialog = "" }) { goals = goals + it; s.saveGoals(goals); dialog = "" }
             "reminder" -> ReminderDialog({ dialog = "" }) { reminders = reminders + it; s.saveReminders(reminders); dialog = "" }
+            "budget" -> BudgetDialog(accounts, categories, currency, { dialog = "" }) { budgets = budgets + it; s.saveBudgets(budgets); dialog = "" }
             "settings" -> SettingsDialog(currency, auto, theme, style, menu, rateTime, { c: String, a: Boolean, t: String, st: String, m: Set<String> -> saveSettings(c, a, t, st, m) }) { dialog = "" }
         }
     }
@@ -346,14 +379,12 @@ private fun MetricCard(title: String, value: String, accent: Color, modifier: Mo
 private fun Operations(
     ts: List<Transaction>, accounts: List<Account>, filter: String?, setFilter: (String?) -> Unit,
     add: () -> Unit, remove: (Transaction) -> Unit, c: String, auto: Boolean, r: Map<String, Double>,
-    search: String, setSearch: (String) -> Unit, newest: Boolean, setNewest: (Boolean) -> Unit
+    search: String, setSearch: (String) -> Unit, newest: Boolean, setNewest: (Boolean) -> Unit,
+    repeat: (Transaction) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-            Column {
-                Text("Операции", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text("${ts.size} операций", style = MaterialTheme.typography.bodySmall)
-            }
+            Column { Text("Операции", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold); Text("__TS_SIZE__ операций", style = MaterialTheme.typography.bodySmall) }
             FilledTonalButton(onClick = add) { Text("+ Добавить") }
         }
         OutlinedTextField(search, setSearch, label = { Text("Поиск операций") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium)
@@ -364,20 +395,24 @@ private fun Operations(
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(if (newest) ts.sortedByDescending { it.timestamp } else ts.sortedBy { it.timestamp }) { t ->
-                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (t.income) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f) else MaterialTheme.colorScheme.surface)) {
+                val transfer = t.operationType == "transfer"
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (transfer) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f) else if (t.income) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f) else MaterialTheme.colorScheme.surface)) {
                     Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(if (t.income) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer), contentAlignment = Alignment.Center) {
-                            Text(if (t.income) "↗" else "↘", color = if (t.income) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                        Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(if (transfer) MaterialTheme.colorScheme.secondaryContainer else if (t.income) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer), contentAlignment = Alignment.Center) {
+                            Text(if (transfer) "⇄" else if (t.income) "↗" else "↘", color = if (transfer) MaterialTheme.colorScheme.secondary else if (t.income) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                         }
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(t.title, fontWeight = FontWeight.SemiBold)
-                            Text(t.category + " • " + t.accountName, style = MaterialTheme.typography.bodySmall)
+                            Text("\${t.accountName} → \${t.toAccountName}", style = MaterialTheme.typography.bodySmall)
+                            if (t.operationType != "transfer") Text(t.category + " • " + t.accountName, style = MaterialTheme.typography.bodySmall)
+                            if (t.note.isNotBlank()) Text(t.note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(t.timestamp)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (t.repeat != "Не повторять") Text("↻ \${t.repeat}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text((if (t.income) "+" else "−") + " " + money(conv(t.amount, t.currency, c, auto, r), c), fontWeight = FontWeight.Bold, color = if (t.income) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-                            TextButton(onClick = { remove(t) }) { Text("Удалить") }
+                            Text((if (transfer) "⇄" else if (t.income) "+" else "−") + " " + money(conv(t.amount, t.currency, c, auto, r), c), fontWeight = FontWeight.Bold, color = if (transfer) MaterialTheme.colorScheme.secondary else if (t.income) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                            Row { TextButton(onClick = { repeat(t) }) { Text("Повторить") }; TextButton(onClick = { remove(t) }) { Text("Удалить") } }
                         }
                     }
                 }
@@ -542,6 +577,66 @@ private fun parseDateEnd(s: String): Long? = runCatching { SimpleDateFormat("dd.
 @Composable private fun Converter(c:String,r:Map<String,Double>,loading:Boolean){
  var amount by remember{mutableStateOf("")};var from by remember{mutableStateOf(c)};var to by remember{mutableStateOf(if(c=="EUR")"GBP" else "EUR")};val v=amount.replace(',','.').toDoubleOrNull();val out=v?.let{ExchangeRates.convert(it,from,to,r)}
  Text("Конвертер",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);OutlinedTextField(amount,{amount=it},label={Text("Сумма")},modifier=Modifier.fillMaxWidth());Text("Из");Row(horizontalArrangement=Arrangement.spacedBy(3.dp)){currencies.forEach{x->FilterChip(from==x,{from=x},label={Text(x)})}};Text("В");Row(horizontalArrangement=Arrangement.spacedBy(3.dp)){currencies.forEach{x->FilterChip(to==x,{to=x},label={Text(x)})}};if(loading)Text("Обновляю курсы…");if(out!=null)Text(money(out,to),style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold);Text("ECB: справочные курсы. RUB не входит в актуальный набор ECB.",style=MaterialTheme.typography.bodySmall)
+}
+
+@Composable
+private fun Budgets(
+    budgets: List<Budget>, transactions: List<Transaction>, c: String, auto: Boolean, rates: Map<String, Double>,
+    accounts: List<Account>, add: () -> Unit, remove: (Budget) -> Unit
+) {
+    val now = Calendar.getInstance()
+    val monthStart = (now.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, 1); set(Calendar.HOUR_OF_DAY,0); set(Calendar.MINUTE,0); set(Calendar.SECOND,0); set(Calendar.MILLISECOND,0) }.timeInMillis
+    val weekStart = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_MONTH, -6); set(Calendar.HOUR_OF_DAY,0); set(Calendar.MINUTE,0); set(Calendar.SECOND,0); set(Calendar.MILLISECOND,0) }.timeInMillis
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+            Column { Text("Бюджеты", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold); Text("Лимиты и контроль расходов", style = MaterialTheme.typography.bodySmall) }
+            FilledTonalButton(onClick = add) { Text("+ Бюджет") }
+        }
+        if (budgets.isEmpty()) Card(Modifier.fillMaxWidth()) { Text("Создай первый бюджет, например «Продукты — 20 000 ₽».", Modifier.padding(18.dp)) }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            items(budgets, key = { it.id }) { b ->
+                val start = if (b.period == "Неделя") weekStart else monthStart
+                val spent = transactions.filter { !it.income && it.operationType != "transfer" && it.timestamp >= start && (b.category.isBlank() || it.category == b.category) && (b.accountName.isBlank() || it.accountName == b.accountName) }.sumOf { conv(it.amount, it.currency, b.currency, auto, rates) }
+                val ratio = if (b.limit > 0) (spent / b.limit).coerceIn(0.0, 1.0) else 0.0
+                val status = when { spent >= b.limit -> "Лимит превышен"; spent >= b.limit * 0.9 -> "Осталось меньше 10%"; spent >= b.limit * 0.75 -> "Использовано больше 75%"; else -> "В норме" }
+                ElevatedCard(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.elevatedCardElevation(defaultElevation = 5.dp)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) { Text(b.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium); Text(listOf(b.period, b.category.ifBlank { "Все категории" }, b.accountName.ifBlank { "Все счета" }).joinToString(" • "), style = MaterialTheme.typography.bodySmall) }
+                            TextButton(onClick = { remove(b) }) { Text("Удалить") }
+                        }
+                        LinearProgressIndicator(progress = { ratio.toFloat() }, modifier = Modifier.fillMaxWidth())
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) { Text(money(spent,b.currency)); Text(money(b.limit,b.currency), fontWeight = FontWeight.Bold) }
+                        Text(status, color = if (spent >= b.limit) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BudgetDialog(accounts: List<Account>, categories: List<Category>, c: String, close: () -> Unit, save: (Budget) -> Unit) {
+    var name by remember { mutableStateOf("") }; var limit by remember { mutableStateOf("") }; var category by remember { mutableStateOf("") }; var account by remember { mutableStateOf("") }; var period by remember { mutableStateOf("Месяц") }
+    PremiumDialog(
+        onDismissRequest = close,
+        title = { Text("Новый бюджет") },
+        text = {
+            Column(Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(name,{name=it},label={Text("Название")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+                OutlinedTextField(limit,{limit=it},label={Text("Лимит $c")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+                Text("Период",fontWeight=FontWeight.Bold)
+                Row(horizontalArrangement=Arrangement.spacedBy(7.dp)){FilterChip(period=="Месяц",{period="Месяц"},label={Text("Месяц")});FilterChip(period=="Неделя",{period="Неделя"},label={Text("Неделя")})}
+                Text("Категория",fontWeight=FontWeight.Bold)
+                LazyRow(horizontalArrangement=Arrangement.spacedBy(5.dp)){items(categories.filter{it.kind=="expense"}){x->FilterChip(category==x.name,{category=x.name},label={Text(iconText(x.icon)+" "+x.name)})}}
+                Text("Счёт",fontWeight=FontWeight.Bold)
+                LazyRow(horizontalArrangement=Arrangement.spacedBy(5.dp)){items(accounts){x->FilterChip(account==x.name,{account=x.name},label={Text(iconText(x.icon)+" "+x.name)})}}
+                Text("Если категорию или счёт не выбрать, бюджет учитывает все расходы.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        confirmButton={Button({save(Budget(name=name.trim(),category=category,accountName=account,limit=limit.replace(',','.').toDoubleOrNull()?:0.0,currency=c,period=period))},enabled=name.isNotBlank()&&(limit.replace(',','.').toDoubleOrNull()?:0.0)>0){Text("Создать")}},
+        dismissButton={TextButton(close){Text("Отмена")}}
+    )
 }
 
 @Composable private fun Debts(items:List<Debt>,add:()->Unit,remove:(Debt)->Unit){
@@ -832,55 +927,53 @@ private fun AccountDialog(
 
 @Composable
 private fun TransactionDialog(
-    accounts: List<Account>,
-    categories: List<Category>,
-    defaultIncome: Boolean,
-    close: () -> Unit,
-    save: (Transaction) -> Unit
+    accounts: List<Account>, categories: List<Category>, defaultIncome: Boolean, source: Transaction?,
+    close: () -> Unit, save: (Transaction) -> Unit
 ) {
-    var n by remember { mutableStateOf("") }
-    var a by remember { mutableStateOf("") }
-    var inc by remember { mutableStateOf(defaultIncome) }
-    var cat by remember { mutableStateOf(categories.firstOrNull { it.kind == if (defaultIncome) "income" else "expense" }?.name ?: "") }
-    var acc by remember { mutableStateOf(accounts.firstOrNull()?.name ?: "") }
+    var title by remember { mutableStateOf(source?.title ?: "") }
+    var amount by remember { mutableStateOf(source?.amount?.toString() ?: "") }
+    var type by remember { mutableStateOf(source?.operationType ?: if (defaultIncome) "income" else "expense") }
+    var cat by remember { mutableStateOf(source?.category ?: categories.firstOrNull { it.kind == if (defaultIncome) "income" else "expense" }?.name.orEmpty()) }
+    var acc by remember { mutableStateOf(source?.accountName ?: accounts.firstOrNull()?.name.orEmpty()) }
+    var toAcc by remember { mutableStateOf(source?.toAccountName ?: accounts.drop(1).firstOrNull()?.name.orEmpty()) }
+    var note by remember { mutableStateOf(source?.note ?: "") }
+    var repeatRule by remember { mutableStateOf(source?.repeat ?: "Не повторять") }
+    var dateText by remember { mutableStateOf(source?.timestamp?.let { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(it)) } ?: SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date())) }
     val c = accounts.firstOrNull { it.name == acc }?.currency ?: "RUB"
-    val v = a.replace(',', '.').toDoubleOrNull()
-    AlertDialog(
+    val v = amount.replace(',', '.').toDoubleOrNull()
+    val categoryKind = if (type == "income") "income" else "expense"
+    val otherAccounts = accounts.filter { it.name != acc }
+    val parsedDate = runCatching { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).parse(dateText)?.time }.getOrNull() ?: System.currentTimeMillis()
+    PremiumDialog(
         onDismissRequest = close,
-        title = { Text(if (inc) "Новый доход" else "Новый расход") },
+        title = { Text(if (type == "transfer") "Новый перевод" else if (type == "income") "Новый доход" else "Новый расход") },
         text = {
-            Column(
-                Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedTextField(n, { n = it }, label = { Text("Описание") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                OutlinedTextField(a, { a = it }, label = { Text("Сумма $c") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            Column(Modifier.heightIn(max = 580.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(title, { title = it }, label = { Text("Описание") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(amount, { amount = it }, label = { Text("Сумма $c") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 Text("Тип операции", fontWeight = FontWeight.Bold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(inc, { inc = true }, label = { Text("Доход") })
-                    FilterChip(!inc, { inc = false }, label = { Text("Расход") })
-                }
-                Text("Категория", fontWeight = FontWeight.Bold)
-                OutlinedTextField(cat, { cat = it }, label = { Text("Можно ввести свою") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    items(categories.filter { it.kind == if (inc) "income" else "expense" }) { x ->
-                        FilterChip(cat == x.name, { cat = x.name }, label = { Text(iconText(x.icon) + " " + x.name) })
-                    }
+                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    FilterChip(type == "expense", { type = "expense" }, label = { Text("Расход") })
+                    FilterChip(type == "income", { type = "income" }, label = { Text("Доход") })
+                    FilterChip(type == "transfer", { type = "transfer" }, label = { Text("Перевод") })
                 }
                 Text("Счёт / карта", fontWeight = FontWeight.Bold)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    items(accounts) { x ->
-                        FilterChip(acc == x.name, { acc = x.name }, label = { Text(iconText(x.icon) + " " + x.name) })
-                    }
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) { items(accounts) { x -> FilterChip(acc == x.name, { acc = x.name; if (toAcc == x.name) toAcc = accounts.firstOrNull { it.name != x.name }?.name.orEmpty() }, label = { Text(iconText(x.icon) + " " + x.name) }) } }
+                if (type == "transfer") {
+                    Text("Куда", fontWeight = FontWeight.Bold)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) { items(otherAccounts) { x -> FilterChip(toAcc == x.name, { toAcc = x.name }, label = { Text(iconText(x.icon) + " " + x.name) }) } }
+                } else {
+                    Text("Категория", fontWeight = FontWeight.Bold)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) { items(categories.filter { it.kind == categoryKind }) { x -> FilterChip(cat == x.name, { cat = x.name }, label = { Text(iconText(x.icon) + " " + x.name) }) } }
+                    OutlinedTextField(cat, { cat = it }, label = { Text("Своя категория") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 }
+                OutlinedTextField(note, { note = it }, label = { Text("Комментарий / заметка") }, modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 3)
+                OutlinedTextField(dateText, { dateText = it }, label = { Text("Дата и время (дд.ММ.гггг ЧЧ:мм)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Text("Повтор", fontWeight = FontWeight.Bold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) { items(listOf("Не повторять","Ежедневно","Еженедельно","Ежемесячно","Ежегодно")) { x -> FilterChip(repeatRule == x, { repeatRule = x }, label = { Text(x) }) } }
             }
         },
-        confirmButton = {
-            Button(
-                onClick = { save(Transaction(title = n.trim(), amount = v ?: 0.0, income = inc, accountName = acc, category = cat.ifBlank { "Без категории" }, currency = c)) },
-                enabled = n.isNotBlank() && v != null && v > 0 && acc.isNotBlank()
-            ) { Text("Сохранить") }
-        },
+        confirmButton = { Button(onClick = { save(Transaction(id = source?.id ?: System.currentTimeMillis(), title = title.trim(), amount = v ?: 0.0, income = type == "income", accountName = acc, category = if (type == "transfer") "Перевод" else cat.ifBlank { "Без категории" }, timestamp = parsedDate, currency = c, operationType = type, toAccountName = if (type == "transfer") toAcc else "", note = note.trim(), repeat = repeatRule)) }, enabled = title.isNotBlank() && v != null && v > 0 && acc.isNotBlank() && (type != "transfer" || toAcc.isNotBlank())) { Text("Сохранить") },
         dismissButton = { TextButton(close) { Text("Отмена") } }
     )
 }
