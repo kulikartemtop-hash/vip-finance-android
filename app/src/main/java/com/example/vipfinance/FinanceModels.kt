@@ -50,6 +50,7 @@ data class Debt(
     val mine: Boolean,
     val interest: Boolean = false,
     val interestRate: Double = 0.0,
+    val dueDate: String = "",
     val note: String = ""
 )
 
