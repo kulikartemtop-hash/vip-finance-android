@@ -235,12 +235,68 @@ fun FinanceApp(s: FinanceStore) {
     }
 }
 
-@Composable private fun Home(total:Double,c:String,accounts:List<Account>,auto:Boolean,r:Map<String,Double>,selected:String?,income:Double,expense:Double,pick:(String?)->Unit){
- Card(Modifier.fillMaxWidth()){Column(Modifier.padding(18.dp)){Text(if(selected==null)"Общий баланс" else "Баланс: "+selected);val v=selected?.let{n->accounts.firstOrNull{it.name==n}?.let{conv(it.balance,it.currency,c,auto,r)}}?:total;Text(money(v,c),style=MaterialTheme.typography.headlineLarge,fontWeight=FontWeight.Bold);Text(if(auto)"Автоконвертация включена" else "Показ исходных валют");Spacer(Modifier.height(8.dp));Text("Доходы: "+money(income,c));Text("Расходы: "+money(expense,c))}}
- Spacer(Modifier.height(10.dp));Row(horizontalArrangement=Arrangement.spacedBy(5.dp)){FilterChip(selected==null,{pick(null)},label={Text("Все")});accounts.filter{!it.hidden}.forEach{a->FilterChip(selected==a.name,{pick(a.name)},label={Text(a.name)})}}
- Spacer(Modifier.height(10.dp));accounts.filter{!it.hidden}.forEach{a->Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){Row(Modifier.padding(12.dp).fillMaxWidth(),Arrangement.SpaceBetween){Column{Text(a.name,fontWeight=FontWeight.Bold);Text(a.type+" • "+a.currency)};Text(money(conv(a.balance,a.currency,c,auto,r),c),fontWeight=FontWeight.Bold)}}}
+@Composable
+private fun Home(
+    total: Double, c: String, accounts: List<Account>, auto: Boolean, r: Map<String, Double>,
+    selected: String?, income: Double, expense: Double, pick: (String?) -> Unit
+) {
+    val selectedBalance = selected?.let { n -> accounts.firstOrNull { it.name == n }?.let { conv(it.balance, it.currency, c, auto, r) } } ?: total
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        item {
+            Box(
+                Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large)
+                    .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)))
+                    .padding(22.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(if (selected == null) "Общий баланс" else "Баланс • $selected", color = Color.White.copy(alpha = 0.82f), style = MaterialTheme.typography.labelLarge)
+                    Text(money(selectedBalance, c), color = Color.White, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                    Text(if (auto) "Автоконвертация включена" else "Показ исходных валют", color = Color.White.copy(alpha = 0.82f), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                MetricCard("Доходы", money(income, c), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+                MetricCard("Расходы", money(expense, c), MaterialTheme.colorScheme.error, Modifier.weight(1f))
+            }
+        }
+        item {
+            Text("Фильтр счетов", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(7.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FilterChip(selected == null, { pick(null) }, label = { Text("Все") })
+                accounts.filter { !it.hidden }.forEach { a -> FilterChip(selected == a.name, { pick(a.name) }, label = { Text(a.name) }) }
+            }
+        }
+        item { Text("Мои счета", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+        items(accounts.filter { !it.hidden }) { a ->
+            ElevatedCard(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
+                            Text(if (a.type == "Карта") "▣" else "₽", color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column { Text(a.name, fontWeight = FontWeight.Bold); Text(a.type + " • " + a.currency, style = MaterialTheme.typography.bodySmall) }
+                    }
+                    Text(money(conv(a.balance, a.currency, c, auto, r), c), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+    }
 }
 
+@Composable
+private fun MetricCard(title: String, value: String, accent: Color, modifier: Modifier = Modifier) {
+    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(Modifier.padding(15.dp)) {
+            Text(title, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(5.dp))
+            Text(value, fontWeight = FontWeight.Bold, color = accent)
+        }
+    }
+}
 @Composable private fun Operations(ts:List<Transaction>,accounts:List<Account>,filter:String?,setFilter:(String?)->Unit,add:()->Unit,remove:(Transaction)->Unit,c:String,auto:Boolean,r:Map<String,Double>,search:String,setSearch:(String)->Unit,newest:Boolean,setNewest:(Boolean)->Unit){
  Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically){Text("Операции",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}}
  OutlinedTextField(search,setSearch,label={Text("Поиск операций")},singleLine=true,modifier=Modifier.fillMaxWidth());Row(verticalAlignment=Alignment.CenterVertically){Text("Сначала новые");Switch(newest,setNewest)};Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){FilterChip(filter==null,{setFilter(null)},label={Text("Все")});accounts.forEach{a->FilterChip(filter==a.name,{setFilter(a.name)},label={Text(a.name)})}}
