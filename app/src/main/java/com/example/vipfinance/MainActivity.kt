@@ -105,7 +105,7 @@ fun FinanceApp(store: FinanceStore) {
         }
     }
 
-    fun deleteTransaction(transaction: Transaction) {
+    fun toggleAccountHidden(name: String) {\n        accounts = accounts.map { if (it.name == name) it.copy(hidden = !it.hidden) else it }\n        store.saveAccounts(accounts)\n    }\n\n    fun deleteTransaction(transaction: Transaction) {
         transactions = transactions.filterNot { it === transaction }
         store.saveTransactions(transactions)
         if (transaction.accountName.isNotBlank()) {
@@ -139,8 +139,8 @@ fun FinanceApp(store: FinanceStore) {
             when (selectedTab) {
                 0 -> HomeScreen(total, selectedAccount, selectedBalance, accounts, currency, autoConversion, rates) { selectedAccount = it }
                 1 -> TransactionsScreen(shownTransactions, accounts, transactionAccountFilter, { transactionAccountFilter = it }, { showTransactionDialog = true }, ::deleteTransaction, currency, autoConversion, rates)
-                2 -> AccountsScreen(accounts, currency, autoConversion, rates, { showAccountDialog = true }) { selectedAccount = it }
-                3 -> AnalyticsScreen(shownIncome, shownExpense, shownTransactions, currency)
+                2 -> AccountsScreen(accounts, currency, autoConversion, rates, { showAccountDialog = true }, { selectedAccount = it }, ::toggleAccountHidden)
+                3 -> AnalyticsScreen(shownIncome, shownExpense, shownTransactions, currency, autoConversion, rates)
                 4 -> ConverterScreen(currency, rates, ratesLoading)
                 else -> MoreScreen(currency, autoConversion, ratesDate) { newCurrency, newAuto ->
                     currency = newCurrency
@@ -200,7 +200,7 @@ fun HomeScreen(total: Double, selectedAccount: String?, selectedBalance: Double?
 }
 
 @Composable
-fun AccountsScreen(accounts: List<Account>, currency: String, auto: Boolean, rates: Map<String, Double>, onAdd: () -> Unit, onSelect: (String) -> Unit) {
+fun AccountsScreen(accounts: List<Account>, currency: String, auto: Boolean, rates: Map<String, Double>, onAdd: () -> Unit, onSelect: (String) -> Unit, onToggleHidden: (String) -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Text("Счета и карты", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Button(onClick = onAdd) { Text("+ Добавить") }
@@ -261,7 +261,7 @@ fun TransactionsScreen(
 }
 
 @Composable
-fun AnalyticsScreen(income: Double, expense: Double, transactions: List<Transaction>, currency: String) {
+fun AnalyticsScreen(income: Double, expense: Double, transactions: List<Transaction>, currency: String, auto: Boolean = true, rates: Map<String, Double> = emptyMap()) {
     Text("Аналитика", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
     Spacer(Modifier.height(12.dp))
     Card(Modifier.fillMaxWidth()) {
@@ -275,7 +275,7 @@ fun AnalyticsScreen(income: Double, expense: Double, transactions: List<Transact
     }
     Spacer(Modifier.height(12.dp))
     Text("Расходы по категориям", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-    val categories = transactions.filter { !it.income }.groupBy { it.category }.mapValues { (_, list) -> list.sumOf { it.amount } }
+    val categories = transactions.filter { !it.income }.groupBy { it.category }.mapValues { (_, list) -> list.sumOf { converted(it.amount, it.currency, currency, auto, rates) } }
     if (categories.isEmpty()) Text("Пока нет расходов по категориям.")
     else categories.entries.sortedByDescending { it.value }.forEach { entry ->
         Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
