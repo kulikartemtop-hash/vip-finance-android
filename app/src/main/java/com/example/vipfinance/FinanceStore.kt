@@ -12,7 +12,7 @@ class FinanceStore(context: Context) {
         buildList {
             for (i in 0 until a.length()) {
                 val o = a.getJSONObject(i)
-                add(Account(o.optString("name"), o.optDouble("balance"), o.optBoolean("hidden"), o.optString("type","Счёт"), o.optString("currency","GBP")))
+                add(Account(o.optString("name"), o.optDouble("balance"), o.optBoolean("hidden"), o.optString("type","Счёт"), o.optString("currency","RUB")))
             }
         }
     }.getOrDefault(emptyList())
@@ -69,7 +69,7 @@ class FinanceStore(context: Context) {
     fun saveAutoConversion(v:Boolean)=prefs.edit().putBoolean("auto_conversion",v).apply()
     fun loadTheme():String=prefs.getString("theme","system") ?: "system"
     fun saveTheme(v:String)=prefs.edit().putString("theme",v).apply()
-    fun loadStyle():String=prefs.getString("style","classic") ?: "classic"
+    fun loadStyle():String=when(prefs.getString("style","platinum") ?: "platinum"){ "classic" -> "platinum"; "ocean" -> "emerald"; "graphite" -> "platinum"; else -> prefs.getString("style","platinum") ?: "platinum" }
     fun saveStyle(v:String)=prefs.edit().putString("style",v).apply()
     fun loadMenu(): Set<String> =prefs.getStringSet("menu",setOf("Главная","Операции","Счета","Аналитика","Конвертер","Долги","Цели","Напоминания","Чеки","Ещё")) ?: emptySet()
     fun saveMenu(v:Set<String>)=prefs.edit().putStringSet("menu",v).apply()
