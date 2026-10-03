@@ -146,6 +146,56 @@ private val EmeraldDark = darkColorScheme(
     outline = Color(0xFF748B7F)
 )
 
+
+private val RoyalLight = lightColorScheme(
+    primary = Color(0xFF6A3DE8), onPrimary = Color.White,
+    primaryContainer = Color(0xFFE9DDFF), onPrimaryContainer = Color(0xFF24005A),
+    secondary = Color(0xFFB88700), onSecondary = Color.White,
+    secondaryContainer = Color(0xFFFFE7A8), onSecondaryContainer = Color(0xFF241A00),
+    tertiary = Color(0xFFB52D68), onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFFFD9E7), onTertiaryContainer = Color(0xFF3B001A),
+    background = Color(0xFFFAF7FF), onBackground = Color(0xFF1D1728),
+    surface = Color(0xFFFFFBFF), onSurface = Color(0xFF1D1728),
+    surfaceVariant = Color(0xFFEDE5F4), onSurfaceVariant = Color(0xFF4D4554),
+    outline = Color(0xFF7E7487)
+)
+private val RoyalDark = darkColorScheme(
+    primary = Color(0xFFD1B8FF), onPrimary = Color(0xFF3B0878),
+    primaryContainer = Color(0xFF5522A1), onPrimaryContainer = Color(0xFFE9DDFF),
+    secondary = Color(0xFFFFD66B), onSecondary = Color(0xFF3B2D00),
+    secondaryContainer = Color(0xFF5A4600), onSecondaryContainer = Color(0xFFFFE7A8),
+    tertiary = Color(0xFFFFA9C8), onTertiary = Color(0xFF5A0030),
+    tertiaryContainer = Color(0xFF7D1649), onTertiaryContainer = Color(0xFFFFD9E7),
+    background = Color(0xFF0D0915), onBackground = Color(0xFFF1EAF8),
+    surface = Color(0xFF17111F), onSurface = Color(0xFFF1EAF8),
+    surfaceVariant = Color(0xFF2A2133), onSurfaceVariant = Color(0xFFD0C5D7),
+    outline = Color(0xFF978A9F)
+)
+private val RoseLight = lightColorScheme(
+    primary = Color(0xFFB52D68), onPrimary = Color.White,
+    primaryContainer = Color(0xFFFFD9E7), onPrimaryContainer = Color(0xFF3B001A),
+    secondary = Color(0xFF6B5B8C), onSecondary = Color.White,
+    secondaryContainer = Color(0xFFEDE1FF), onSecondaryContainer = Color(0xFF25133E),
+    tertiary = Color(0xFF006E6A), onTertiary = Color.White,
+    tertiaryContainer = Color(0xFF9CF1EB), onTertiaryContainer = Color(0xFF00201F),
+    background = Color(0xFFFFF8FA), onBackground = Color(0xFF21171B),
+    surface = Color(0xFFFFFBFC), onSurface = Color(0xFF21171B),
+    surfaceVariant = Color(0xFFF1E3E7), onSurfaceVariant = Color(0xFF514348),
+    outline = Color(0xFF817177)
+)
+private val RoseDark = darkColorScheme(
+    primary = Color(0xFFFFB0CC), onPrimary = Color(0xFF65002F),
+    primaryContainer = Color(0xFF8C174E), onPrimaryContainer = Color(0xFFFFD9E7),
+    secondary = Color(0xFFD8C4FF), onSecondary = Color(0xFF38234F),
+    secondaryContainer = Color(0xFF503968), onSecondaryContainer = Color(0xFFEDE1FF),
+    tertiary = Color(0xFF70DED8), onTertiary = Color(0xFF003735),
+    tertiaryContainer = Color(0xFF00504D), onTertiaryContainer = Color(0xFF9CF1EB),
+    background = Color(0xFF130B0F), onBackground = Color(0xFFF3E9EC),
+    surface = Color(0xFF1D1217), onSurface = Color(0xFFF3E9EC),
+    surfaceVariant = Color(0xFF342329), onSurfaceVariant = Color(0xFFD5C4C9),
+    outline = Color(0xFF9C858C)
+)
+
 private val VipShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
     small = RoundedCornerShape(12.dp),
@@ -179,6 +229,8 @@ fun VIPFinanceTheme(
     val colors = when (style) {
         "midnight", "classic" -> if (dark) MidnightDark else MidnightLight
         "emerald", "ocean" -> if (dark) EmeraldDark else EmeraldLight
+        "royal" -> if (dark) RoyalDark else RoyalLight
+        "rose" -> if (dark) RoseDark else RoseLight
         "platinum", "graphite" -> if (dark) PlatinumDark else PlatinumLight
         else -> if (dark) MidnightDark else MidnightLight
     }
