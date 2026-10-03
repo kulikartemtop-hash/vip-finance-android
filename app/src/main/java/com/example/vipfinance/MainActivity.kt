@@ -526,7 +526,7 @@ private fun More(
 
             Text("Стиль")
             Row {
-                listOf("classic", "ocean", "graphite").forEach { value ->
+                listOf("midnight", "platinum", "emerald").forEach { value ->
                     FilterChip(
                         selected = style == value,
                         onClick = { save(c, auto, theme, value, menu) },
@@ -660,7 +660,7 @@ private fun More(
                 item {
                     Text("Стиль", fontWeight = FontWeight.Bold)
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        listOf("classic" to "Classic", "ocean" to "Ocean", "graphite" to "Graphite").forEach { (v, label) -> FilterChip(style == v, { save(c, auto, theme, v, menu) }, label = { Text(label) }) }
+                        listOf("midnight" to "Midnight", "platinum" to "Platinum", "emerald" to "Emerald").forEach { (v, label) -> FilterChip(style == v, { save(c, auto, theme, v, menu) }, label = { Text(label) }) }
                     }
                 }
                 item { Text("Функции в меню", fontWeight = FontWeight.Bold) }
@@ -682,7 +682,7 @@ private fun More(
 }
 
 @Composable private fun AccountDialog(close:()->Unit,save:(String,Double,String,String)->Unit){
- var n by remember{mutableStateOf("")};var b by remember{mutableStateOf("")};var t by remember{mutableStateOf("Счёт")};var c by remember{mutableStateOf("GBP")}
+ var n by remember{mutableStateOf("")};var b by remember{mutableStateOf("")};var t by remember{mutableStateOf("Счёт")};var c by remember{mutableStateOf("RUB")}
  AlertDialog(onDismissRequest=close,title={Text("Новый счёт")},text={Column{OutlinedTextField(n,{n=it},label={Text("Название")});OutlinedTextField(b,{b=it},label={Text("Баланс")});Row{FilterChip(t=="Счёт",{t="Счёт"},label={Text("Счёт")});FilterChip(t=="Карта",{t="Карта"},label={Text("Карта")})};Row{currencies.forEach{x->FilterChip(c==x,{c=x},label={Text(x)})}}}},confirmButton={Button({save(n.trim(),b.replace(',','.').toDoubleOrNull()?:0.0,t,c)},enabled=n.isNotBlank()){Text("Сохранить")}},dismissButton={TextButton(close){Text("Отмена")}})
 }
 @Composable private fun TransactionDialog(accounts: List<Account>, defaultIncome: Boolean, close: () -> Unit, save: (Transaction) -> Unit) {
