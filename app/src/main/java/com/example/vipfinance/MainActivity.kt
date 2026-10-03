@@ -774,8 +774,36 @@ private fun BudgetDialog(accounts:List<Account>,categories:List<Category>,c:Stri
         }
     }
 }
-@Composable private fun Reminders(items:List<Reminder>,add:()->Unit,toggle:(Reminder)->Unit,remove:(Reminder)->Unit){
- Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text("Напоминания",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}};items.forEach{r->Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){Row(Modifier.padding(12.dp).fillMaxWidth(),Arrangement.SpaceBetween){Column(Modifier.weight(1f)){Text(r.title,fontWeight=FontWeight.Bold);Text(r.date+" • "+r.repeat)};Switch(r.done,{toggle(r)});TextButton(onClick={remove(r)}){Text("Удалить")}}}}
+@Composable private fun Reminders(items: List<Reminder>, add: () -> Unit, toggle: (Reminder) -> Unit, remove: (Reminder) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+            Column { Text("Напоминания", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold); Text("Платежи и финансовые задачи", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            FilledTonalButton(onClick = add) { Text("+ Напоминание") }
+        }
+        if (items.isEmpty()) Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
+            Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Напоминаний пока нет", fontWeight = FontWeight.SemiBold)
+                Text("Добавьте дату, чтобы не забыть важный платёж.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        items.forEach { item ->
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), elevation = CardDefaults.cardElevation(3.dp)) {
+                Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(if (item.done) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
+                        Text(if (item.done) "✓" else "!", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(item.title, fontWeight = FontWeight.Bold)
+                        Text(item.date + " • " + item.repeat, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (item.amount > 0) Text(money(item.amount, "RUB"), style = MaterialTheme.typography.labelMedium)
+                    }
+                    Switch(item.done, { toggle(item) })
+                    TextButton(onClick = { remove(item) }) { Text("Удалить") }
+                }
+            }
+        }
+    }
 }
 
 private fun normalizeReceiptAmount(raw: String): Double? {
