@@ -68,7 +68,7 @@ Remaining enhancement candidates:
 - [ ] Add richer interactive dashboard cards only if they can be isolated safely.
 
 ## 3. Operations
-Status: [~] IN PROGRESS
+Status: [x] COMPLETE
 Target implementation:
 - [x] Preserve existing income/expense/transfer model.
 - [x] Preserve search.
@@ -268,4 +268,4 @@ If a new chat starts, the first instruction can be:
 “Open DEVELOPMENT_ROADMAP.md in kulikartemtop-hash/vip-finance-android and continue from the first [~] IN PROGRESS stage. Do not redo completed [x] stages unless regression is found.”
 
 # Current next action
-Finish Stage 3 Operations safely, build and validate APK, update this file to [x] COMPLETE, then start Stage 4 Analytics.
+Implement Stage 4 Analytics as an isolated change, build APK, validate charts/empty states/theme compatibility, then update this file and begin Stage 5 Budgets.
