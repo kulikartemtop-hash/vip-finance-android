@@ -59,47 +59,29 @@ private val MidnightDark = darkColorScheme(
 )
 
 private val PlatinumLight = lightColorScheme(
-    primary = Color(0xFF345A7A),
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFD5E9FF),
-    onPrimaryContainer = Color(0xFF0A1D2D),
-    secondary = Color(0xFF5D6670),
-    onSecondary = Color.White,
-    secondaryContainer = Color(0xFFE0E6EC),
-    onSecondaryContainer = Color(0xFF182028),
-    tertiary = Color(0xFF6D5B91),
-    onTertiary = Color.White,
-    tertiaryContainer = Color(0xFFEBDDFF),
-    onTertiaryContainer = Color(0xFF25133E),
-    background = Color(0xFFF3F6F9),
-    onBackground = Color(0xFF171C20),
-    surface = Color(0xFFFFFFFF),
-    onSurface = Color(0xFF171C20),
-    surfaceVariant = Color(0xFFE4E9EE),
-    onSurfaceVariant = Color(0xFF454C52),
-    outline = Color(0xFF737B83)
+    primary = Color(0xFF111827), onPrimary = Color.White,
+    primaryContainer = Color(0xFFE5E7EB), onPrimaryContainer = Color(0xFF111827),
+    secondary = Color(0xFF64748B), onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE2E8F0), onSecondaryContainer = Color(0xFF1E293B),
+    tertiary = Color(0xFFB08D57), onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFF3E8D0), onTertiaryContainer = Color(0xFF3D2B12),
+    background = Color(0xFFF5F5F2), onBackground = Color(0xFF111111),
+    surface = Color(0xFFFFFFFF), onSurface = Color(0xFF111111),
+    surfaceVariant = Color(0xFFE8E8E4), onSurfaceVariant = Color(0xFF555555),
+    outline = Color(0xFF8B8B86)
 )
 
 private val PlatinumDark = darkColorScheme(
-    primary = Color(0xFFA9CBEA),
-    onPrimary = Color(0xFF10344D),
-    primaryContainer = Color(0xFF214A68),
-    onPrimaryContainer = Color(0xFFD5E9FF),
-    secondary = Color(0xFFC2CBD4),
-    onSecondary = Color(0xFF2B333A),
-    secondaryContainer = Color(0xFF414B54),
-    onSecondaryContainer = Color(0xFFE0E6EC),
-    tertiary = Color(0xFFD8C3FF),
-    onTertiary = Color(0xFF38234F),
-    tertiaryContainer = Color(0xFF4E3967),
-    onTertiaryContainer = Color(0xFFEBDDFF),
-    background = Color(0xFF0F1215),
-    onBackground = Color(0xFFE6E9EC),
-    surface = Color(0xFF171B1F),
-    onSurface = Color(0xFFE6E9EC),
-    surfaceVariant = Color(0xFF292F34),
-    onSurfaceVariant = Color(0xFFC2C9CF),
-    outline = Color(0xFF8C949B)
+    primary = Color(0xFFF4F4F0), onPrimary = Color(0xFF171717),
+    primaryContainer = Color(0xFF2B2B29), onPrimaryContainer = Color(0xFFF4F4F0),
+    secondary = Color(0xFFB5B5B0), onSecondary = Color(0xFF202020),
+    secondaryContainer = Color(0xFF343432), onSecondaryContainer = Color(0xFFE4E4DF),
+    tertiary = Color(0xFFD4AF6A), onTertiary = Color(0xFF2D210D),
+    tertiaryContainer = Color(0xFF5C4721), onTertiaryContainer = Color(0xFFF3E8D0),
+    background = Color(0xFF050505), onBackground = Color(0xFFF0F0EC),
+    surface = Color(0xFF0D0D0D), onSurface = Color(0xFFF0F0EC),
+    surfaceVariant = Color(0xFF191918), onSurfaceVariant = Color(0xFFB9B9B4),
+    outline = Color(0xFF666661)
 )
 
 private val EmeraldLight = lightColorScheme(
@@ -197,21 +179,21 @@ private val RoseDark = darkColorScheme(
 )
 
 private val VipShapes = Shapes(
-    extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(18.dp),
-    large = RoundedCornerShape(24.dp),
-    extraLarge = RoundedCornerShape(32.dp)
+    extraSmall = RoundedCornerShape(6.dp),
+    small = RoundedCornerShape(10.dp),
+    medium = RoundedCornerShape(14.dp),
+    large = RoundedCornerShape(19.dp),
+    extraLarge = RoundedCornerShape(25.dp)
 )
 
 private val VipTypography = Typography(
-    headlineLarge = TextStyle(fontWeight = FontWeight.Bold, fontSize = 32.sp, lineHeight = 38.sp),
-    headlineMedium = TextStyle(fontWeight = FontWeight.Bold, fontSize = 25.sp, lineHeight = 31.sp),
-    titleLarge = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 21.sp),
-    titleMedium = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 17.sp),
+    headlineLarge = TextStyle(fontWeight = FontWeight.Bold, fontSize = 35.sp, lineHeight = 40.sp),
+    headlineMedium = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 26.sp, lineHeight = 31.sp),
+    titleLarge = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 20.sp),
+    titleMedium = TextStyle(fontWeight = FontWeight.Medium, fontSize = 16.sp),
     bodyLarge = TextStyle(fontSize = 16.sp, lineHeight = 23.sp),
     bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 20.sp),
-    labelLarge = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+    labelLarge = TextStyle(fontWeight = FontWeight.Medium, fontSize = 13.sp)
 )
 
 @Composable
