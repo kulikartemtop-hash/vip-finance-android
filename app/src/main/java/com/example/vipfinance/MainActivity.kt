@@ -370,6 +370,40 @@ private fun Operations(
     }
 }
 @Composable
+private fun Categories(
+    items: List<Category>,
+    add: () -> Unit,
+    edit: (Category) -> Unit,
+    remove: (Category) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+            Column {
+                Text("Категории", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text("Стандартные и ваши категории", style = MaterialTheme.typography.bodySmall)
+            }
+            FilledTonalButton(onClick = add) { Text("+ Добавить") }
+        }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(items) { c0 ->
+                ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(uiColor(c0.color)),
+                            contentAlignment = Alignment.Center
+                        ) { Text(iconText(c0.icon), color = Color.White, fontWeight = FontWeight.Bold) }
+                        Spacer(Modifier.width(12.dp))
+                        Text(c0.name, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                        TextButton(onClick = { edit(c0) }) { Text("Изменить") }
+                        TextButton(onClick = { remove(c0) }) { Text("Удалить") }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun Accounts(
     items: List<Account>, c: String, auto: Boolean, r: Map<String, Double>,
     add: () -> Unit, select: (String) -> Unit, toggle: (String) -> Unit
@@ -388,8 +422,8 @@ private fun Accounts(
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.Top) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(if (a.type == "Карта") MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
-                                    Text(if (a.type == "Карта") "▣" else "₽", fontWeight = FontWeight.Bold)
+                                Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(uiColor(a.iconColor)), contentAlignment = Alignment.Center) {
+                                    Text(iconText(a.icon), color = Color.White, fontWeight = FontWeight.Bold)
                                 }
                                 Spacer(Modifier.width(12.dp))
                                 Column {
