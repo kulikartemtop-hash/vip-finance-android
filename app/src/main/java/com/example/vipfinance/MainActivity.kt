@@ -1,6 +1,7 @@
 package com.example.vipfinance
 
 import android.net.Uri
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -16,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import com.example.vipfinance.ui.theme.VIPFinanceTheme
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -57,7 +59,7 @@ class MainActivity:ComponentActivity(){
     "Цели"->Goals(goals){dialog="goal"}
     "Напоминания"->Reminders(reminders,{dialog="reminder"}){r->reminders=reminders.map{if(it.id==r.id)it.copy(done=!it.done)else it};s.saveReminders(reminders)}
     "Чеки"->Receipt(receiptUri,receiptText,{u->receiptUri=u;receiptText=""}){u->receiptUri=u;receiptText="Фото готово к OCR-анализу."}
-    else->More(currency,auto,theme,style,menu,rateTime){c,a,t,st,m->currency=c;auto=a;theme=t;style=st;menu=m;s.saveCurrency(c);s.saveAutoConversion(a);s.saveTheme(t);s.saveStyle(st);s.saveMenu(m)}
+    else->More(currency,auto,theme,style,menu,rateTime,tx){c,a,t,st,m->currency=c;auto=a;theme=t;style=st;menu=m;s.saveCurrency(c);s.saveAutoConversion(a);s.saveTheme(t);s.saveStyle(st);s.saveMenu(m)}
    }
   }
  }
@@ -113,8 +115,8 @@ class MainActivity:ComponentActivity(){
  Text("Чеки и OCR",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button({launcher.launch("image/*")}){Text("Выбрать фото чека")};if(uri!=null)Text("Фото выбрано: "+uri.lastPathSegment);Card(Modifier.fillMaxWidth()){Text(if(text.isBlank())"Фото подготовлено для OCR." else text,Modifier.padding(12.dp))}
 }
 
-@Composable private fun More(c:String,auto:Boolean,theme:String,style:String,menu:Set<String>,time:Long,save:(String,Boolean,String,String,Set<String>)->Unit){
- Text("Ещё",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Spacer(Modifier.height(8.dp));Card(Modifier.fillMaxWidth()){Column(Modifier.padding(14.dp)){Text("Основная валюта");Row(horizontalArrangement=Arrangement.spacedBy(3.dp)){currencies.forEach{x->FilterChip(c==x,{save(x,auto,theme,style,menu)},label={Text(x)})}};Row(Modifier.fillMaxWidth(),Alignment.CenterVertically,Arrangement.SpaceBetween){Text("Автоконвертация");Switch(auto,{save(c,it,theme,style,menu)})};Text("Тема");Row{listOf("system","light","dark").forEach{x->FilterChip(theme==x,{save(c,auto,x,style,menu)},label={Text(x)})}};Text("Стиль");Row{listOf("classic","ocean","graphite").forEach{x->FilterChip(style==x,{save(c,auto,theme,x,menu)},label={Text(x)})}};if(time>0)Text("Курсы: "+SimpleDateFormat("dd.MM.yyyy HH:mm",Locale.getDefault()).format(Date(time)))}}};Text("Показывать в меню");pages.filter{it!="Ещё"}.forEach{x->Row(Modifier.fillMaxWidth(),Alignment.CenterVertically,Arrangement.SpaceBetween){Text(x);Switch(x in menu,{on->val n=menu.toMutableSet();if(on)n.add(x)else n.remove(x);save(c,auto,theme,style,n)})}}
+@Composable private fun More(c:String,auto:Boolean,theme:String,style:String,menu:Set<String>,time:Long,transactions:List<Transaction>,save:(String,Boolean,String,String,Set<String>)->Unit){
+ Text("Ещё",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Spacer(Modifier.height(8.dp));Card(Modifier.fillMaxWidth()){Column(Modifier.padding(14.dp)){Text("Основная валюта");Row(horizontalArrangement=Arrangement.spacedBy(3.dp)){currencies.forEach{x->FilterChip(c==x,{save(x,auto,theme,style,menu)},label={Text(x)})}};Row(Modifier.fillMaxWidth(),Alignment.CenterVertically,Arrangement.SpaceBetween){Text("Автоконвертация");Switch(auto,{save(c,it,theme,style,menu)})};Text("Тема");Row{listOf("system","light","dark").forEach{x->FilterChip(theme==x,{save(c,auto,x,style,menu)},label={Text(x)})}};Text("Стиль");Row{listOf("classic","ocean","graphite").forEach{x->FilterChip(style==x,{save(c,auto,theme,x,menu)},label={Text(x)})}};if(time>0)Text("Курсы: "+SimpleDateFormat("dd.MM.yyyy HH:mm",Locale.getDefault()).format(Date(time)))}}};val context=LocalContext.current;Button(onClick={val csv=buildString{append("date,title,amount,currency,type,account,category\\n");transactions.forEach{t->append(SimpleDateFormat("yyyy-MM-dd HH:mm",Locale.getDefault()).format(Date(t.timestamp))).append(",").append(t.title.replace(","," ")).append(",").append(t.amount).append(",").append(t.currency).append(",").append(if(t.income)"income" else "expense").append(",").append(t.accountName.replace(","," ")).append(",").append(t.category.replace(","," ")).append("\\n")}};context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply{type="text/plain";putExtra(Intent.EXTRA_TEXT,csv)},"Экспорт операций"))}){Text("Экспорт операций CSV")};Text("Показывать в меню");pages.filter{it!="Ещё"}.forEach{x->Row(Modifier.fillMaxWidth(),Alignment.CenterVertically,Arrangement.SpaceBetween){Text(x);Switch(x in menu,{on->val n=menu.toMutableSet();if(on)n.add(x)else n.remove(x);save(c,auto,theme,style,n)})}}
 }
 
 @Composable private fun AccountDialog(close:()->Unit,save:(String,Double,String,String)->Unit){
