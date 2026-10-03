@@ -12,21 +12,21 @@ class FinanceStore(context: Context) {
         buildList {
             for (i in 0 until a.length()) {
                 val o = a.getJSONObject(i)
-                add(Account(o.optString("name"), o.optDouble("balance"), o.optBoolean("hidden"), o.optString("type","Счёт"), o.optString("currency","RUB")))
+                add(Account(o.optString("name"), o.optDouble("balance"), o.optBoolean("hidden"), o.optString("type","Счёт"), o.optString("currency","RUB"),o.optString("icon","account_balance"),o.optString("iconColor","#5B35F5")))
             }
         }
     }.getOrDefault(emptyList())
 
     fun saveAccounts(items: List<Account>) {
         val a=JSONArray()
-        items.forEach { x -> a.put(JSONObject().apply { put("name",x.name);put("balance",x.balance);put("hidden",x.hidden);put("type",x.type);put("currency",x.currency) }) }
+        items.forEach { x -> a.put(JSONObject().apply { put("name",x.name);put("balance",x.balance);put("hidden",x.hidden);put("type",x.type);put("currency",x.currency);put("icon",x.icon);put("iconColor",x.iconColor) }) }
         prefs.edit().putString("accounts",a.toString()).apply()
     }
 
     fun loadTransactions(): List<Transaction> = runCatching {
         val a=JSONArray(prefs.getString("transactions","[]"))
         buildList {
-            for(i in 0 until a.length()) { val o=a.getJSONObject(i); add(Transaction(o.optLong("id"),o.optString("title"),o.optDouble("amount"),o.optBoolean("income"),o.optString("accountName"),o.optString("category","Без категории"),o.optLong("timestamp",System.currentTimeMillis()),o.optString("currency","GBP"))) }
+            for(i in 0 until a.length()) { val o=a.getJSONObject(i); add(Transaction(o.optLong("id"),o.optString("title"),o.optDouble("amount"),o.optBoolean("income"),o.optString("accountName"),o.optString("category","Без категории"),o.optLong("timestamp",System.currentTimeMillis()),o.optString("currency","RUB"))) }
         }
     }.getOrDefault(emptyList())
 
@@ -34,6 +34,15 @@ class FinanceStore(context: Context) {
         val a=JSONArray()
         items.forEach { x -> a.put(JSONObject().apply { put("id",x.id);put("title",x.title);put("amount",x.amount);put("income",x.income);put("accountName",x.accountName);put("category",x.category);put("timestamp",x.timestamp);put("currency",x.currency) }) }
         prefs.edit().putString("transactions",a.toString()).apply()
+    }
+
+    fun loadCategories(): List<Category> = runCatching {
+        val a=JSONArray(prefs.getString("categories","[]"))
+        buildList { for(i in 0 until a.length()){ val o=a.getJSONObject(i); add(Category(o.optLong("id"),o.optString("name"),o.optString("icon","category"),o.optString("color","#5B35F5"))) } }
+    }.getOrDefault(emptyList())
+
+    fun saveCategories(items: List<Category>) {
+        val a=JSONArray();items.forEach{x->a.put(JSONObject().apply{put("id",x.id);put("name",x.name);put("icon",x.icon);put("color",x.color)})};prefs.edit().putString("categories",a.toString()).apply()
     }
 
     fun loadDebts(): List<Debt> = runCatching {
@@ -47,7 +56,7 @@ class FinanceStore(context: Context) {
 
     fun loadGoals(): List<Goal> = runCatching {
         val a=JSONArray(prefs.getString("goals","[]"))
-        buildList { for(i in 0 until a.length()){val o=a.getJSONObject(i);add(Goal(o.optLong("id"),o.optString("name"),o.optDouble("target"),o.optDouble("saved"),o.optString("currency","GBP"),o.optString("deadline"))) } }
+        buildList { for(i in 0 until a.length()){val o=a.getJSONObject(i);add(Goal(o.optLong("id"),o.optString("name"),o.optDouble("target"),o.optDouble("saved"),o.optString("currency","RUB"),o.optString("deadline"))) } }
     }.getOrDefault(emptyList())
 
     fun saveGoals(items: List<Goal>) {
