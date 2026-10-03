@@ -859,15 +859,76 @@ private fun TransactionDialog(
     )
 }
 
-@Composable private fun DebtDialog(close:()->Unit,save:(Debt)->Unit){
- var p by remember{mutableStateOf("")};var a by remember{mutableStateOf("")};var mine by remember{mutableStateOf(false)};var interest by remember{mutableStateOf(false)};var note by remember{mutableStateOf("")}
- AlertDialog(onDismissRequest=close,title={Text("Новый долг")},text={Column{OutlinedTextField(p,{p=it},label={Text("Человек")});OutlinedTextField(a,{a=it},label={Text("Сумма")});Row{FilterChip(mine,{mine=true},label={Text("Я должен")});FilterChip(!mine,{mine=false},label={Text("Мне должны")})};Row(verticalAlignment=Alignment.CenterVertically){Text("Проценты");Switch(interest,{interest=it})};OutlinedTextField(note,{note=it},label={Text("Заметка")})}},confirmButton={Button({save(Debt(person=p,amount=a.replace(',','.').toDoubleOrNull()?:0.0,mine=mine,interest=interest,note=note))},enabled=p.isNotBlank()){Text("Сохранить")}},dismissButton={TextButton(close){Text("Отмена")}})
+@Composable
+private fun CategoryDialog(existing: Category?, close: () -> Unit, save: (Category) -> Unit) {
+    var name by remember { mutableStateOf(existing?.name ?: "") }
+    var icon by remember { mutableStateOf(existing?.icon ?: "category") }
+    var color by remember { mutableStateOf(existing?.color ?: colorChoices.first()) }
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text(if (existing == null) "Новая категория" else "Изменить категорию") },
+        text = {
+            Column(
+                Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(name, { name = it }, label = { Text("Название категории") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Text("Значок", fontWeight = FontWeight.Bold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    items(iconChoices) { x -> FilterChip(icon == x, { icon = x }, label = { Text(iconText(x)) }) }
+                }
+                Text("Цвет", fontWeight = FontWeight.Bold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(colorChoices) { x ->
+                        FilterChip(color == x, { color = x }, label = {
+                            Box(Modifier.size(20.dp).clip(RoundedCornerShape(7.dp)).background(uiColor(x)))
+                        })
+                    }
+                }
+                Card(colors = CardDefaults.cardColors(containerColor = uiColor(color).copy(alpha = 0.16f))) {
+                    Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(uiColor(color)), contentAlignment = Alignment.Center) {
+                            Text(iconText(icon), color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Text(if (name.isBlank()) "Предпросмотр" else name, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        },
+        confirmButton = { Button({ save(Category(existing?.id ?: System.currentTimeMillis(), name.trim(), icon, color)) }, enabled = name.isNotBlank()) { Text("Сохранить") } },
+        dismissButton = { TextButton(close) { Text("Отмена") } }
+    )
 }
+
+@Composable
+private fun DebtDialog(close:()->Unit,save:(Debt)->Unit){
+ var p by remember{mutableStateOf("")};var a by remember{mutableStateOf("")};var mine by remember{mutableStateOf(false)};var interest by remember{mutableStateOf(false)};var note by remember{mutableStateOf("")}
+ AlertDialog(onDismissRequest=close,title={Text("Новый долг")},text={
+  Column(Modifier.heightIn(max=520.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)){
+   OutlinedTextField(p,{p=it},label={Text("Человек")},modifier=Modifier.fillMaxWidth())
+   OutlinedTextField(a,{a=it},label={Text("Сумма RUB")},modifier=Modifier.fillMaxWidth())
+   Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(mine,{mine=true},label={Text("Я должен")});FilterChip(!mine,{mine=false},label={Text("Мне должны")})}
+   Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("Начислять проценты",Modifier.weight(1f));Switch(interest,{interest=it})}
+   OutlinedTextField(note,{note=it},label={Text("Заметка")},modifier=Modifier.fillMaxWidth())
+  }
+ },confirmButton={Button({save(Debt(person=p,amount=a.replace(',','.').toDoubleOrNull()?:0.0,mine=mine,interest=interest,note=note))},enabled=p.isNotBlank()&&a.replace(',','.').toDoubleOrNull()!=null){Text("Сохранить")}},dismissButton={TextButton(close){Text("Отмена")}})
+}
+
 @Composable private fun GoalDialog(c:String,close:()->Unit,save:(Goal)->Unit){
  var n by remember{mutableStateOf("")};var t by remember{mutableStateOf("")};var d by remember{mutableStateOf("")}
  AlertDialog(onDismissRequest=close,title={Text("Новая цель")},text={Column{OutlinedTextField(n,{n=it},label={Text("Название")});OutlinedTextField(t,{t=it},label={Text("Цель "+c)});OutlinedTextField(d,{d=it},label={Text("Срок")})}},confirmButton={Button({save(Goal(name=n,target=t.replace(',','.').toDoubleOrNull()?:0.0,currency=c,deadline=d))},enabled=n.isNotBlank()){Text("Сохранить")}},dismissButton={TextButton(close){Text("Отмена")}})
 }
 @Composable private fun ReminderDialog(close:()->Unit,save:(Reminder)->Unit){
  var n by remember{mutableStateOf("")};var d by remember{mutableStateOf("")};var rep by remember{mutableStateOf("Один раз")}
- AlertDialog(onDismissRequest=close,title={Text("Напоминание")},text={Column{OutlinedTextField(n,{n=it},label={Text("Что напомнить")});OutlinedTextField(d,{d=it},label={Text("Дата")});Row{listOf("Один раз","Еженедельно","Ежемесячно").forEach{x->FilterChip(rep==x,{rep=x},label={Text(x)})}}}},confirmButton={Button({save(Reminder(title=n,date=d,repeat=rep))},enabled=n.isNotBlank()&&d.isNotBlank()){Text("Сохранить")}},dismissButton={TextButton(close){Text("Отмена")}})
+ AlertDialog(onDismissRequest=close,title={Text("Напоминание")},text={
+  Column(Modifier.heightIn(max=520.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)){
+   OutlinedTextField(n,{n=it},label={Text("Что напомнить")},modifier=Modifier.fillMaxWidth())
+   OutlinedTextField(d,{d=it},label={Text("Дата")},modifier=Modifier.fillMaxWidth())
+   Text("Повтор",fontWeight=FontWeight.Bold)
+   LazyRow(horizontalArrangement=Arrangement.spacedBy(6.dp)){items(listOf("Один раз","Еженедельно","Ежемесячно")){x->FilterChip(rep==x,{rep=x},label={Text(x)})}}
+  }
+ },confirmButton={Button({save(Reminder(title=n,date=d,repeat=rep))},enabled=n.isNotBlank()&&d.isNotBlank()){Text("Сохранить")}},dismissButton={TextButton(close){Text("Отмена")}})
 }
+
+
