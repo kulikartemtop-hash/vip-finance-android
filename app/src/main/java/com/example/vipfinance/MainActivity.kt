@@ -69,6 +69,7 @@ fun FinanceApp(s: FinanceStore) {
     var budgets by remember { mutableStateOf(s.loadBudgets()) }
     var categories by remember { mutableStateOf(s.loadCategories().ifEmpty { defaultCategories }) }
     var editingCategory by remember { mutableStateOf<Category?>(null) }
+    var editingGoal by remember { mutableStateOf<Goal?>(null) }
     var page by remember { mutableStateOf("Главная") }
     var currency by remember { mutableStateOf(s.loadCurrency()) }
     var auto by remember { mutableStateOf(s.loadAutoConversion()) }
@@ -264,7 +265,7 @@ fun FinanceApp(s: FinanceStore) {
                         "Аналитика" -> Analytics(tx, currency, auto, rates)
                         "Конвертер" -> Converter(currency, rates, loading)
                         "Долги" -> Debts(debts, { dialog = "debt" }) { d -> debts = debts.filterNot { it.id == d.id }; s.saveDebts(debts) }
-                        "Цели" -> Goals(goals, { dialog = "goal" }) { g -> goals = goals.filterNot { it.id == g.id }; s.saveGoals(goals) }
+                        "Цели" -> Goals(goals, { dialog = "goal" }, { g -> editingGoal = g; dialog = "goalProgress" }) { g -> goals = goals.filterNot { it.id == g.id }; s.saveGoals(goals) }
                         "Напоминания" -> Reminders(reminders, { dialog = "reminder" }, { r -> reminders = reminders.map { if (it.id == r.id) it.copy(done = !it.done) else it }; s.saveReminders(reminders) }, { r -> reminders = reminders.filterNot { it.id == r.id }; s.saveReminders(reminders) })
                         "Чеки" -> Receipt(receiptUri, receiptText, { u -> receiptUri = u; receiptText = "" }, { t -> receiptText = t }) { u -> receiptUri = u }
                     }
@@ -286,6 +287,7 @@ fun FinanceApp(s: FinanceStore) {
             "income" -> TransactionDialog(accounts, categories, true, repeatSource, { dialog = ""; repeatSource = null }) { add(it); dialog = ""; repeatSource = null }
             "debt" -> DebtDialog({ dialog = "" }) { debts = debts + it; s.saveDebts(debts); dialog = "" }
             "goal" -> GoalDialog(currency, { dialog = "" }) { goals = goals + it; s.saveGoals(goals); dialog = "" }
+            "goalProgress" -> GoalProgressDialog(editingGoal, { dialog = ""; editingGoal = null }) { updated -> goals = goals.map { if (it.id == updated.id) updated else it }; s.saveGoals(goals); dialog = ""; editingGoal = null }
             "reminder" -> ReminderDialog({ dialog = "" }) { reminders = reminders + it; s.saveReminders(reminders); dialog = "" }
             "budget" -> BudgetDialog(accounts, categories, currency, { dialog = "" }) { budgets = budgets + it; s.saveBudgets(budgets); dialog = "" }
             "settings" -> SettingsDialog(currency, auto, theme, style, menu, rateTime, { c: String, a: Boolean, t: String, st: String, m: Set<String> -> saveSettings(c, a, t, st, m) }) { dialog = "" }
@@ -552,8 +554,15 @@ private fun BudgetDialog(accounts:List<Account>,categories:List<Category>,c:Stri
  Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text("Долги",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}};items.forEach{d->Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){Column(Modifier.padding(12.dp)){Text(if(d.mine)"Я должен: "+d.person else "Мне должны: "+d.person,fontWeight=FontWeight.Bold);Text("%.2f".format(d.amount));Text(if(d.interest)"Проценты включены" else "Без процентов");if(d.note.isNotBlank())Text(d.note);TextButton(onClick={remove(d)}){Text("Удалить")}}}}
 }
 
-@Composable private fun Goals(items:List<Goal>,add:()->Unit,remove:(Goal)->Unit){
- Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text("Цели",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}};items.forEach{g->Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){Column(Modifier.padding(12.dp)){Text(g.name,fontWeight=FontWeight.Bold);Text(money(g.saved,g.currency)+" / "+money(g.target,g.currency));LinearProgressIndicator({if(g.target>0)(g.saved/g.target).toFloat().coerceIn(0f,1f) else 0f},Modifier.fillMaxWidth());if(g.deadline.isNotBlank())Text("Срок: "+g.deadline);TextButton(onClick={remove(g)}){Text("Удалить")}}}}
+@Composable private fun Goals(items:List<Goal>,add:()->Unit,progress:(Goal)->Unit,remove:(Goal)->Unit){
+ Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text("Цели",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}}
+ items.forEach{g->Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
+   Text(g.name,fontWeight=FontWeight.Bold);Text(money(g.saved,g.currency)+" / "+money(g.target,g.currency))
+   LinearProgressIndicator({if(g.target>0)(g.saved/g.target).toFloat().coerceIn(0f,1f) else 0f},Modifier.fillMaxWidth())
+   Text(String.format(Locale.getDefault(),"%.1f%%",if(g.target>0)g.saved/g.target*100 else 0.0),style=MaterialTheme.typography.bodySmall)
+   if(g.deadline.isNotBlank())Text("Срок: "+g.deadline)
+   Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){TextButton(onClick={progress(g)}){Text("Пополнить")};TextButton(onClick={remove(g)}){Text("Удалить")}}
+ }}}}
 }
 
 @Composable private fun Reminders(items:List<Reminder>,add:()->Unit,toggle:(Reminder)->Unit,remove:(Reminder)->Unit){
@@ -899,22 +908,39 @@ private fun CategoryDialog(existing: Category?, close: () -> Unit, save: (Catego
 
 @Composable
 private fun DebtDialog(close:()->Unit,save:(Debt)->Unit){
- var p by remember{mutableStateOf("")};var a by remember{mutableStateOf("")};var mine by remember{mutableStateOf(false)};var interest by remember{mutableStateOf(false)};var note by remember{mutableStateOf("")}
+ var p by remember{mutableStateOf("")};var a by remember{mutableStateOf("")};var mine by remember{mutableStateOf(false)};var interest by remember{mutableStateOf(false)};var rate by remember{mutableStateOf("")};var note by remember{mutableStateOf("")}
+ val amount=a.replace(',','.').toDoubleOrNull();val rateValue=rate.replace(',','.').toDoubleOrNull()?:0.0
  AlertDialog(onDismissRequest=close,title={Text("Новый долг")},text={
   Column(Modifier.heightIn(max=520.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)){
    OutlinedTextField(p,{p=it},label={Text("Человек")},modifier=Modifier.fillMaxWidth())
    OutlinedTextField(a,{a=it},label={Text("Сумма RUB")},modifier=Modifier.fillMaxWidth())
    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(mine,{mine=true},label={Text("Я должен")});FilterChip(!mine,{mine=false},label={Text("Мне должны")})}
    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("Начислять проценты",Modifier.weight(1f));Switch(interest,{interest=it})}
+   if(interest) OutlinedTextField(rate,{rate=it},label={Text("Ставка, % годовых")},modifier=Modifier.fillMaxWidth(),singleLine=true)
    OutlinedTextField(note,{note=it},label={Text("Заметка")},modifier=Modifier.fillMaxWidth())
   }
- },confirmButton={Button({save(Debt(person=p,amount=a.replace(',','.').toDoubleOrNull()?:0.0,mine=mine,interest=interest,note=note))},enabled=p.isNotBlank()&&a.replace(',','.').toDoubleOrNull()!=null){Text("Сохранить")}},dismissButton={TextButton(close){Text("Отмена")}})
+ },confirmButton={Button({save(Debt(person=p,amount=amount?:0.0,mine=mine,interest=interest,interestRate=rateValue,note=note.trim()))},enabled=p.isNotBlank()&&amount!=null&&amount>0&&(!interest||rateValue>=0)){Text("Сохранить")}},dismissButton={TextButton(close){Text("Отмена")}})
 }
 
 @Composable private fun GoalDialog(c:String,close:()->Unit,save:(Goal)->Unit){
  var n by remember{mutableStateOf("")};var t by remember{mutableStateOf("")};var d by remember{mutableStateOf("")}
  AlertDialog(onDismissRequest=close,title={Text("Новая цель")},text={Column{OutlinedTextField(n,{n=it},label={Text("Название")});OutlinedTextField(t,{t=it},label={Text("Цель "+c)});OutlinedTextField(d,{d=it},label={Text("Срок")})}},confirmButton={Button({save(Goal(name=n,target=t.replace(',','.').toDoubleOrNull()?:0.0,currency=c,deadline=d))},enabled=n.isNotBlank()){Text("Сохранить")}},dismissButton={TextButton(close){Text("Отмена")}})
 }
+@Composable private fun GoalProgressDialog(goal:Goal?,close:()->Unit,save:(Goal)->Unit){
+ if(goal==null){close();return}
+ var amount by remember{mutableStateOf("")}
+ val value=amount.replace(',','.').toDoubleOrNull()?:0.0
+ val newSaved=(goal.saved+value).coerceAtMost(goal.target.coerceAtLeast(goal.saved))
+ AlertDialog(onDismissRequest=close,title={Text("Пополнить цель")},text={
+  Column(verticalArrangement=Arrangement.spacedBy(10.dp)){
+   Text(goal.name,fontWeight=FontWeight.Bold)
+   Text("Сейчас: "+money(goal.saved,goal.currency))
+   OutlinedTextField(amount,{amount=it},label={Text("Сколько добавить, "+goal.currency)},modifier=Modifier.fillMaxWidth(),singleLine=true)
+   if(value>0) Text("После пополнения: "+money(newSaved,goal.currency),color=MaterialTheme.colorScheme.primary)
+  }
+ },confirmButton={Button({save(goal.copy(saved=newSaved))},enabled=value>0){Text("Пополнить")}},dismissButton={TextButton(close){Text("Отмена")}})
+}
+
 @Composable private fun ReminderDialog(close:()->Unit,save:(Reminder)->Unit){
  var n by remember{mutableStateOf("")};var d by remember{mutableStateOf("")};var rep by remember{mutableStateOf("Один раз")}
  AlertDialog(onDismissRequest=close,title={Text("Напоминание")},text={
