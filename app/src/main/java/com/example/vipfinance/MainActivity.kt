@@ -61,7 +61,7 @@ class MainActivity:ComponentActivity(){
     "Долги"->Debts(debts){dialog="debt"}
     "Цели"->Goals(goals){dialog="goal"}
     "Напоминания"->Reminders(reminders,{dialog="reminder"}){r->reminders=reminders.map{if(it.id==r.id)it.copy(done=!it.done)else it};s.saveReminders(reminders)}
-    "Чеки"->Receipt(receiptUri,receiptText,{u->receiptUri=u;receiptText=""}){u->receiptUri=u;receiptText="Фото готово к OCR-анализу."}
+    "Чеки"->Receipt(receiptUri,receiptText,{u->receiptUri=u;receiptText=""},{t->receiptText=t}){u->receiptUri=u}
     else->More(currency,auto,theme,style,menu,rateTime,tx){c,a,t,st,m->currency=c;auto=a;theme=t;style=st;menu=m;s.saveCurrency(c);s.saveAutoConversion(a);s.saveTheme(t);s.saveStyle(st);s.saveMenu(m)}
    }
   }
@@ -113,9 +113,9 @@ class MainActivity:ComponentActivity(){
  Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text("Напоминания",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}};items.forEach{r->Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){Row(Modifier.padding(12.dp).fillMaxWidth(),Arrangement.SpaceBetween){Column(Modifier.weight(1f)){Text(r.title,fontWeight=FontWeight.Bold);Text(r.date+" • "+r.repeat)};Switch(r.done,{toggle(r)})}}}
 }
 
-@Composable private fun Receipt(uri:Uri?,text:String,setUri:(Uri?)->Unit,pick:(Uri)->Unit){
+@Composable private fun Receipt(uri:Uri?,text:String,setUri:(Uri?)->Unit,setText:(String)->Unit,pick:(Uri)->Unit){
  val context=LocalContext.current
- val launcher=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){u->if(u!=null){pick(u);runCatching{InputImage.fromFilePath(context,u)}.onSuccess{image->TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(image).addOnSuccessListener{ }}}}
+ val launcher=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){u->if(u!=null){pick(u);runCatching{InputImage.fromFilePath(context,u)}.onSuccess{image->TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(image).addOnSuccessListener{result->setText(result.text.ifBlank{"Текст не найден."})}.addOnFailureListener{setText("Не удалось распознать текст.")}}}}
  Text("Чеки и OCR",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button({launcher.launch("image/*")}){Text("Выбрать фото чека")};if(uri!=null)Text("Фото выбрано: "+uri.lastPathSegment);Card(Modifier.fillMaxWidth()){Text(if(text.isBlank())"Фото подготовлено для OCR." else text,Modifier.padding(12.dp))}
 }
 
