@@ -119,8 +119,176 @@ class MainActivity:ComponentActivity(){
  Text("Чеки и OCR",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button({launcher.launch("image/*")}){Text("Выбрать фото чека")};if(uri!=null)Text("Фото выбрано: "+uri.lastPathSegment);Card(Modifier.fillMaxWidth()){Text(if(text.isBlank())"Фото подготовлено для OCR." else text,Modifier.padding(12.dp))}
 }
 
-@Composable private fun More(c:String,auto:Boolean,theme:String,style:String,menu:Set<String>,time:Long,transactions:List<Transaction>,save:(String,Boolean,String,String,Set<String>)->Unit){
- Text("Ещё",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Spacer(Modifier.height(8.dp));Card(Modifier.fillMaxWidth()){Column(Modifier.padding(14.dp)){Text("Основная валюта");Row(horizontalArrangement=Arrangement.spacedBy(3.dp)){currencies.forEach{x->FilterChip(c==x,{save(x,auto,theme,style,menu)},label={Text(x)})}};Row(Modifier.fillMaxWidth(),Alignment.CenterVertically,Arrangement.SpaceBetween){Text("Автоконвертация");Switch(auto,{save(c,it,theme,style,menu)})};Text("Тема");Row{listOf("system","light","dark").forEach{x->FilterChip(theme==x,{save(c,auto,x,style,menu)},label={Text(x)})}};Text("Стиль");Row{listOf("classic","ocean","graphite").forEach{x->FilterChip(style==x,{save(c,auto,theme,x,menu)},label={Text(x)})}};if(time>0)Text("Курсы: "+SimpleDateFormat("dd.MM.yyyy HH:mm",Locale.getDefault()).format(Date(time)))}}};val context=LocalContext.current;Button(onClick={val csv=buildString{append("date,title,amount,currency,type,account,category\\n");transactions.forEach{t->append(SimpleDateFormat("yyyy-MM-dd HH:mm",Locale.getDefault()).format(Date(t.timestamp))).append(",").append(t.title.replace(","," ")).append(",").append(t.amount).append(",").append(t.currency).append(",").append(if(t.income)"income" else "expense").append(",").append(t.accountName.replace(","," ")).append(",").append(t.category.replace(","," ")).append("\\n")}};context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply{type="text/plain";putExtra(Intent.EXTRA_TEXT,csv)},"Экспорт операций"))}){Text("Экспорт операций CSV")};Button(onClick={val backup=buildString{append("VIP Finance backup\\n");append("Transactions: ");append(transactions.size);append("\\nAccounts: ");append(transactions.map{it.accountName}.distinct().joinToString());append("\\nItems: ");append(transactions.size);append("\\nDebts/Goals/Reminders: exported in app storage")};context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply{type="text/plain";putExtra(Intent.EXTRA_TEXT,backup)},"Резервная копия"))}){Text("Резервная копия")};Text("Показывать в меню");pages.filter{it!="Ещё"}.forEach{x->Row(Modifier.fillMaxWidth(),Alignment.CenterVertically,Arrangement.SpaceBetween){Text(x);Switch(x in menu,{on->val n=menu.toMutableSet();if(on)n.add(x)else n.remove(x);save(c,auto,theme,style,n)})}}
+@Composable
+private fun More(
+    c: String,
+    auto: Boolean,
+    theme: String,
+    style: String,
+    menu: Set<String>,
+    time: Long,
+    transactions: List<Transaction>,
+    save: (String, Boolean, String, String, Set<String>) -> Unit
+) {
+    Text(
+        "Ещё",
+        style = MaterialTheme.typography.headlineSmall,
+        fontWeight = FontWeight.Bold
+    )
+    Spacer(Modifier.height(8.dp))
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp)) {
+            Text("Основная валюта")
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                currencies.forEach { code ->
+                    FilterChip(
+                        selected = c == code,
+                        onClick = { save(code, auto, theme, style, menu) },
+                        label = { Text(code) }
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Автоконвертация")
+                Switch(
+                    checked = auto,
+                    onCheckedChange = { value ->
+                        save(c, value, theme, style, menu)
+                    }
+                )
+            }
+
+            Text("Тема")
+            Row {
+                listOf("system", "light", "dark").forEach { value ->
+                    FilterChip(
+                        selected = theme == value,
+                        onClick = { save(c, auto, value, style, menu) },
+                        label = { Text(value) }
+                    )
+                }
+            }
+
+            Text("Стиль")
+            Row {
+                listOf("classic", "ocean", "graphite").forEach { value ->
+                    FilterChip(
+                        selected = style == value,
+                        onClick = { save(c, auto, theme, value, menu) },
+                        label = { Text(value) }
+                    )
+                }
+            }
+
+            if (time > 0) {
+                Text(
+                    "Курсы: " +
+                        SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
+                            .format(Date(time))
+                )
+            }
+        }
+    }
+
+    val context = LocalContext.current
+
+    Button(
+        onClick = {
+            val csv = buildString {
+                append("date,title,amount,currency,type,account,category\n")
+                transactions.forEach { transaction ->
+                    append(
+                        SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+                            .format(Date(transaction.timestamp))
+                    )
+                    append(",")
+                    append(transaction.title.replace(",", " "))
+                    append(",")
+                    append(transaction.amount)
+                    append(",")
+                    append(transaction.currency)
+                    append(",")
+                    append(if (transaction.income) "income" else "expense")
+                    append(",")
+                    append(transaction.accountName.replace(",", " "))
+                    append(",")
+                    append(transaction.category.replace(",", " "))
+                    append("\n")
+                }
+            }
+
+            context.startActivity(
+                Intent.createChooser(
+                    Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, csv)
+                    },
+                    "Экспорт операций"
+                )
+            )
+        }
+    ) {
+        Text("Экспорт операций CSV")
+    }
+
+    Button(
+        onClick = {
+            val backup = buildString {
+                append("VIP Finance backup\n")
+                append("Transactions: ")
+                append(transactions.size)
+                append("\nAccounts: ")
+                append(transactions.map { it.accountName }.distinct().joinToString())
+                append("\nItems: ")
+                append(transactions.size)
+                append("\nDebts/Goals/Reminders: exported in app storage")
+            }
+
+            context.startActivity(
+                Intent.createChooser(
+                    Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, backup)
+                    },
+                    "Резервная копия"
+                )
+            )
+        }
+    ) {
+        Text("Резервная копия")
+    }
+
+    Text("Показывать в меню")
+
+    pages
+        .filter { it != "Ещё" }
+        .forEach { pageName ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(pageName)
+                Switch(
+                    checked = pageName in menu,
+                    onCheckedChange = { enabled ->
+                        val updated = menu.toMutableSet()
+                        if (enabled) {
+                            updated.add(pageName)
+                        } else {
+                            updated.remove(pageName)
+                        }
+                        save(c, auto, theme, style, updated)
+                    }
+                )
+            }
+        }
 }
 
 @Composable private fun AccountDialog(close:()->Unit,save:(String,Double,String,String)->Unit){
