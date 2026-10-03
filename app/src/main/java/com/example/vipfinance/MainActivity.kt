@@ -9,6 +9,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
@@ -111,8 +115,28 @@ fun FinanceApp(s: FinanceStore) {
         ModalNavigationDrawer(
             drawerState = drawerState,
             drawerContent = {
-                ModalDrawerSheet {
-                    Text("VIP Finance", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(20.dp))
+                ModalDrawerSheet(
+                    drawerContainerColor = MaterialTheme.colorScheme.surface,
+                    drawerContentColor = MaterialTheme.colorScheme.onSurface
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.primaryContainer,
+                                        MaterialTheme.colorScheme.secondaryContainer
+                                    )
+                                )
+                            )
+                            .padding(20.dp)
+                    ) {
+                        Column {
+                            Text("VIP Finance", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            Text("Ваши финансы под контролем", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
                     HorizontalDivider()
                     Text("Разделы", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
                     menu.forEach { item ->
@@ -126,21 +150,64 @@ fun FinanceApp(s: FinanceStore) {
             Scaffold(
                 topBar = {
                     TopAppBar(
-                        title = { Text(page) },
-                        navigationIcon = { IconButton(onClick = { drawerOpen = true }) { Text("☰", style = MaterialTheme.typography.titleLarge) } },
-                        actions = { IconButton(onClick = { dialog = "settings" }) { Text("⚙", style = MaterialTheme.typography.titleLarge) } }
+                        title = {
+                            Column {
+                                Text(page, fontWeight = FontWeight.Bold)
+                                if (page == "Главная") Text("Финансовый обзор", style = MaterialTheme.typography.bodySmall)
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.background,
+                            titleContentColor = MaterialTheme.colorScheme.onBackground
+                        ),
+                        navigationIcon = {
+                            IconButton(onClick = { drawerOpen = true }) {
+                                Text("☰", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                            }
+                        },
+                        actions = {
+                            IconButton(onClick = { dialog = "settings" }) {
+                                Text("⚙", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
                     )
                 },
                 bottomBar = {
-                    BottomAppBar {
-                        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Button(onClick = { dialog = "expense" }, modifier = Modifier.weight(1f)) { Text("− Расход") }
-                            Button(onClick = { dialog = "income" }, modifier = Modifier.weight(1f)) { Text("+ Доход") }
+                    BottomAppBar(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 10.dp
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Button(
+                                onClick = { dialog = "expense" },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            ) { Text("− Расход") }
+                            Button(
+                                onClick = { dialog = "income" },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            ) { Text("+ Доход") }
                         }
                     }
                 }
             ) { pad ->
-                Column(Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp, vertical = 10.dp)) {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(pad)
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                ) {
                     when (page) {
                         "Главная" -> Home(total, currency, accounts, auto, rates, selected, inc, exp) { selected = it }
                         "Операции" -> Operations(shown, accounts, filter, { filter = it }, { dialog = "expense" }, ::remove, currency, auto, rates, search, { search = it }, newest) { newest = it }
