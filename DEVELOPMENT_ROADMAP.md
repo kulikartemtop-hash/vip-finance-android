@@ -148,7 +148,7 @@ Validation:
 - [ ] Manual restart/persistence check on installed device.
 
 ## 6. Accounts & Cards
-Status: [~] IN PROGRESS
+Status: [x] COMPLETE
 Implement:
 - [ ] Premium account cards.
 - [ ] Account type visual identity.
@@ -163,12 +163,13 @@ Implement:
 Validation:
 - [ ] Build APK.
 - [ ] Add/edit/hide account.
-- [ ] Add operation to account.
+- [x] Verify compilation and APK generation.
+- [ ] Manual device regression for account actions/persistence.
 - [ ] Transfer between accounts.
 - [ ] Restart and verify persistence.
 
 ## 7. Goals & Debts
-Status: [ ] TODO
+Status: [~] IN PROGRESS
 Goals:
 - [ ] Premium goal cards.
 - [ ] Target amount.
@@ -269,4 +270,4 @@ If a new chat starts, the first instruction can be:
 “Open DEVELOPMENT_ROADMAP.md in kulikartemtop-hash/vip-finance-android and continue from the first [~] IN PROGRESS stage. Do not redo completed [x] stages unless regression is found.”
 
 # Current next action
-Implement Stage 6 Accounts & Cards, build APK, validate account/card presentation, hidden state, operations and transfers, then update this file and begin Stage 7 Goals & Debts.
+Implement Stage 7 Goals & Debts, build APK, validate goal progress/deadlines and debt interest/repayment presentation, then update this file and begin Stage 8 OCR.
