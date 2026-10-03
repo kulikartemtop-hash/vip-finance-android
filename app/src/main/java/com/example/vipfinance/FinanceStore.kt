@@ -63,7 +63,7 @@ class FinanceStore(context: Context) {
         val a=JSONArray();items.forEach{x->a.put(JSONObject().apply{put("id",x.id);put("title",x.title);put("amount",x.amount);put("date",x.date);put("repeat",x.repeat);put("done",x.done)})};prefs.edit().putString("reminders",a.toString()).apply()
     }
 
-    fun loadCurrency(): String = prefs.getString("currency","GBP") ?: "GBP"
+    fun loadCurrency(): String = prefs.getString("currency","RUB") ?: "RUB"
     fun saveCurrency(v:String)=prefs.edit().putString("currency",v).apply()
     fun loadAutoConversion():Boolean=prefs.getBoolean("auto_conversion",true)
     fun saveAutoConversion(v:Boolean)=prefs.edit().putBoolean("auto_conversion",v).apply()
