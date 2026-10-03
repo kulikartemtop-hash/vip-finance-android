@@ -1,73 +1,22 @@
-package com.example.vipfinance
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-import android.content.Context
-import org.json.JSONArray
-import org.json.JSONObject
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.VIPFinance">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.VIPFinance">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
 
-class FinanceStore(context: Context) {
-    private val prefs = context.getSharedPreferences("vip_finance", Context.MODE_PRIVATE)
-
-    fun loadAccounts(): List<Account> {
-        val raw = prefs.getString("accounts", "[]") ?: "[]"
-        val a = JSONArray(raw)
-        return List(a.length()) { i ->
-            val o = a.getJSONObject(i)
-            Account(
-                name = o.getString("name"),
-                balance = o.getDouble("balance"),
-                hidden = o.optBoolean("hidden", false),
-                type = o.optString("type", "Счёт")
-            )
-        }
-    }
-
-    fun saveAccounts(list: List<Account>) {
-        val a = JSONArray()
-        list.forEach {
-            a.put(JSONObject().apply {
-                put("name", it.name)
-                put("balance", it.balance)
-                put("hidden", it.hidden)
-                put("type", it.type)
-            })
-        }
-        prefs.edit().putString("accounts", a.toString()).apply()
-    }
-
-    fun loadTransactions(): List<Transaction> {
-        val raw = prefs.getString("transactions", "[]") ?: "[]"
-        val a = JSONArray(raw)
-        return List(a.length()) { i ->
-            val o = a.getJSONObject(i)
-            Transaction(
-                title = o.getString("title"),
-                amount = o.getDouble("amount"),
-                income = o.getBoolean("income"),
-                accountName = o.optString("accountName", ""),
-                category = o.optString("category", "Без категории"),
-                timestamp = o.optLong("timestamp", System.currentTimeMillis())
-            )
-        }
-    }
-
-    fun loadCurrency(): String = prefs.getString("currency", "GBP") ?: "GBP"
-
-    fun saveCurrency(currency: String) {
-        prefs.edit().putString("currency", currency).apply()
-    }
-
-    fun saveTransactions(list: List<Transaction>) {
-        val a = JSONArray()
-        list.forEach {
-            a.put(JSONObject().apply {
-                put("title", it.title)
-                put("amount", it.amount)
-                put("income", it.income)
-                put("accountName", it.accountName)
-                put("category", it.category)
-                put("timestamp", it.timestamp)
-            })
-        }
-        prefs.edit().putString("transactions", a.toString()).apply()
-    }
-}
+</manifest>
