@@ -13,6 +13,7 @@ data class Account(
 data class Category(
     val id: Long = System.currentTimeMillis(),
     val name: String,
+    val kind: String = "expense",
     val icon: String = "category",
     val color: String = "#5B35F5"
 )
