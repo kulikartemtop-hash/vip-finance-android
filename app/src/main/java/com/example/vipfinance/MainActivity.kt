@@ -58,9 +58,9 @@ class MainActivity:ComponentActivity(){
     "Счета"->Accounts(accounts,currency,auto,rates,{dialog="account"},{selected=it}){n->accounts=accounts.map{if(it.name==n)it.copy(hidden=!it.hidden)else it};s.saveAccounts(accounts)}
     "Аналитика"->Analytics(inc,exp,shown,currency,auto,rates)
     "Конвертер"->Converter(currency,rates,loading)
-    "Долги"->Debts(debts){dialog="debt"}
-    "Цели"->Goals(goals){dialog="goal"}
-    "Напоминания"->Reminders(reminders,{dialog="reminder"}){r->reminders=reminders.map{if(it.id==r.id)it.copy(done=!it.done)else it};s.saveReminders(reminders)}
+    "Долги"->Debts(debts,{dialog="debt"}){d->debts=debts.filterNot{it.id==d.id};s.saveDebts(debts)}
+    "Цели"->Goals(goals,{dialog="goal"}){g->goals=goals.filterNot{it.id==g.id};s.saveGoals(goals)}
+    "Напоминания"->Reminders(reminders,{dialog="reminder"}){r->reminders=reminders.map{if(it.id==r.id)it.copy(done=!it.done)else it};s.saveReminders(reminders)}{r->reminders=reminders.filterNot{it.id==r.id};s.saveReminders(reminders)}
     "Чеки"->Receipt(receiptUri,receiptText,{u->receiptUri=u;receiptText=""},{t->receiptText=t}){u->receiptUri=u}
     else->More(currency,auto,theme,style,menu,rateTime,tx){c,a,t,st,m->currency=c;auto=a;theme=t;style=st;menu=m;s.saveCurrency(c);s.saveAutoConversion(a);s.saveTheme(t);s.saveStyle(st);s.saveMenu(m)}
    }
@@ -101,16 +101,16 @@ class MainActivity:ComponentActivity(){
  Text("Конвертер",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);OutlinedTextField(amount,{amount=it},label={Text("Сумма")},modifier=Modifier.fillMaxWidth());Text("Из");Row(horizontalArrangement=Arrangement.spacedBy(3.dp)){currencies.forEach{x->FilterChip(from==x,{from=x},label={Text(x)})}};Text("В");Row(horizontalArrangement=Arrangement.spacedBy(3.dp)){currencies.forEach{x->FilterChip(to==x,{to=x},label={Text(x)})}};if(loading)Text("Обновляю курсы…");if(out!=null)Text(money(out,to),style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold);Text("ECB: справочные курсы. RUB не входит в актуальный набор ECB.",style=MaterialTheme.typography.bodySmall)
 }
 
-@Composable private fun Debts(items:List<Debt>,add:()->Unit){
- Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text("Долги",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}};items.forEach{d->Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){Column(Modifier.padding(12.dp)){Text(if(d.mine)"Я должен: "+d.person else "Мне должны: "+d.person,fontWeight=FontWeight.Bold);Text("%.2f".format(d.amount));Text(if(d.interest)"Проценты включены" else "Без процентов");if(d.note.isNotBlank())Text(d.note)}}}
+@Composable private fun Debts(items:List<Debt>,add:()->Unit,remove:(Debt)->Unit){
+ Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text("Долги",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}};items.forEach{d->Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){Column(Modifier.padding(12.dp)){Text(if(d.mine)"Я должен: "+d.person else "Мне должны: "+d.person,fontWeight=FontWeight.Bold);Text("%.2f".format(d.amount));Text(if(d.interest)"Проценты включены" else "Без процентов");if(d.note.isNotBlank())Text(d.note);TextButton(onClick={remove(d)}){Text("Удалить")}}}
 }
 
-@Composable private fun Goals(items:List<Goal>,add:()->Unit){
- Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text("Цели",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}};items.forEach{g->Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){Column(Modifier.padding(12.dp)){Text(g.name,fontWeight=FontWeight.Bold);Text(money(g.saved,g.currency)+" / "+money(g.target,g.currency));LinearProgressIndicator({(g.saved/g.target).toFloat().coerceIn(0f,1f)},Modifier.fillMaxWidth());if(g.deadline.isNotBlank())Text("Срок: "+g.deadline)}}}
+@Composable private fun Goals(items:List<Goal>,add:()->Unit,remove:(Goal)->Unit){
+ Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text("Цели",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}};items.forEach{g->Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){Column(Modifier.padding(12.dp)){Text(g.name,fontWeight=FontWeight.Bold);Text(money(g.saved,g.currency)+" / "+money(g.target,g.currency));LinearProgressIndicator({(g.saved/g.target).toFloat().coerceIn(0f,1f)},Modifier.fillMaxWidth());if(g.deadline.isNotBlank())Text("Срок: "+g.deadline);TextButton(onClick={remove(g)}){Text("Удалить")}}}
 }
 
-@Composable private fun Reminders(items:List<Reminder>,add:()->Unit,toggle:(Reminder)->Unit){
- Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text("Напоминания",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}};items.forEach{r->Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){Row(Modifier.padding(12.dp).fillMaxWidth(),Arrangement.SpaceBetween){Column(Modifier.weight(1f)){Text(r.title,fontWeight=FontWeight.Bold);Text(r.date+" • "+r.repeat)};Switch(r.done,{toggle(r)})}}}
+@Composable private fun Reminders(items:List<Reminder>,add:()->Unit,toggle:(Reminder)->Unit,remove:(Reminder)->Unit){
+ Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text("Напоминания",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}};items.forEach{r->Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){Row(Modifier.padding(12.dp).fillMaxWidth(),Arrangement.SpaceBetween){Column(Modifier.weight(1f)){Text(r.title,fontWeight=FontWeight.Bold);Text(r.date+" • "+r.repeat)};Switch(r.done,{toggle(r)});TextButton(onClick={remove(r)}){Text("Удалить")}}}
 }
 
 @Composable private fun Receipt(uri:Uri?,text:String,setUri:(Uri?)->Unit,setText:(String)->Unit,pick:(Uri)->Unit){
