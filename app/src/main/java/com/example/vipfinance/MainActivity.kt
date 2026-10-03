@@ -55,7 +55,7 @@ class MainActivity:ComponentActivity(){
    when(page){
     "Главная"->Home(total,currency,accounts,auto,rates,selected,inc,exp){selected=it}
     "Операции"->Operations(shown,accounts,filter,{filter=it},{dialog="tx"},::remove,currency,auto,rates,search,{search=it},newest){newest=it}
-    "Счета"->Accounts(accounts,currency,auto,rates,{dialog="account"},{selected=it}){n->accounts=accounts.map{if(it.name==n)it.copy(hidden=!it.hidden)else it};s.saveAccounts(accounts)}
+    "Счета"->Accounts(accounts,currency,auto,rates,{dialog="account"},{selected=it}){n->val updated=accounts.map{if(it.name==n)it.copy(hidden=!it.hidden)else it};accounts=updated;s.saveAccounts(updated)}
     "Аналитика"->Analytics(inc,exp,shown,currency,auto,rates)
     "Конвертер"->Converter(currency,rates,loading)
     "Долги"->Debts(debts,{dialog="debt"}){d->debts=debts.filterNot{it.id==d.id};s.saveDebts(debts)}
@@ -106,7 +106,7 @@ class MainActivity:ComponentActivity(){
 }
 
 @Composable private fun Goals(items:List<Goal>,add:()->Unit,remove:(Goal)->Unit){
- Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text("Цели",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}};items.forEach{g->Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){Column(Modifier.padding(12.dp)){Text(g.name,fontWeight=FontWeight.Bold);Text(money(g.saved,g.currency)+" / "+money(g.target,g.currency));LinearProgressIndicator({(g.saved/g.target).toFloat().coerceIn(0f,1f)},Modifier.fillMaxWidth());if(g.deadline.isNotBlank())Text("Срок: "+g.deadline);TextButton(onClick={remove(g)}){Text("Удалить")}}}
+ Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text("Цели",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Button(add){Text("+")}};items.forEach{g->Card(Modifier.fillMaxWidth().padding(vertical=3.dp)){Column(Modifier.padding(12.dp)){Text(g.name,fontWeight=FontWeight.Bold);Text(money(g.saved,g.currency)+" / "+money(g.target,g.currency));LinearProgressIndicator({if(g.target>0)(g.saved/g.target).toFloat().coerceIn(0f,1f) else 0f},Modifier.fillMaxWidth());if(g.deadline.isNotBlank())Text("Срок: "+g.deadline);TextButton(onClick={remove(g)}){Text("Удалить")}}}
 }
 
 @Composable private fun Reminders(items:List<Reminder>,add:()->Unit,toggle:(Reminder)->Unit,remove:(Reminder)->Unit){
