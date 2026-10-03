@@ -749,15 +749,73 @@ private fun More(
     )
 }
 
-@Composable private fun AccountDialog(close:()->Unit,save:(String,Double,String,String)->Unit){
- var n by remember{mutableStateOf("")};var b by remember{mutableStateOf("")};var t by remember{mutableStateOf("Счёт")};var c by remember{mutableStateOf("RUB")}
- AlertDialog(onDismissRequest=close,title={Text("Новый счёт")},text={Column{OutlinedTextField(n,{n=it},label={Text("Название")});OutlinedTextField(b,{b=it},label={Text("Баланс")});Row{FilterChip(t=="Счёт",{t="Счёт"},label={Text("Счёт")});FilterChip(t=="Карта",{t="Карта"},label={Text("Карта")})};Row{currencies.forEach{x->FilterChip(c==x,{c=x},label={Text(x)})}}}},confirmButton={Button({save(n.trim(),b.replace(',','.').toDoubleOrNull()?:0.0,t,c)},enabled=n.isNotBlank()){Text("Сохранить")}},dismissButton={TextButton(close){Text("Отмена")}})
+@Composable
+private fun AccountDialog(
+    close: () -> Unit,
+    save: (String, Double, String, String, String, String) -> Unit
+) {
+    var n by remember { mutableStateOf("") }
+    var b by remember { mutableStateOf("") }
+    var t by remember { mutableStateOf("Счёт") }
+    var c by remember { mutableStateOf("RUB") }
+    var icon by remember { mutableStateOf(if (t == "Карта") "credit_card" else "account_balance") }
+    var iconColor by remember { mutableStateOf(colorChoices.first()) }
+    val balance = b.replace(',', '.').toDoubleOrNull()
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text(if (t == "Карта") "Новая карта" else "Новый счёт") },
+        text = {
+            Column(
+                Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(n, { n = it }, label = { Text("Название") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(b, { b = it }, label = { Text("Начальный баланс $c") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Text("Тип", fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(t == "Счёт", { t = "Счёт"; if (icon == "credit_card") icon = "account_balance" }, label = { Text("Счёт") })
+                    FilterChip(t == "Карта", { t = "Карта"; if (icon == "account_balance") icon = "credit_card" }, label = { Text("Карта") })
+                }
+                Text("Валюта", fontWeight = FontWeight.Bold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) { items(currencies) { x -> FilterChip(c == x, { c = x }, label = { Text(x) }) } }
+                Text("Значок", fontWeight = FontWeight.Bold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(iconChoices) { x ->
+                        FilterChip(icon == x, { icon = x }, label = { Text(iconText(x)) })
+                    }
+                }
+                Text("Цвет значка", fontWeight = FontWeight.Bold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(colorChoices) { x ->
+                        FilterChip(iconColor == x, { iconColor = x }, label = {
+                            Box(Modifier.size(18.dp).clip(RoundedCornerShape(6.dp)).background(uiColor(x)))
+                        })
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { save(n.trim(), balance ?: 0.0, t, c, icon, iconColor) },
+                enabled = n.isNotBlank() && balance != null
+            ) { Text("Сохранить") }
+        },
+        dismissButton = { TextButton(close) { Text("Отмена") } }
+    )
 }
-@Composable private fun TransactionDialog(accounts: List<Account>, defaultIncome: Boolean, close: () -> Unit, save: (Transaction) -> Unit) {
+
+@Composable
+private fun TransactionDialog(
+    accounts: List<Account>,
+    categories: List<Category>,
+    defaultIncome: Boolean,
+    close: () -> Unit,
+    save: (Transaction) -> Unit
+) {
     var n by remember { mutableStateOf("") }
     var a by remember { mutableStateOf("") }
     var inc by remember { mutableStateOf(defaultIncome) }
-    var cat by remember { mutableStateOf("") }
+    var cat by remember { mutableStateOf(categories.firstOrNull()?.name ?: "") }
     var acc by remember { mutableStateOf(accounts.firstOrNull()?.name ?: "") }
     val c = accounts.firstOrNull { it.name == acc }?.currency ?: "RUB"
     val v = a.replace(',', '.').toDoubleOrNull()
@@ -765,16 +823,38 @@ private fun More(
         onDismissRequest = close,
         title = { Text(if (inc) "Новый доход" else "Новый расход") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(n, { n = it }, label = { Text("Описание") })
-                OutlinedTextField(a, { a = it }, label = { Text("Сумма $c") })
-                Row { FilterChip(inc, { inc = true }, label = { Text("Доход") }); FilterChip(!inc, { inc = false }, label = { Text("Расход") }) }
-                OutlinedTextField(cat, { cat = it }, label = { Text("Категория") })
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { listOf("Продукты", "Транспорт", "Жильё", "Зарплата", "Развлечения", "Другое").forEach { x -> FilterChip(cat == x, { cat = x }, label = { Text(x) }) } }
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { accounts.forEach { x -> FilterChip(acc == x.name, { acc = x.name }, label = { Text(x.name) }) } }
+            Column(
+                Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(n, { n = it }, label = { Text("Описание") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(a, { a = it }, label = { Text("Сумма $c") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Text("Тип операции", fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(inc, { inc = true }, label = { Text("Доход") })
+                    FilterChip(!inc, { inc = false }, label = { Text("Расход") })
+                }
+                Text("Категория", fontWeight = FontWeight.Bold)
+                OutlinedTextField(cat, { cat = it }, label = { Text("Можно ввести свою") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    items(categories) { x ->
+                        FilterChip(cat == x.name, { cat = x.name }, label = { Text(iconText(x.icon) + " " + x.name) })
+                    }
+                }
+                Text("Счёт / карта", fontWeight = FontWeight.Bold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    items(accounts) { x ->
+                        FilterChip(acc == x.name, { acc = x.name }, label = { Text(iconText(x.icon) + " " + x.name) })
+                    }
+                }
             }
         },
-        confirmButton = { Button({ save(Transaction(title = n.trim(), amount = v ?: 0.0, income = inc, accountName = acc, category = cat.ifBlank { "Без категории" }, currency = c)) }, enabled = n.isNotBlank() && v != null && v > 0 && acc.isNotBlank()) { Text("Сохранить") } },
+        confirmButton = {
+            Button(
+                onClick = { save(Transaction(title = n.trim(), amount = v ?: 0.0, income = inc, accountName = acc, category = cat.ifBlank { "Без категории" }, currency = c)) },
+                enabled = n.isNotBlank() && v != null && v > 0 && acc.isNotBlank()
+            ) { Text("Сохранить") }
+        },
         dismissButton = { TextButton(close) { Text("Отмена") } }
     )
 }
