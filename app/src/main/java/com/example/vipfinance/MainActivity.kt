@@ -16,6 +16,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,7 +36,7 @@ import java.util.Date
 import java.util.Locale
 
 private val currencies=listOf("RUB","GBP","EUR","USD","CNY","JPY","CHF","CAD","AUD","PLN")
-private val pages=listOf("Главная","Операции","Счета","Аналитика","Конвертер","Долги","Цели","Напоминания","Чеки")
+private val pages=listOf("Главная","Операции","Счета","Категории","Аналитика","Конвертер","Долги","Цели","Напоминания","Чеки")
 private fun sym(c:String)=when(c){"GBP"->"£";"USD"->"$";"EUR"->"€";"RUB"->"₽";"CNY"->"¥";"JPY"->"¥";"CHF"->"Fr";"CAD"->"C$";"AUD"->"A$";"PLN"->"zł";else->c}
 private fun money(v:Double,c:String)=sym(c)+"%.2f".format(Locale.getDefault(),v)
 private fun conv(v:Double,from:String,to:String,auto:Boolean,r:Map<String,Double>)=if(auto)ExchangeRates.convert(v,from,to,r) else v
@@ -50,6 +53,8 @@ fun FinanceApp(s: FinanceStore) {
     var debts by remember { mutableStateOf(s.loadDebts()) }
     var goals by remember { mutableStateOf(s.loadGoals()) }
     var reminders by remember { mutableStateOf(s.loadReminders()) }
+    var categories by remember { mutableStateOf(s.loadCategories().ifEmpty { defaultCategories }) }
+    var editingCategory by remember { mutableStateOf<Category?>(null) }
     var page by remember { mutableStateOf("Главная") }
     var currency by remember { mutableStateOf(s.loadCurrency()) }
     var auto by remember { mutableStateOf(s.loadAutoConversion()) }
@@ -72,6 +77,7 @@ fun FinanceApp(s: FinanceStore) {
     LaunchedEffect(drawerOpen) { if (drawerOpen) drawerState.open() else drawerState.close() }
     LaunchedEffect(menu) { if (page !in menu && menu.isNotEmpty()) page = menu.first() }
     LaunchedEffect(Unit) {
+        if (s.loadCategories().isEmpty()) s.saveCategories(categories)
         loading = true
         runCatching { ExchangeRates.loadEcbRates() }.onSuccess {
             rates = it
