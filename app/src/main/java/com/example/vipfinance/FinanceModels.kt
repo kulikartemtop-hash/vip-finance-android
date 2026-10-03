@@ -4,7 +4,8 @@ data class Account(
     val name: String,
     val balance: Double,
     val hidden: Boolean = false,
-    val type: String = "Счёт"
+    val type: String = "Счёт",
+    val currency: String = "GBP"
 )
 
 data class Transaction(
@@ -13,5 +14,6 @@ data class Transaction(
     val income: Boolean,
     val accountName: String = "",
     val category: String = "Без категории",
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val currency: String = "GBP"
 )
