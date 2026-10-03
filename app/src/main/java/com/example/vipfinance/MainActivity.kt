@@ -381,7 +381,8 @@ private fun Accounts(
         }
     }
 }
-@Composable private fun Analytics(tx: List<Transaction>, c: String, auto: Boolean, r: Map<String, Double>) {
+@Composable
+private fun Analytics(tx: List<Transaction>, c: String, auto: Boolean, r: Map<String, Double>) {
     var preset by remember { mutableStateOf("Сегодня") }
     var fromText by remember { mutableStateOf("") }
     var toText by remember { mutableStateOf("") }
@@ -399,9 +400,18 @@ private fun Accounts(
     val expense = periodTx.filter { !it.income }.sumOf { conv(it.amount, it.currency, c, auto, r) }
     val cats = periodTx.filter { !it.income }.groupBy { it.category }.mapValues { (_, values) -> values.sumOf { conv(it.amount, it.currency, c, auto, r) } }
     val max = cats.values.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { Text("Аналитика", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text("Отчёт за выбранный период", style = MaterialTheme.typography.bodySmall) }
-        item { Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) { listOf("Сегодня", "7 дней", "14 дней", "Месяц", "Свои даты").forEach { p -> FilterChip(preset == p, { preset = p }, label = { Text(p) }) } } }
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Column {
+                Text("Аналитика", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text("Финансовый отчёт за выбранный период", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                listOf("Сегодня", "7 дней", "14 дней", "Месяц", "Свои даты").forEach { p -> FilterChip(preset == p, { preset = p }, label = { Text(p) }) }
+            }
+        }
         if (preset == "Свои даты") item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(fromText, { fromText = it }, label = { Text("С даты") }, placeholder = { Text("дд.мм.гггг") }, modifier = Modifier.weight(1f), singleLine = true)
@@ -410,26 +420,31 @@ private fun Accounts(
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Card(Modifier.weight(1f)) { Column(Modifier.padding(14.dp)) { Text("Доходы"); Text(money(income, c), fontWeight = FontWeight.Bold) } }
-                Card(Modifier.weight(1f)) { Column(Modifier.padding(14.dp)) { Text("Расходы"); Text(money(expense, c), fontWeight = FontWeight.Bold) } }
+                MetricCard("Доходы", money(income, c), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+                MetricCard("Расходы", money(expense, c), MaterialTheme.colorScheme.error, Modifier.weight(1f))
             }
         }
-        item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(14.dp)) { Text("Итог", style = MaterialTheme.typography.titleMedium); Text(money(income - expense, c), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold); Text("Операций: " + periodTx.size) } } }
+        item {
+            Box(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.secondaryContainer))).padding(18.dp)) {
+                Column {
+                    Text("Итог за период", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Text(money(income - expense, c), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("${periodTx.size} операций", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
         item { Text("Расходы по категориям", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
         items(cats.entries.sortedByDescending { it.value }) { entry ->
-            Column {
-                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) { Text(entry.key); Text(money(entry.value, c), fontWeight = FontWeight.Bold) }
-                LinearProgressIndicator({ (entry.value / max).toFloat().coerceIn(0f, 1f) }, Modifier.fillMaxWidth())
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) { Text(entry.key, fontWeight = FontWeight.SemiBold); Text(money(entry.value, c), fontWeight = FontWeight.Bold) }
+                    LinearProgressIndicator(progress = { (entry.value / max).toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                }
             }
         }
     }
 }
-private fun startOfDay(c: Calendar): Calendar = (c.clone() as Calendar).apply { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }
-private fun endOfDay(c: Calendar): Calendar = (c.clone() as Calendar).apply { set(Calendar.HOUR_OF_DAY, 23); set(Calendar.MINUTE, 59); set(Calendar.SECOND, 59); set(Calendar.MILLISECOND, 999) }
-private fun daysAgoStart(days: Int): Calendar = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -days); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }
-private fun parseDateStart(s: String): Long? = runCatching { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).apply { isLenient = false }.parse(s)?.let { startOfDay(Calendar.getInstance().apply { time = it }).timeInMillis } }.getOrNull()
-private fun parseDateEnd(s: String): Long? = runCatching { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).apply { isLenient = false }.parse(s)?.let { endOfDay(Calendar.getInstance().apply { time = it }).timeInMillis } }.getOrNull()
-
 @Composable private fun Converter(c:String,r:Map<String,Double>,loading:Boolean){
  var amount by remember{mutableStateOf("")};var from by remember{mutableStateOf(c)};var to by remember{mutableStateOf(if(c=="EUR")"GBP" else "EUR")};val v=amount.replace(',','.').toDoubleOrNull();val out=v?.let{ExchangeRates.convert(it,from,to,r)}
  Text("Конвертер",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);OutlinedTextField(amount,{amount=it},label={Text("Сумма")},modifier=Modifier.fillMaxWidth());Text("Из");Row(horizontalArrangement=Arrangement.spacedBy(3.dp)){currencies.forEach{x->FilterChip(from==x,{from=x},label={Text(x)})}};Text("В");Row(horizontalArrangement=Arrangement.spacedBy(3.dp)){currencies.forEach{x->FilterChip(to==x,{to=x},label={Text(x)})}};if(loading)Text("Обновляю курсы…");if(out!=null)Text(money(out,to),style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold);Text("ECB: справочные курсы. RUB не входит в актуальный набор ECB.",style=MaterialTheme.typography.bodySmall)
