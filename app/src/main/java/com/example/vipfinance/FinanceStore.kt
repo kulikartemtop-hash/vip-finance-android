@@ -15,7 +15,8 @@ class FinanceStore(context: Context) {
             Account(
                 name = o.getString("name"),
                 balance = o.getDouble("balance"),
-                hidden = o.optBoolean("hidden", false)
+                hidden = o.optBoolean("hidden", false),
+                type = o.optString("type", "Счёт")
             )
         }
     }
@@ -27,6 +28,7 @@ class FinanceStore(context: Context) {
                 put("name", it.name)
                 put("balance", it.balance)
                 put("hidden", it.hidden)
+                put("type", it.type)
             })
         }
         prefs.edit().putString("accounts", a.toString()).apply()
