@@ -514,51 +514,77 @@ private fun Analytics(tx: List<Transaction>, c: String, auto: Boolean, r: Map<St
         else -> parseDateStart(fromText) ?: startOfDay(now).timeInMillis
     }
     val to = if (preset == "Свои даты") parseDateEnd(toText) ?: endOfDay(now).timeInMillis else endOfDay(now).timeInMillis
-    val periodTx = tx.filter { it.timestamp in from..to }
+    val periodTx = tx.filter { it.timestamp in from..to && it.operationType != "transfer" }
     val income = periodTx.filter { it.income }.sumOf { conv(it.amount, it.currency, c, auto, r) }
     val expense = periodTx.filter { !it.income }.sumOf { conv(it.amount, it.currency, c, auto, r) }
-    val cats = periodTx.filter { !it.income }.groupBy { it.category }.mapValues { (_, values) -> values.sumOf { conv(it.amount, it.currency, c, auto, r) } }
-    val max = cats.values.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
+    val cats = periodTx.filter { !it.income }.groupBy { it.category }.mapValues { (_, values) -> values.sumOf { conv(it.amount, it.currency, c, auto, r) } }.toList().sortedByDescending { it.second }
+    val maxCat = cats.maxOfOrNull { it.second }?.coerceAtLeast(1.0) ?: 1.0
+    val days = (0..6).map { offset ->
+        val day = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -offset) }
+        val key = SimpleDateFormat("dd.MM", Locale.getDefault()).format(day.time)
+        val dayTx = tx.filter { it.timestamp in startOfDay(day).timeInMillis..endOfDay(day).timeInMillis && it.operationType != "transfer" }
+        Triple(key, dayTx.filter { it.income }.sumOf { conv(it.amount, it.currency, c, auto, r) }, dayTx.filter { !it.income }.sumOf { conv(it.amount, it.currency, c, auto, r) })
+    }.reversed()
+    val maxDay = days.maxOfOrNull { maxOf(it.second, it.third) }?.coerceAtLeast(1.0) ?: 1.0
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Column {
                 Text("Аналитика", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text("Финансовый отчёт за выбранный период", style = MaterialTheme.typography.bodySmall)
+                Text("Финансовый отчёт за выбранный период", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                listOf("Сегодня", "7 дней", "14 дней", "Месяц", "Свои даты").forEach { p -> FilterChip(preset == p, { preset = p }, label = { Text(p) }) }
-            }
-        }
+        item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) { listOf("Сегодня", "7 дней", "14 дней", "Месяц", "Свои даты").forEach { p -> FilterChip(preset == p, { preset = p }, label = { Text(p) }) } } }
         if (preset == "Свои даты") item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(fromText, { fromText = it }, label = { Text("С даты") }, placeholder = { Text("дд.мм.гггг") }, modifier = Modifier.weight(1f), singleLine = true)
                 OutlinedTextField(toText, { toText = it }, label = { Text("По дату") }, placeholder = { Text("дд.мм.гггг") }, modifier = Modifier.weight(1f), singleLine = true)
             }
         }
+        item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { MetricCard("Доходы", money(income, c), MaterialTheme.colorScheme.primary, Modifier.weight(1f)); MetricCard("Расходы", money(expense, c), MaterialTheme.colorScheme.error, Modifier.weight(1f)) } }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MetricCard("Доходы", money(income, c), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
-                MetricCard("Расходы", money(expense, c), MaterialTheme.colorScheme.error, Modifier.weight(1f))
-            }
-        }
-        item {
-            Box(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.secondaryContainer))).padding(18.dp)) {
-                Column {
-                    Text("Итог за период", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(4.dp))
-                    Text(money(income - expense, c), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    Text("${periodTx.size} операций", style = MaterialTheme.typography.bodySmall)
+            Card(shape = RoundedCornerShape(24.dp), elevation = CardDefaults.cardElevation(4.dp)) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Финансовый поток", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Доходы и расходы по дням", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(Modifier.fillMaxWidth().height(145.dp), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.Bottom) {
+                        days.forEach { (label, inc, exp) ->
+                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Row(Modifier.height(105.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
+                                    Box(Modifier.width(7.dp).height((8f + 90f * (inc / maxDay).toFloat()).dp).clip(RoundedCornerShape(5.dp)).background(MaterialTheme.colorScheme.primary))
+                                    Box(Modifier.width(7.dp).height((8f + 90f * (exp / maxDay).toFloat()).dp).clip(RoundedCornerShape(5.dp)).background(MaterialTheme.colorScheme.error))
+                                }
+                                Text(label, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) { Text("Доходы", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary); Text("Расходы", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error) }
                 }
             }
         }
-        item { Text("Расходы по категориям", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-        items(cats.entries.sortedByDescending { it.value }) { entry ->
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        item {
+            Card(shape = RoundedCornerShape(24.dp), elevation = CardDefaults.cardElevation(4.dp)) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("Итог за период", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(money(income - expense, c), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = if (income >= expense) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                    Text("${periodTx.size} операций учтено", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        item { Text("Куда уходят деньги", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+        items(cats.take(8)) { (category, value) ->
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), elevation = CardDefaults.cardElevation(2.dp)) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) { Text(entry.key, fontWeight = FontWeight.SemiBold); Text(money(entry.value, c), fontWeight = FontWeight.Bold) }
-                    LinearProgressIndicator(progress = { (entry.value / max).toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) { Text(category, fontWeight = FontWeight.SemiBold); Text(money(value, c), fontWeight = FontWeight.Bold) }
+                    LinearProgressIndicator(progress = { (value / maxCat).toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(7.dp))
+                    Text("${((value / expense.coerceAtLeast(1.0)) * 100).toInt()}% расходов", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        if (periodTx.isEmpty()) item {
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Нет операций за выбранный период", fontWeight = FontWeight.SemiBold)
+                    Text("Добавьте доход или расход, чтобы увидеть аналитику.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
