@@ -591,6 +591,29 @@ private fun Analytics(tx: List<Transaction>, c: String, auto: Boolean, r: Map<St
                 }
             }
         }
+        item {
+            val repeated = periodTx.filter { !it.income }.groupBy { it.title.trim().lowercase(Locale.getDefault()) }.filter { it.key.isNotBlank() && it.value.size >= 2 }.entries.sortedByDescending { it.value.size }.take(3)
+            val averageExpense = if (periodTx.count { !it.income } > 0) expense / periodTx.count { !it.income } else 0.0
+            val unusual = periodTx.filter { !it.income }.filter { conv(it.amount, it.currency, c, auto, r) > averageExpense * 2 && averageExpense > 0 }.maxByOrNull { it.amount }
+            val daysCount = maxOf(1.0, ((to - from).toDouble() / 86400000.0) + 1.0)
+            val forecast30 = expense / daysCount * 30.0
+            Card(shape = RoundedCornerShape(24.dp), elevation = CardDefaults.cardElevation(4.dp)) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Умные сигналы", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    if (repeated.isNotEmpty()) {
+                        val r0 = repeated.first()
+                        Text("Повторяющаяся трата: " + r0.value.first().title + " • " + r0.value.size + " раза", color = MaterialTheme.colorScheme.primary)
+                    } else Text("Повторяющихся трат за период не найдено.", style = MaterialTheme.typography.bodySmall)
+                    if (unusual != null) {
+                        Text("Крупная трата: " + unusual.title + " • " + money(conv(unusual.amount, unusual.currency, c, auto, r), c), color = MaterialTheme.colorScheme.error)
+                    } else Text("Необычно крупных трат не обнаружено.", style = MaterialTheme.typography.bodySmall)
+                    if (expense > 0) {
+                        Text("Ориентир расходов на 30 дней: " + money(forecast30, c), fontWeight = FontWeight.SemiBold)
+                        Text("Расчёт основан только на расходах выбранного периода.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
         if (periodTx.isEmpty()) item {
             Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
