@@ -70,44 +70,214 @@ private fun sym(c:String)=when(c){"GBP"->"£";"USD"->"$";"EUR"->"€";"RUB"->"�
 private fun money(v:Double,c:String)=sym(c)+"%.2f".format(Locale.getDefault(),v)
 private fun conv(v:Double,from:String,to:String,auto:Boolean,r:Map<String,Double>)=if(auto)ExchangeRates.convert(v,from,to,r) else v
 
+class MainActivity:ComponentActivity(){
+ override fun onCreate(b:Bundle?){super.onCreate(b);enableEdgeToEdge();val s=FinanceStore(this);setContent{VIPFinanceTheme(s.loadTheme(),s.loadStyle()){FinanceApp(s)}}}
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PremiumDialog(
-    onDismissRequest: () -> Unit,
-    title: @Composable () -> Unit,
-    text: @Composable () -> Unit,
-    confirmButton: @Composable () -> Unit,
-    dismissButton: @Composable () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismissRequest,
-        shape = RoundedCornerShape(30.dp),
-        containerColor = MaterialTheme.colorScheme.surface,
-        tonalElevation = 14.dp,
-        shadowElevation = 22.dp,
-        title = {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(
-                        Brush.linearGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.primaryContainer,
-                                MaterialTheme.colorScheme.secondaryContainer
+fun FinanceApp(s: FinanceStore) {
+    var accounts by remember { mutableStateOf(s.loadAccounts()) }
+    var tx by remember { mutableStateOf(s.loadTransactions()) }
+    var debts by remember { mutableStateOf(s.loadDebts()) }
+    var goals by remember { mutableStateOf(s.loadGoals()) }
+    var reminders by remember { mutableStateOf(s.loadReminders()) }
+    var categories by remember { mutableStateOf(s.loadCategories().ifEmpty { defaultCategories }) }
+    var editingCategory by remember { mutableStateOf<Category?>(null) }
+    var page by remember { mutableStateOf("Главная") }
+    var currency by remember { mutableStateOf(s.loadCurrency()) }
+    var auto by remember { mutableStateOf(s.loadAutoConversion()) }
+    var theme by remember { mutableStateOf(s.loadTheme()) }
+    var style by remember { mutableStateOf(s.loadStyle()) }
+    var menu by remember { mutableStateOf(s.loadMenu().filter { it in pages }.toSet().ifEmpty { pages.toSet() }) }
+    var rates by remember { mutableStateOf(s.loadRates()) }
+    var rateTime by remember { mutableStateOf(s.loadRatesTime()) }
+    var loading by remember { mutableStateOf(false) }
+    var dialog by remember { mutableStateOf("") }
+    var filter by remember { mutableStateOf<String?>(null) }
+    var newest by remember { mutableStateOf(true) }
+    var search by remember { mutableStateOf("") }
+    var selected by remember { mutableStateOf<String?>(null) }
+    var receiptUri by remember { mutableStateOf<Uri?>(null) }
+    var receiptText by remember { mutableStateOf("") }
+    var drawerOpen by remember { mutableStateOf(false) }
+    val drawerState = rememberDrawerState(if (drawerOpen) DrawerValue.Open else DrawerValue.Closed)
+
+    LaunchedEffect(drawerOpen) { if (drawerOpen) drawerState.open() else drawerState.close() }
+    LaunchedEffect(menu) { if (page !in menu && menu.isNotEmpty()) page = menu.first() }
+    LaunchedEffect(Unit) {
+        if (s.loadCategories().isEmpty()) s.saveCategories(categories)
+        loading = true
+        runCatching { ExchangeRates.loadEcbRates() }.onSuccess {
+            rates = it
+            s.saveRates(it)
+            rateTime = s.loadRatesTime()
+        }
+        loading = false
+    }
+
+    fun add(t: Transaction) {
+        tx = tx + t
+        s.saveTransactions(tx)
+        if (t.accountName.isNotBlank()) {
+            val delta = if (t.income) t.amount else -t.amount
+            accounts = accounts.map { if (it.name == t.accountName) it.copy(balance = it.balance + delta) else it }
+            s.saveAccounts(accounts)
+        }
+    }
+    fun remove(t: Transaction) {
+        tx = tx.filterNot { it.id == t.id }
+        s.saveTransactions(tx)
+        if (t.accountName.isNotBlank()) {
+            val delta = if (t.income) -t.amount else t.amount
+            accounts = accounts.map { if (it.name == t.accountName) it.copy(balance = it.balance + delta) else it }
+            s.saveAccounts(accounts)
+        }
+    }
+
+    val visible = accounts.filter { !it.hidden }
+    val total = visible.sumOf { conv(it.balance, it.currency, currency, auto, rates) }
+    val shown0 = filter?.let { name -> tx.filter { it.accountName == name } } ?: tx
+    val shown = shown0.filter { search.isBlank() || it.title.contains(search, true) || it.category.contains(search, true) || it.accountName.contains(search, true) }
+    val inc = shown.filter { it.income }.sumOf { conv(it.amount, it.currency, currency, auto, rates) }
+    val exp = shown.filter { !it.income }.sumOf { conv(it.amount, it.currency, currency, auto, rates) }
+
+    fun saveSettings(c: String, a: Boolean, t: String, st: String, m: Set<String>) {
+        currency = c; auto = a; theme = t; style = st; menu = m.filter { it in pages }.toSet()
+        s.saveCurrency(c); s.saveAutoConversion(a); s.saveTheme(t); s.saveStyle(st); s.saveMenu(menu.toSet())
+    }
+
+    VIPFinanceTheme(theme = theme, style = style) {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                ModalDrawerSheet(
+                    drawerContainerColor = MaterialTheme.colorScheme.surface,
+                    drawerContentColor = MaterialTheme.colorScheme.onSurface
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.primaryContainer,
+                                        MaterialTheme.colorScheme.secondaryContainer
+                                    )
+                                )
                             )
-                        )
+                            .padding(20.dp)
+                    ) {
+                        Column {
+                            Text("VIP Finance", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            Text("Ваши финансы под контролем", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    HorizontalDivider()
+                    Text("Разделы", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+                    menu.forEach { item ->
+                        NavigationDrawerItem(label = { Text(item) }, selected = page == item, onClick = { page = item; drawerOpen = false }, modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp))
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    NavigationDrawerItem(label = { Text("Настройки") }, selected = false, onClick = { dialog = "settings"; drawerOpen = false }, modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp))
+                }
+            }
+        ) {
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = {
+                            Column {
+                                Text(page, fontWeight = FontWeight.Bold)
+                                if (page == "Главная") Text("Финансовый обзор", style = MaterialTheme.typography.bodySmall)
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.background,
+                            titleContentColor = MaterialTheme.colorScheme.onBackground
+                        ),
+                        navigationIcon = {
+                            IconButton(onClick = { drawerOpen = true }) {
+                                Text("☰", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                            }
+                        },
+                        actions = {
+                            IconButton(onClick = { dialog = "settings" }) {
+                                Text("⚙", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
                     )
-                    .padding(horizontal = 18.dp, vertical = 14.dp)
-            ) { title() }
-        },
-        text = {
-            Box(
-                Modifier.fillMaxWidth().padding(top = 2.dp)
-            ) { text() }
-        },
-        confirmButton = confirmButton,
-        dismissButton = dismissButton
-    )
+                },
+                bottomBar = {
+                    BottomAppBar(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 10.dp
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Button(
+                                onClick = { dialog = "expense" },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            ) { Text("− Расход") }
+                            Button(
+                                onClick = { dialog = "income" },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            ) { Text("+ Доход") }
+                        }
+                    }
+                }
+            ) { pad ->
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(pad)
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                ) {
+                    when (page) {
+                        "Главная" -> Home(total, currency, accounts, auto, rates, selected, inc, exp) { selected = it }
+                        "Операции" -> Operations(shown, accounts, filter, { filter = it }, { dialog = "expense" }, ::remove, currency, auto, rates, search, { search = it }, newest) { newest = it }
+                        "Счета" -> Accounts(accounts, currency, auto, rates, { dialog = "account" }, { selected = it }) { n -> val updated = accounts.map { if (it.name == n) it.copy(hidden = !it.hidden) else it }; accounts = updated; s.saveAccounts(updated) }
+                        "Категории" -> Categories(categories, { editingCategory = null; dialog = "category" }, { editingCategory = it; dialog = "category" }, { c0 -> categories = categories.filterNot { it.id == c0.id }; s.saveCategories(categories) })
+                        "Аналитика" -> Analytics(tx, currency, auto, rates)
+                        "Конвертер" -> Converter(currency, rates, loading)
+                        "Долги" -> Debts(debts, { dialog = "debt" }) { d -> debts = debts.filterNot { it.id == d.id }; s.saveDebts(debts) }
+                        "Цели" -> Goals(goals, { dialog = "goal" }) { g -> goals = goals.filterNot { it.id == g.id }; s.saveGoals(goals) }
+                        "Напоминания" -> Reminders(reminders, { dialog = "reminder" }, { r -> reminders = reminders.map { if (it.id == r.id) it.copy(done = !it.done) else it }; s.saveReminders(reminders) }, { r -> reminders = reminders.filterNot { it.id == r.id }; s.saveReminders(reminders) })
+                        "Чеки" -> Receipt(receiptUri, receiptText, { u -> receiptUri = u; receiptText = "" }, { t -> receiptText = t }) { u -> receiptUri = u }
+                    }
+                }
+            }
+        }
+    }
+
+    VIPFinanceTheme(theme = theme, style = style) {
+        when (dialog) {
+            "account" -> AccountDialog({ dialog = "" }) { n, b, t, c, icon, iconColor ->
+                accounts = accounts + Account(n, b, false, t, c, icon, iconColor); s.saveAccounts(accounts); dialog = ""
+            }
+            "category" -> CategoryDialog(editingCategory, { dialog = ""; editingCategory = null }) { category ->
+                categories = if (categories.any { it.id == category.id }) categories.map { if (it.id == category.id) category else it } else categories + category
+                s.saveCategories(categories); dialog = ""; editingCategory = null
+            }
+            "expense" -> TransactionDialog(accounts, categories, false, { dialog = "" }) { add(it); dialog = "" }
+            "income" -> TransactionDialog(accounts, categories, true, { dialog = "" }) { add(it); dialog = "" }
+            "debt" -> DebtDialog({ dialog = "" }) { debts = debts + it; s.saveDebts(debts); dialog = "" }
+            "goal" -> GoalDialog(currency, { dialog = "" }) { goals = goals + it; s.saveGoals(goals); dialog = "" }
+            "reminder" -> ReminderDialog({ dialog = "" }) { reminders = reminders + it; s.saveReminders(reminders); dialog = "" }
+            "settings" -> SettingsDialog(currency, auto, theme, style, menu, rateTime, { c: String, a: Boolean, t: String, st: String, m: Set<String> -> saveSettings(c, a, t, st, m) }) { dialog = "" }
+        }
+    }
 }
 
 @Composable
@@ -229,60 +399,29 @@ private fun Categories(
             FilterChip(tab == "expense", { tab = "expense" }, label = { Text("Расходы") })
             FilterChip(tab == "income", { tab = "income" }, label = { Text("Доходы") })
         }
-        ElevatedCard(
-            colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)
-        ) {
-            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    if (tab == "expense") "Категории расходов" else "Категории доходов",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    if (tab == "expense") "На что уходят деньги" else "Откуда приходят деньги",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        ElevatedCard(elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(if (tab == "expense") "Категории расходов" else "Категории доходов", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(if (tab == "expense") "На что уходят деньги" else "Откуда приходят деньги", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         Button(onClick = add, modifier = Modifier.fillMaxWidth()) {
             Text(if (tab == "expense") "＋ Добавить категорию расхода" else "＋ Добавить категорию дохода")
         }
-        if (filtered.isEmpty()) {
-            Card(Modifier.fillMaxWidth()) {
-                Text("Категорий пока нет", Modifier.padding(18.dp))
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f, fill = false),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(filtered, key = { it.id }) { c ->
-                    ElevatedCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp)
-                    ) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(uiColor(c.color)),
-                                contentAlignment = Alignment.Center
-                            ) { Text(iconText(c.icon), color = Color.White, fontWeight = FontWeight.Bold) }
-                            Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(c.name, fontWeight = FontWeight.SemiBold)
-                                Text(
-                                    if (c.kind == "income") "Доход" else "Расход",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            TextButton(onClick = { edit(c) }) { Text("Изменить") }
-                            TextButton(onClick = { remove(c) }) { Text("Удалить") }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(filtered, key = { it.id }) { c ->
+                ElevatedCard(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(uiColor(c.color)), contentAlignment = Alignment.Center) {
+                            Text(iconText(c.icon), color = Color.White, fontWeight = FontWeight.Bold)
                         }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(c.name, fontWeight = FontWeight.SemiBold)
+                            Text(if (c.kind == "income") "Доход" else "Расход", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        TextButton(onClick = { edit(c) }) { Text("Изменить") }
+                        TextButton(onClick = { remove(c) }) { Text("Удалить") }
                     }
                 }
             }
@@ -596,7 +735,7 @@ private fun More(
 }
 
 @Composable private fun SettingsDialog(c: String, auto: Boolean, theme: String, style: String, menu: Set<String>, time: Long, save: (String, Boolean, String, String, Set<String>) -> Unit, close: () -> Unit) {
-    PremiumDialog(
+    AlertDialog(
         onDismissRequest = close,
         title = { Text("Настройки") },
         text = {
@@ -648,7 +787,7 @@ private fun AccountDialog(
     var icon by remember { mutableStateOf(if (t == "Карта") "credit_card" else "account_balance") }
     var iconColor by remember { mutableStateOf(colorChoices.first()) }
     val balance = b.replace(',', '.').toDoubleOrNull()
-    PremiumDialog(
+    AlertDialog(
         onDismissRequest = close,
         title = { Text(if (t == "Карта") "Новая карта" else "Новый счёт") },
         text = {
@@ -706,7 +845,7 @@ private fun TransactionDialog(
     var acc by remember { mutableStateOf(accounts.firstOrNull()?.name ?: "") }
     val c = accounts.firstOrNull { it.name == acc }?.currency ?: "RUB"
     val v = a.replace(',', '.').toDoubleOrNull()
-    PremiumDialog(
+    AlertDialog(
         onDismissRequest = close,
         title = { Text(if (inc) "Новый доход" else "Новый расход") },
         text = {
@@ -752,7 +891,7 @@ private fun CategoryDialog(existing: Category?, close: () -> Unit, save: (Catego
     var kind by remember { mutableStateOf(existing?.kind ?: "expense") }
     var icon by remember { mutableStateOf(existing?.icon ?: "category") }
     var color by remember { mutableStateOf(existing?.color ?: colorChoices.first()) }
-    PremiumDialog(
+    AlertDialog(
         onDismissRequest = close,
         title = { Text(if (existing == null) "Новая категория" else "Изменить категорию") },
         text = {
@@ -797,7 +936,7 @@ private fun CategoryDialog(existing: Category?, close: () -> Unit, save: (Catego
 @Composable
 private fun DebtDialog(close:()->Unit,save:(Debt)->Unit){
  var p by remember{mutableStateOf("")};var a by remember{mutableStateOf("")};var mine by remember{mutableStateOf(false)};var interest by remember{mutableStateOf(false)};var note by remember{mutableStateOf("")}
- PremiumDialog(onDismissRequest=close,title={Text("Новый долг")},text={
+ AlertDialog(onDismissRequest=close,title={Text("Новый долг")},text={
   Column(Modifier.heightIn(max=520.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)){
    OutlinedTextField(p,{p=it},label={Text("Человек")},modifier=Modifier.fillMaxWidth())
    OutlinedTextField(a,{a=it},label={Text("Сумма RUB")},modifier=Modifier.fillMaxWidth())
@@ -810,11 +949,11 @@ private fun DebtDialog(close:()->Unit,save:(Debt)->Unit){
 
 @Composable private fun GoalDialog(c:String,close:()->Unit,save:(Goal)->Unit){
  var n by remember{mutableStateOf("")};var t by remember{mutableStateOf("")};var d by remember{mutableStateOf("")}
- PremiumDialog(onDismissRequest=close,title={Text("Новая цель")},text={Column{OutlinedTextField(n,{n=it},label={Text("Название")});OutlinedTextField(t,{t=it},label={Text("Цель "+c)});OutlinedTextField(d,{d=it},label={Text("Срок")})}},confirmButton={Button({save(Goal(name=n,target=t.replace(',','.').toDoubleOrNull()?:0.0,currency=c,deadline=d))},enabled=n.isNotBlank()){Text("Сохранить")}},dismissButton={TextButton(close){Text("Отмена")}})
+ AlertDialog(onDismissRequest=close,title={Text("Новая цель")},text={Column{OutlinedTextField(n,{n=it},label={Text("Название")});OutlinedTextField(t,{t=it},label={Text("Цель "+c)});OutlinedTextField(d,{d=it},label={Text("Срок")})}},confirmButton={Button({save(Goal(name=n,target=t.replace(',','.').toDoubleOrNull()?:0.0,currency=c,deadline=d))},enabled=n.isNotBlank()){Text("Сохранить")}},dismissButton={TextButton(close){Text("Отмена")}})
 }
 @Composable private fun ReminderDialog(close:()->Unit,save:(Reminder)->Unit){
  var n by remember{mutableStateOf("")};var d by remember{mutableStateOf("")};var rep by remember{mutableStateOf("Один раз")}
- PremiumDialog(onDismissRequest=close,title={Text("Напоминание")},text={
+ AlertDialog(onDismissRequest=close,title={Text("Напоминание")},text={
   Column(Modifier.heightIn(max=520.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)){
    OutlinedTextField(n,{n=it},label={Text("Что напомнить")},modifier=Modifier.fillMaxWidth())
    OutlinedTextField(d,{d=it},label={Text("Дата")},modifier=Modifier.fillMaxWidth())
