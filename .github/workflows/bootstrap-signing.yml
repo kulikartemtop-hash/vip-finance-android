@@ -1,0 +1,67 @@
+name: Bootstrap VIP Finance signing key
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  create-signing-key:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate permanent signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p signing
+          PASSWORD="$(openssl rand -hex 32)"
+          echo "::add-mask::$PASSWORD"
+
+          keytool -genkeypair -v \
+            -keystore signing/vip-finance-release.jks \
+            -storetype JKS \
+            -storepass "$PASSWORD" \
+            -keypass "$PASSWORD" \
+            -alias vip-finance \
+            -keyalg RSA \
+            -keysize 4096 \
+            -validity 10000 \
+            -dname "CN=VIP Finance, OU=VIP Finance, O=VIP Finance, C=RU"
+
+          base64 -w 0 signing/vip-finance-release.jks > signing/vip-finance-release.base64
+          printf '%s' "$PASSWORD" > signing/password.txt
+
+          cat > signing/README.txt <<'EOF'
+VIP Finance permanent signing key
+
+Create these GitHub Actions repository secrets:
+
+VIP_KEYSTORE_BASE64
+  Copy the ENTIRE contents of vip-finance-release.base64
+
+VIP_KEYSTORE_PASSWORD
+  Copy the ENTIRE contents of password.txt
+
+VIP_KEY_ALIAS
+  vip-finance
+
+VIP_KEY_PASSWORD
+  Use the same value as password.txt
+
+IMPORTANT:
+- Do not commit these files to the repository.
+- Do not send the key or password in chat.
+- After adding the four secrets, delete this downloaded artifact.
+- Keep a private backup of the JKS/base64 and password somewhere safe.
+- Losing this key means future APK updates cannot replace the signed app.
+EOF
+
+      - name: Upload signing package
+        uses: actions/upload-artifact@v4
+        with:
+          name: VIP-Finance-signing-bootstrap
+          path: signing/
+          if-no-files-found: error
+          retention-days: 3
