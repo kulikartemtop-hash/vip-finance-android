@@ -25,6 +25,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -120,7 +121,7 @@ fun FinanceApp(s: FinanceStore) {
     LaunchedEffect(drawerOpen) { if (drawerOpen) drawerState.open() else drawerState.close() }
     LaunchedEffect(menu) { if (page !in menu && menu.isNotEmpty()) page = menu.first() }
     LaunchedEffect(Unit) {
-        runCatching { UpdateManager.checkLatest() }
+        UpdateManager.checkLatest()
             .onSuccess { if (it.isNewer) startupUpdate = it }
     }
 
@@ -1325,6 +1326,7 @@ private fun SettingsDialog(
     var updateError by remember { mutableStateOf<String?>(null) }
     var pinText by remember { mutableStateOf(currentPin) }
     var pinVisible by remember { mutableStateOf(false) }
+    val updateScope = rememberCoroutineScope()
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { uri0 ->
             runCatching { context.contentResolver.openInputStream(uri0)?.bufferedReader()?.use { it.readText() } }
@@ -1453,11 +1455,11 @@ private fun SettingsDialog(
                                 onClick = {
                                     updateChecking = true
                                     updateError = null
-                                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                                    updateScope.launch {
                                         val result = UpdateManager.checkLatest()
                                         updateChecking = false
                                         result.onSuccess { info ->
-                                            updateInfo = if (info.isNewer) info else info.copy(message = "Установлена последняя версия ${BuildConfig.VERSION_NAME}")
+                                            updateInfo = if (info.isNewer) info else info.copy(message = "Установлена последняя версия ${UpdateManager.currentVersionName}")
                                         }.onFailure { e ->
                                             updateError = e.message ?: "Не удалось проверить обновления"
                                         }
