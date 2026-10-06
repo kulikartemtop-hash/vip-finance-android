@@ -588,6 +588,16 @@ private fun Analytics(tx: List<Transaction>, c: String, auto: Boolean, r: Map<St
         Triple(key, dayTx.filter { it.income }.sumOf { conv(it.amount, it.currency, c, auto, r) }, dayTx.filter { !it.income }.sumOf { conv(it.amount, it.currency, c, auto, r) })
     }.reversed()
     val maxDay = days.maxOfOrNull { maxOf(it.second, it.third) }?.coerceAtLeast(1.0) ?: 1.0
+    val periodDays = maxOf(1, ((to - from) / 86400000L + 1).toInt())
+    val previousFrom = from - periodDays * 86400000L
+    val previousTo = from - 1L
+    val previousTx = tx.filter { it.timestamp in previousFrom..previousTo && it.operationType != "transfer" }
+    val previousIncome = previousTx.filter { it.income }.sumOf { conv(it.amount, it.currency, c, auto, r) }
+    val previousExpense = previousTx.filter { !it.income }.sumOf { conv(it.amount, it.currency, c, auto, r) }
+    val savingsRate = if (income > 0) ((income - expense) / income * 100.0).coerceIn(-100.0, 100.0) else 0.0
+    val healthScore = (50.0 + savingsRate * 0.5 + if (expense <= previousExpense || previousExpense == 0.0) 10 else -10 + if (income >= previousIncome || previousIncome == 0.0) 10 else -10).toInt().coerceIn(0, 100)
+    val canSpend = (income - expense).coerceAtLeast(0.0)
+    val largestExpense = periodTx.filter { !it.income }.maxByOrNull { conv(it.amount, it.currency, c, auto, r) }
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Column {
@@ -603,6 +613,30 @@ private fun Analytics(tx: List<Transaction>, c: String, auto: Boolean, r: Map<St
             }
         }
         item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { MetricCard("Доходы", money(income, c), MaterialTheme.colorScheme.primary, Modifier.weight(1f)); MetricCard("Расходы", money(expense, c), MaterialTheme.colorScheme.error, Modifier.weight(1f)) } }
+        item {
+            Card(shape = RoundedCornerShape(24.dp), elevation = CardDefaults.cardElevation(4.dp)) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Финансовое здоровье", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        MetricCard("Оценка", "$healthScore/100", if (healthScore >= 70) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error, Modifier.weight(1f))
+                        MetricCard("Можно потратить", money(canSpend, c), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+                    }
+                    Text("Норма накоплений: %.1f%%".format(savingsRate), style = MaterialTheme.typography.bodySmall)
+                    if (largestExpense != null) Text("Самая крупная трата: " + largestExpense.title + " • " + money(conv(largestExpense.amount, largestExpense.currency, c, auto, r), c), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+        item {
+            Card(shape = RoundedCornerShape(24.dp), elevation = CardDefaults.cardElevation(4.dp)) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Сравнение с предыдущим периодом", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Доходы: " + money(income, c) + "  •  было " + money(previousIncome, c))
+                    Text("Расходы: " + money(expense, c) + "  •  было " + money(previousExpense, c))
+                    val delta = if (previousExpense > 0) (expense - previousExpense) / previousExpense * 100 else 0.0
+                    Text(if (previousExpense > 0) "Расходы изменились на %.1f%%".format(delta) else "Недостаточно данных для сравнения", color = if (delta <= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                }
+            }
+        }
         item {
             Card(shape = RoundedCornerShape(24.dp), elevation = CardDefaults.cardElevation(4.dp)) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
