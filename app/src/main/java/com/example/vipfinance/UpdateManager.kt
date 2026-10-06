@@ -22,6 +22,7 @@ data class UpdateInfo(
 )
 
 object UpdateManager {
+    const val currentVersionName = "4.2"
     private const val RELEASES_URL =
         "https://api.github.com/repos/kulikartemtop-hash/vip-finance-android/releases/latest"
     private const val APK_NAME = "VIP-Finance.apk"
@@ -44,7 +45,7 @@ object UpdateManager {
         }
         require(!downloadUrl.isNullOrBlank()) { "APK новой версии не найден" }
 
-        val newer = compareVersions(tag, BuildConfig.VERSION_NAME) > 0
+        val newer = compareVersions(tag, currentVersionName) > 0
         UpdateInfo(
             versionName = tag,
             downloadUrl = downloadUrl!!,
