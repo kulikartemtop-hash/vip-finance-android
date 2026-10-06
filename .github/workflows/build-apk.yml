@@ -53,10 +53,8 @@ jobs:
 
   release:
     needs: build
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_SIGNING_KEY != '' }}
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    env:
-      HAS_SIGNING_KEY: ${{ secrets.VIP_KEYSTORE_BASE64 }}
     permissions:
       contents: write
     steps:
