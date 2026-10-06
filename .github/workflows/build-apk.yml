@@ -3,6 +3,8 @@ name: Build VIP Finance APK
 on:
   push:
     branches: [main, ai-stitch, ai-sleek, ai-uizard]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
