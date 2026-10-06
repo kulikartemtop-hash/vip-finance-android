@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
@@ -94,6 +95,11 @@ fun FinanceApp(s: FinanceStore) {
     var filter by remember { mutableStateOf<String?>(null) }
     var newest by remember { mutableStateOf(true) }
     var search by remember { mutableStateOf("") }
+    var tagSearch by remember { mutableStateOf("") }
+    var typeFilter by remember { mutableStateOf("Все") }
+    var categoryFilter by remember { mutableStateOf("Все") }
+    var fromDate by remember { mutableStateOf("") }
+    var toDate by remember { mutableStateOf("") }
     var selected by remember { mutableStateOf<String?>(null) }
     var receiptUri by remember { mutableStateOf<Uri?>(null) }
     var receiptText by remember { mutableStateOf("") }
@@ -160,8 +166,22 @@ fun FinanceApp(s: FinanceStore) {
 
     val visible = accounts.filter { !it.hidden }
     val total = visible.sumOf { conv(it.balance, it.currency, currency, auto, rates) }
+    val fromMillis = parseDateStart(fromDate)
+    val toMillis = parseDateEnd(toDate)
     val shown0 = filter?.let { name -> tx.filter { it.accountName == name } } ?: tx
-    val shown = shown0.filter { search.isBlank() || it.title.contains(search, true) || it.category.contains(search, true) || it.accountName.contains(search, true) }
+    val shown = shown0.filter { t ->
+        val textMatch = search.isBlank() || t.title.contains(search, true) || t.category.contains(search, true) || t.accountName.contains(search, true) || t.note.contains(search, true)
+        val tagMatch = tagSearch.isBlank() || t.tags.split(",").map { it.trim() }.any { it.contains(tagSearch.trim(), true) }
+        val typeMatch = when (typeFilter) {
+            "Доход" -> t.income && t.operationType != "transfer"
+            "Расход" -> !t.income && t.operationType != "transfer"
+            "Перевод" -> t.operationType == "transfer"
+            else -> true
+        }
+        val categoryMatch = categoryFilter == "Все" || t.category == categoryFilter
+        val dateMatch = (fromMillis == null || t.timestamp >= fromMillis) && (toMillis == null || t.timestamp <= toMillis)
+        textMatch && tagMatch && typeMatch && categoryMatch && dateMatch
+    }
     val inc = shown.filter { it.income && it.operationType != "transfer" }.sumOf { conv(it.amount, it.currency, currency, auto, rates) }
     val exp = shown.filter { !it.income && it.operationType != "transfer" }.sumOf { conv(it.amount, it.currency, currency, auto, rates) }
 
@@ -269,7 +289,7 @@ fun FinanceApp(s: FinanceStore) {
                 ) {
                     when (page) {
                         "Главная" -> Home(total, currency, accounts, auto, rates, selected, inc, exp) { selected = it }
-                        "Операции" -> Operations(shown, accounts, filter, { filter = it }, { dialog = "expense" }, ::remove, currency, auto, rates, search, { search = it }, newest, { newest = it }, { original -> repeatSource = original; dialog = if (original.income) "income" else "expense" })
+                        "Операции" -> Operations(shown, accounts, filter, { filter = it }, { dialog = "expense" }, ::remove, currency, auto, rates, search, { search = it }, tagSearch, { tagSearch = it }, newest, { newest = it }, typeFilter, { typeFilter = it }, categoryFilter, { categoryFilter = it }, fromDate, { fromDate = it }, toDate, { toDate = it }, categories.map { it.name }, { original -> repeatSource = original; dialog = if (original.income) "income" else "expense" })
                         "Счета" -> Accounts(accounts, currency, auto, rates, { dialog = "account" }, { selected = it }) { n -> val updated = accounts.map { if (it.name == n) it.copy(hidden = !it.hidden) else it }; accounts = updated; s.saveAccounts(updated) }
                         "Категории" -> Categories(categories, { editingCategory = null; dialog = "category" }, { editingCategory = it; dialog = "category" }, { c0 -> categories = categories.filterNot { it.id == c0.id }; s.saveCategories(categories) })
                         "Бюджеты" -> Budgets(budgets, tx, currency, auto, rates, accounts, { dialog = "budget" }) { b0 -> budgets = budgets.filterNot { it.id == b0.id }; s.saveBudgets(budgets) }
@@ -401,8 +421,10 @@ private fun MetricCard(title: String, value: String, accent: Color, modifier: Mo
 private fun Operations(
     ts: List<Transaction>, accounts: List<Account>, filter: String?, setFilter: (String?) -> Unit,
     add: () -> Unit, remove: (Transaction) -> Unit, c: String, auto: Boolean, r: Map<String, Double>,
-    search: String, setSearch: (String) -> Unit, newest: Boolean, setNewest: (Boolean) -> Unit,
-    repeat: (Transaction) -> Unit
+    search: String, setSearch: (String) -> Unit, tagSearch: String, setTagSearch: (String) -> Unit,
+    newest: Boolean, setNewest: (Boolean) -> Unit, typeFilter: String, setTypeFilter: (String) -> Unit,
+    categoryFilter: String, setCategoryFilter: (String) -> Unit, fromDate: String, setFromDate: (String) -> Unit,
+    toDate: String, setToDate: (String) -> Unit, categories: List<String>, repeat: (Transaction) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Card(shape = RoundedCornerShape(22.dp), elevation = CardDefaults.cardElevation(4.dp)) {
@@ -417,21 +439,42 @@ private fun Operations(
             FilledTonalButton(onClick=add){Text("+ Добавить")}
         }
         OutlinedTextField(search,setSearch,label={Text("Поиск операций")},singleLine=true,modifier=Modifier.fillMaxWidth())
+        OutlinedTextField(tagSearch,setTagSearch,label={Text("Поиск по тегу")},placeholder={Text("например: Авто")},singleLine=true,modifier=Modifier.fillMaxWidth())
+        Text("Тип операции",fontWeight=FontWeight.SemiBold)
+        Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(5.dp)){listOf("Все","Доход","Расход","Перевод").forEach{v->FilterChip(typeFilter==v,{setTypeFilter(v)},label={Text(v)})}}
+        Text("Счёт",fontWeight=FontWeight.SemiBold)
+        Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(5.dp)){FilterChip(filter==null,{setFilter(null)},label={Text("Все")});accounts.forEach{a->FilterChip(filter==a.name,{setFilter(a.name)},label={Text(a.name)})}}
+        Text("Категория",fontWeight=FontWeight.SemiBold)
+        Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(5.dp)){FilterChip(categoryFilter=="Все",{setCategoryFilter("Все")},label={Text("Все")});categories.distinct().forEach{v->FilterChip(categoryFilter==v,{setCategoryFilter(v)},label={Text(v)})}}
+        Text("Период",fontWeight=FontWeight.SemiBold)
+        Row(horizontalArrangement=Arrangement.spacedBy(7.dp)){OutlinedTextField(fromDate,setFromDate,label={Text("С даты")},placeholder={Text("дд.мм.гггг")},modifier=Modifier.weight(1f),singleLine=true);OutlinedTextField(toDate,setToDate,label={Text("По дату")},placeholder={Text("дд.мм.гггг")},modifier=Modifier.weight(1f),singleLine=true)}
+        Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(5.dp)){
+            val today=Calendar.getInstance()
+            val fmt=SimpleDateFormat("dd.MM.yyyy",Locale.getDefault())
+            FilterChip(fromDate==fmt.format(today.time)&&toDate==fmt.format(today.time),{val d=fmt.format(today.time);setFromDate(d);setToDate(d)},label={Text("Сегодня")})
+            FilterChip(fromDate==fmt.format(Calendar.getInstance().apply{add(Calendar.DAY_OF_YEAR,-6)}.time),{val start=Calendar.getInstance().apply{add(Calendar.DAY_OF_YEAR,-6)};setFromDate(fmt.format(start.time));setToDate(fmt.format(today.time))},label={Text("7 дней")})
+            FilterChip(fromDate==fmt.format(Calendar.getInstance().apply{set(Calendar.DAY_OF_MONTH,1)}.time),{val start=Calendar.getInstance().apply{set(Calendar.DAY_OF_MONTH,1)};setFromDate(fmt.format(start.time));setToDate(fmt.format(today.time))},label={Text("Месяц")})
+            TextButton(onClick={setFromDate("");setToDate("");setTagSearch("");setTypeFilter("Все");setCategoryFilter("Все");setFilter(null)}){Text("Сбросить")}}
         Row(verticalAlignment=Alignment.CenterVertically){Text("Сначала новые",Modifier.weight(1f));Switch(newest,setNewest)}
-        Row(horizontalArrangement=Arrangement.spacedBy(5.dp)){FilterChip(filter==null,{setFilter(null)},label={Text("Все")});accounts.forEach{a->FilterChip(filter==a.name,{setFilter(a.name)},label={Text(a.name)})}}
         LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){
-            items(if(newest)ts.sortedByDescending{it.timestamp}else ts.sortedBy{it.timestamp}){t->
+            val ordered=if(newest)ts.sortedByDescending{it.timestamp}else ts.sortedBy{it.timestamp}
+            itemsIndexed(ordered){index,t->
+                val day=SimpleDateFormat("dd MMMM yyyy",Locale.getDefault()).format(Date(t.timestamp))
+                val previousDay=ordered.getOrNull(index-1)?.let{SimpleDateFormat("dd MMMM yyyy",Locale.getDefault()).format(Date(it.timestamp))}
+                Column(verticalArrangement=Arrangement.spacedBy(6.dp)){
+                    if(index==0||day!=previousDay) Text(day.replaceFirstChar{it.uppercase()},style=MaterialTheme.typography.titleSmall,fontWeight=FontWeight.Bold,color=MaterialTheme.colorScheme.primary,modifier=Modifier.padding(top=4.dp))
                 val transfer=t.operationType=="transfer"
                 Card(Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=if(transfer)MaterialTheme.colorScheme.secondaryContainer.copy(.45f)else if(t.income)MaterialTheme.colorScheme.primaryContainer.copy(.42f)else MaterialTheme.colorScheme.surface)){
                     Row(Modifier.fillMaxWidth().padding(14.dp),verticalAlignment=Alignment.CenterVertically){
                         Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(if(transfer)MaterialTheme.colorScheme.secondaryContainer else if(t.income)MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer),contentAlignment=Alignment.Center){Text(if(transfer)"⇄"else if(t.income)"↗"else"↘",color=if(transfer)MaterialTheme.colorScheme.secondary else if(t.income)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,fontWeight=FontWeight.Bold)}
                         Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)){Text(t.title,fontWeight=FontWeight.SemiBold);Text(if(transfer)"${t.accountName} → ${t.toAccountName}" else "${t.category} • ${t.accountName}",style=MaterialTheme.typography.bodySmall);if(t.note.isNotBlank())Text(t.note,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant);Text(SimpleDateFormat("dd.MM.yyyy HH:mm",Locale.getDefault()).format(Date(t.timestamp)),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant);if(t.repeat!="Не повторять")Text("↻ ${t.repeat}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.primary)}
+                        Column(Modifier.weight(1f)){Text(t.title,fontWeight=FontWeight.SemiBold);Text(if(transfer)"${t.accountName} → ${t.toAccountName}" else "${t.category} • ${t.accountName}",style=MaterialTheme.typography.bodySmall);if(t.tags.isNotBlank())Text("🏷 ${t.tags}",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary);if(t.note.isNotBlank())Text(t.note,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant);Text(SimpleDateFormat("dd.MM.yyyy HH:mm",Locale.getDefault()).format(Date(t.timestamp)),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant);if(t.repeat!="Не повторять")Text("↻ ${t.repeat}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.primary)}
                         Column(horizontalAlignment=Alignment.End){Text((if(transfer)"⇄"else if(t.income)"+"else"−")+" "+money(conv(t.amount,t.currency,c,auto,r),c),fontWeight=FontWeight.Bold,color=if(transfer)MaterialTheme.colorScheme.secondary else if(t.income)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error);Row{TextButton(onClick={repeat(t)}){Text("Повторить")};TextButton(onClick={remove(t)}){Text("Удалить")}}}
                     }
                 }
             }
         }
+    }
     }
 }
 @Composable
@@ -1451,6 +1494,7 @@ private fun TransactionDialog(
     var toAcc by remember { mutableStateOf(source?.toAccountName ?: accounts.firstOrNull { it.name != acc }?.name.orEmpty()) }
     var note by remember { mutableStateOf(source?.note ?: "") }
     var rep by remember { mutableStateOf(source?.repeat ?: "Не повторять") }
+    var tags by remember { mutableStateOf(source?.tags ?: "") }
     var dateText by remember {
         mutableStateOf(
             source?.timestamp?.let { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(it)) }
@@ -1600,6 +1644,12 @@ private fun TransactionDialog(
                             minLines = 2
                         )
                         DialogField(
+                            label = "Теги",
+                            supporting = "Через запятую: Авто, Дом, Работа",
+                            value = tags,
+                            onValueChange = { tags = it }
+                        )
+                        DialogField(
                             label = "Дата и время",
                             supporting = "Формат: дд.мм.гггг чч:мм",
                             value = dateText,
@@ -1640,7 +1690,8 @@ private fun TransactionDialog(
                                         operationType = type,
                                         toAccountName = if (type == "transfer") toAcc else "",
                                         note = note.trim(),
-                                        repeat = rep
+                                        repeat = rep,
+                                        tags = tags.split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct().joinToString(", ")
                                     )
                                 )
                             },
