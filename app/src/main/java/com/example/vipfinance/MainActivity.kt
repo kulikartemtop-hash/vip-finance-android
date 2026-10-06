@@ -27,6 +27,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
@@ -47,7 +48,7 @@ private val currencyCountries=mapOf(
     "AUD" to "Австралия", "PLN" to "Польша", "BYN" to "Беларусь"
 )
 private fun currencyLabel(code:String)=code+" ("+(currencyCountries[code] ?: "—")+")"
-private val pages=listOf("Главная","Операции","Счета","Категории","Бюджеты","Аналитика","Конвертер","Долги","Цели","Напоминания","Чеки")
+private val pages=listOf("Главная","Операции","Счета","Категории","Бюджеты","Аналитика","Календарь","Конвертер","Долги","Цели","Напоминания","Чеки")
 private val defaultCategories=listOf(
     Category(name="Продукты",icon="shopping_cart",color="#43A047"), Category(name="Транспорт",icon="directions_car",color="#1E88E5"),
     Category(name="Жильё",icon="home",color="#8E24AA"), Category(name="Зарплата",icon="payments",color="#00897B"),
@@ -294,6 +295,7 @@ fun FinanceApp(s: FinanceStore) {
                         "Категории" -> Categories(categories, { editingCategory = null; dialog = "category" }, { editingCategory = it; dialog = "category" }, { c0 -> categories = categories.filterNot { it.id == c0.id }; s.saveCategories(categories) })
                         "Бюджеты" -> Budgets(budgets, tx, currency, auto, rates, accounts, { dialog = "budget" }) { b0 -> budgets = budgets.filterNot { it.id == b0.id }; s.saveBudgets(budgets) }
                         "Аналитика" -> Analytics(tx, currency, auto, rates)
+                        "Календарь" -> SmartCalendar(tx, reminders, currency, auto, rates)
                         "Конвертер" -> Converter(currency, rates, loading, rateTime)
                         "Долги" -> Debts(debts, { dialog = "debt" }) { d -> debts = debts.filterNot { it.id == d.id }; s.saveDebts(debts) }
                         "Цели" -> Goals(goals, { dialog = "goal" }, { g -> editingGoal = g; dialog = "goalProgress" }) { g -> goals = goals.filterNot { it.id == g.id }; s.saveGoals(goals) }
@@ -714,6 +716,93 @@ private fun endOfDay(c: Calendar): Calendar = (c.clone() as Calendar).apply { se
 private fun daysAgoStart(days: Int): Calendar = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -days); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }
 private fun parseDateStart(s: String): Long? = runCatching { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).apply { isLenient = false }.parse(s)?.let { startOfDay(Calendar.getInstance().apply { time = it }).timeInMillis } }.getOrNull()
 private fun parseDateEnd(s: String): Long? = runCatching { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).apply { isLenient = false }.parse(s)?.let { endOfDay(Calendar.getInstance().apply { time = it }).timeInMillis } }.getOrNull()
+@Composable
+private fun SmartCalendar(
+    tx: List<Transaction>,
+    reminders: List<Reminder>,
+    c: String,
+    auto: Boolean,
+    rates: Map<String, Double>
+) {
+    var monthOffset by remember { mutableStateOf(0) }
+    val month = Calendar.getInstance().apply { add(Calendar.MONTH, monthOffset); set(Calendar.DAY_OF_MONTH, 1) }
+    val year = month.get(Calendar.YEAR)
+    val monthIndex = month.get(Calendar.MONTH)
+    val monthName = SimpleDateFormat("LLLL yyyy", Locale.getDefault()).format(month.time).replaceFirstChar { it.uppercase() }
+    val firstWeekDay = ((month.get(Calendar.DAY_OF_WEEK) + 5) % 7)
+    val daysInMonth = month.getActualMaximum(Calendar.DAY_OF_MONTH)
+    val cells = ((firstWeekDay + daysInMonth + 6) / 7) * 7
+    val dayTx = tx.filter { it.operationType != "transfer" }.groupBy {
+        val d = Calendar.getInstance().apply { timeInMillis = it.timestamp }
+        if (d.get(Calendar.YEAR) == year && d.get(Calendar.MONTH) == monthIndex) d.get(Calendar.DAY_OF_MONTH) else -1
+    }
+    val dayRem = reminders.groupBy {
+        runCatching {
+            SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).parse(it.date)?.let { date ->
+                Calendar.getInstance().apply { time = date }.let { cal ->
+                    if (cal.get(Calendar.YEAR) == year && cal.get(Calendar.MONTH) == monthIndex) cal.get(Calendar.DAY_OF_MONTH) else -1
+                }
+            } ?: -1
+        }.getOrDefault(-1)
+    }
+    val start = startOfDay(month).timeInMillis
+    val end = endOfDay(Calendar.getInstance().apply { set(Calendar.YEAR,year); set(Calendar.MONTH,monthIndex); set(Calendar.DAY_OF_MONTH,daysInMonth) }).timeInMillis
+    val income = tx.filter { it.income && it.operationType != "transfer" && it.timestamp in start..end }.sumOf { conv(it.amount,it.currency,c,auto,rates) }
+    val expense = tx.filter { !it.income && it.operationType != "transfer" && it.timestamp in start..end }.sumOf { conv(it.amount,it.currency,c,auto,rates) }
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) { Text("Календарь денег", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold); Text(monthName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                Row { IconButton(onClick = { monthOffset-- }) { Text("‹", style = MaterialTheme.typography.headlineMedium) }; IconButton(onClick = { monthOffset++ }) { Text("›", style = MaterialTheme.typography.headlineMedium) } }
+            }
+        }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) { listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс").forEach { Text(it, Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall) } } }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                for (row in 0 until cells / 7) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        for (col in 0 until 7) {
+                            val index = row * 7 + col
+                            val day = index - firstWeekDay + 1
+                            if (day in 1..daysInMonth) {
+                                val count = dayTx[day]?.size ?: 0
+                                val remCount = dayRem[day]?.size ?: 0
+                                Card(Modifier.weight(1f).height(62.dp), shape = RoundedCornerShape(12.dp)) {
+                                    Column(Modifier.fillMaxSize().padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(day.toString(), fontWeight = FontWeight.Bold)
+                                        if (count > 0) Text("● $count", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                        if (remCount > 0) Text("⏰ $remCount", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                                    }
+                                }
+                            } else Spacer(Modifier.weight(1f).height(62.dp))
+                        }
+                    }
+                }
+            }
+        }
+        item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { MetricCard("Доходы", money(income,c), MaterialTheme.colorScheme.primary, Modifier.weight(1f)); MetricCard("Расходы", money(expense,c), MaterialTheme.colorScheme.error, Modifier.weight(1f)) } }
+        item {
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), elevation = CardDefaults.cardElevation(3.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text("Предстоящие события", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    val upcoming = reminders.filter { !it.done }.sortedBy { it.date }.take(8)
+                    if (upcoming.isEmpty()) Text("Нет активных напоминаний.", style = MaterialTheme.typography.bodySmall)
+                    upcoming.forEach { r0 -> Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) { Text(r0.title, fontWeight = FontWeight.SemiBold); Text(r0.date, style = MaterialTheme.typography.bodySmall) } }
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), elevation = CardDefaults.cardElevation(3.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Повторяющиеся операции", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    val repeats = tx.filter { it.repeat != "Не повторять" }.take(8)
+                    if (repeats.isEmpty()) Text("Повторяющихся операций пока нет.", style = MaterialTheme.typography.bodySmall)
+                    repeats.forEach { t -> Text("${t.title} • ${t.repeat} • ${money(conv(t.amount,t.currency,c,auto,rates),c)}", style = MaterialTheme.typography.bodySmall) }
+                }
+            }
+        }
+    }
+}
 @Composable private fun Converter(c:String,r:Map<String,Double>,loading:Boolean,rateTime:Long){
  var amount by remember{mutableStateOf("")};var from by remember{mutableStateOf(c)};var to by remember{mutableStateOf(if(c=="EUR")"GBP" else "EUR")};val v=amount.replace(',','.').toDoubleOrNull();val out=v?.let{ExchangeRates.convert(it,from,to,r)}
  Text("Конвертер",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
