@@ -24,6 +24,14 @@ object AppUpdater {
         val last = prefs.getLong("last_check", 0L)
         if (now - last < CHECK_INTERVAL_MS) return
         prefs.edit().putLong("last_check", now).apply()
+        checkForUpdate(activity, manual = false)
+    }
+
+    fun checkNow(activity: Activity) {
+        checkForUpdate(activity, manual = true)
+    }
+
+    private fun checkForUpdate(activity: Activity, manual: Boolean) {
         Thread {
             try {
                 val connection = (URL(API_URL).openConnection() as HttpURLConnection).apply {
@@ -31,19 +39,44 @@ object AppUpdater {
                     setRequestProperty("Accept", "application/vnd.github+json")
                     setRequestProperty("User-Agent", "VIP-Finance-Android")
                 }
-                if (connection.responseCode != HttpURLConnection.HTTP_OK) return@Thread
+                if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                    if (manual) {
+                        Handler(Looper.getMainLooper()).post {
+                            android.widget.Toast.makeText(activity, "Не удалось проверить обновления", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    return@Thread
+                }
                 val json = connection.inputStream.bufferedReader().use { it.readText() }
                 val release = JSONObject(json)
                 val tag = release.optString("tag_name")
                 val remoteVersion = tag.removePrefix("v").trim()
-                if (!isNewerVersion(remoteVersion, BuildConfig.VERSION_NAME)) return@Thread
+                if (!isNewerVersion(remoteVersion, BuildConfig.VERSION_NAME)) {
+                    if (manual) {
+                        Handler(Looper.getMainLooper()).post {
+                            android.app.AlertDialog.Builder(activity)
+                                .setTitle("Обновлений нет")
+                                .setMessage("У вас установлена последняя версия VIP Finance — ${BuildConfig.VERSION_NAME}.")
+                                .setPositiveButton("OK", null)
+                                .show()
+                        }
+                    }
+                    return@Thread
+                }
                 val assets = release.optJSONArray("assets") ?: return@Thread
                 var downloadUrl: String? = null
                 for (i in 0 until assets.length()) {
                     val asset = assets.getJSONObject(i)
                     if (asset.optString("name") == APK_NAME) { downloadUrl = asset.optString("browser_download_url"); break }
                 }
-                if (downloadUrl.isNullOrBlank()) return@Thread
+                if (downloadUrl.isNullOrBlank()) {
+                    if (manual) {
+                        Handler(Looper.getMainLooper()).post {
+                            android.widget.Toast.makeText(activity, "Файл обновления пока недоступен", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    return@Thread
+                }
                 val finalUrl = downloadUrl!!
                 Handler(Looper.getMainLooper()).post {
                     android.app.AlertDialog.Builder(activity)
@@ -53,7 +86,13 @@ object AppUpdater {
                         .setPositiveButton("Обновить") { _, _ -> downloadAndInstall(activity, finalUrl) }
                         .show()
                 }
-            } catch (_: Exception) { }
+            } catch (_: Exception) {
+                if (manual) {
+                    Handler(Looper.getMainLooper()).post {
+                        android.widget.Toast.makeText(activity, "Не удалось проверить обновления", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
         }.start()
     }
 
