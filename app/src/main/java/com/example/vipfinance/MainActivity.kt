@@ -1096,8 +1096,7 @@ private fun SettingsDialog(
                                     listOf(
                                         MaterialTheme.colorScheme.primary.copy(alpha = 0.95f),
                                         MaterialTheme.colorScheme.secondary.copy(alpha = 0.82f)
-                                    ),
-                                    RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+                                    )
                                 )
                             )
                             .padding(horizontal = 22.dp, vertical = 22.dp)
