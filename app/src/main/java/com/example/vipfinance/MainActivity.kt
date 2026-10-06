@@ -1291,6 +1291,9 @@ private fun SettingsDialog(
 ) {
     val context = LocalContext.current
     var menuExpanded by remember { mutableStateOf(false) }
+    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+    var updateChecking by remember { mutableStateOf(false) }
+    var updateError by remember { mutableStateOf<String?>(null) }
     var pinText by remember { mutableStateOf(currentPin) }
     var pinVisible by remember { mutableStateOf(false) }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -1408,6 +1411,65 @@ private fun SettingsDialog(
                             ),
                             onSelected = { save(c, auto, theme, it, menu) }
                         )
+                    }
+                }
+
+                item {
+                    SettingsSection(
+                        "Обновление приложения",
+                        "Проверить новую версию VIP Finance прямо из приложения"
+                    ) {
+                        if (updateInfo == null) {
+                            OutlinedButton(
+                                onClick = {
+                                    updateChecking = true
+                                    updateError = null
+                                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                                        val result = UpdateManager.checkLatest()
+                                        updateChecking = false
+                                        result.onSuccess { info ->
+                                            updateInfo = if (info.isNewer) info else info.copy(message = "Установлена последняя версия ${BuildConfig.VERSION_NAME}")
+                                        }.onFailure { e ->
+                                            updateError = e.message ?: "Не удалось проверить обновления"
+                                        }
+                                    }
+                                },
+                                enabled = !updateChecking,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Text(if (updateChecking) "Проверяю…" else "Проверить обновления")
+                            }
+                        } else {
+                            val info = updateInfo!!
+                            Text(
+                                info.message,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (info.isNewer) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (info.isNewer) {
+                                Button(
+                                    onClick = {
+                                        UpdateManager.downloadAndInstall(context, info)
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp)
+                                ) {
+                                    Text("Скачать и установить ${info.versionName}", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            TextButton(
+                                onClick = { updateInfo = null; updateError = null },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("Проверить ещё раз") }
+                        }
+                        updateError?.let {
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                 }
 
