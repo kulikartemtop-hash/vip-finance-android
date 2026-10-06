@@ -2052,4 +2052,18 @@ private fun DebtProgressDialog(debt: Debt?, close: () -> Unit, save: (Debt) -> U
         }
     }, confirmButton = { Button(onClick = { save(debt.copy(paid = newPaid)) }, enabled = value > 0) { Text("Погасить") } }, dismissButton = { TextButton(close) { Text("Отмена") } })
 }
+@Composable
+private fun PinLock(pin: String, result: (Boolean) -> Unit) {
+    var value by remember { mutableStateOf("") }
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(Modifier.fillMaxSize().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Text("VIP Finance", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("Приложение защищено PIN-кодом", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(18.dp))
+            OutlinedTextField(value, { value = it.filter(Char::isDigit).take(6) }, label = { Text("PIN") }, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), singleLine = true)
+            Spacer(Modifier.height(10.dp))
+            Button(onClick = { if (value == pin) result(true) }, enabled = value.length >= 4) { Text("Войти") }
+        }
+    }
+}
 
