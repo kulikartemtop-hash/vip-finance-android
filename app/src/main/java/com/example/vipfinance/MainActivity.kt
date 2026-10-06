@@ -748,6 +748,23 @@ private fun daysAgoStart(days: Int): Calendar = Calendar.getInstance().apply { a
 private fun parseDateStart(s: String): Long? = runCatching { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).apply { isLenient = false }.parse(s)?.let { startOfDay(Calendar.getInstance().apply { time = it }).timeInMillis } }.getOrNull()
 private fun parseDateEnd(s: String): Long? = runCatching { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).apply { isLenient = false }.parse(s)?.let { endOfDay(Calendar.getInstance().apply { time = it }).timeInMillis } }.getOrNull()
 @Composable
+private fun Converter(c:String,r:Map<String,Double>,loading:Boolean,rateTime:Long){
+ var amount by remember{mutableStateOf("")};var from by remember{mutableStateOf(c)};var to by remember{mutableStateOf(if(c=="EUR")"GBP" else "EUR")};val v=amount.replace(',','.').toDoubleOrNull();val out=v?.let{ExchangeRates.convert(it,from,to,r)}
+ Text("Конвертер",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
+ Text("Рубль России и белорусский рубль участвуют в конвертации и получают ежедневные котировки ЦБ РФ.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+ Spacer(Modifier.height(6.dp))
+ OutlinedTextField(amount,{amount=it},label={Text("Сумма")},modifier=Modifier.fillMaxWidth())
+ Text("Из",fontWeight=FontWeight.SemiBold)
+ Row(modifier=Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(5.dp)){currencies.forEach{x->FilterChip(from==x,{from=x},label={Text(currencyLabel(x))})}}
+ Text("В",fontWeight=FontWeight.SemiBold)
+ Row(modifier=Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(5.dp)){currencies.forEach{x->FilterChip(to==x,{to=x},label={Text(currencyLabel(x))})}}
+ if(loading)Text("Обновляю курсы…")
+ if(rateTime>0L&&!loading)Text("Курсы обновлены: "+SimpleDateFormat("dd.MM.yyyy HH:mm",Locale.getDefault()).format(Date(rateTime)),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+ if(out!=null)Text(money(out,to),style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold)
+ Text("Источник: ЦБ РФ для RUB/BYN и поддерживаемых валют; ECB — резервный источник.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
 private fun SmartCalendar(
     tx: List<Transaction>,
     reminders: List<Reminder>,
