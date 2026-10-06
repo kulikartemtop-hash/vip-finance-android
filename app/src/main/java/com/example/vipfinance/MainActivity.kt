@@ -74,6 +74,7 @@ class MainActivity:ComponentActivity(){
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FinanceApp(s: FinanceStore) {
+    val context = LocalContext.current
     var unlocked by remember { mutableStateOf(s.loadPin().isBlank()) }
     if (!unlocked) {
         PinLock(s.loadPin()) { unlocked = it }
@@ -333,7 +334,7 @@ fun FinanceApp(s: FinanceStore) {
             confirmButton = {
                 Button(onClick = {
                     startupUpdate = null
-                    UpdateManager.downloadAndInstall(this@MainActivity, info)
+                    UpdateManager.downloadAndInstall(context, info)
                 }) { Text("Обновить") }
             },
             dismissButton = {
