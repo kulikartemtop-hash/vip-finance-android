@@ -923,7 +923,7 @@ private fun BudgetDialog(accounts:List<Account>,categories:List<Category>,c:Stri
                         MetricCard("Итого", "%.2f RUB".format(total), if (d.interest) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, Modifier.weight(1f))
                     }
                     if (d.interest) Text("Проценты за год: %.2f RUB (%.2f%%)".format(interestAmount, d.interestRate), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
-                    Text("Погашено: " + money(d.paid) + " • Осталось: " + money(remaining), style = MaterialTheme.typography.bodySmall)
+                    Text("Погашено: " + money(d.paid, "RUB") + " • Осталось: " + money(remaining, "RUB"), style = MaterialTheme.typography.bodySmall)
                     LinearProgressIndicator(progress = { paidRatio.toFloat() }, Modifier.fillMaxWidth().height(7.dp))
                     if (d.dueDate.isNotBlank()) Text("Срок: " + d.dueDate, style = MaterialTheme.typography.bodySmall)
                     if (d.note.isNotBlank()) Text(d.note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1994,9 +1994,9 @@ private fun DebtProgressDialog(debt: Debt?, close: () -> Unit, save: (Debt) -> U
     AlertDialog(onDismissRequest = close, title = { Text("Погашение долга") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Text(debt.person, fontWeight = FontWeight.Bold)
-            Text("Осталось: " + money((total - debt.paid).coerceAtLeast(0.0)))
+            Text("Осталось: " + money((total - debt.paid).coerceAtLeast(0.0), "RUB"))
             OutlinedTextField(amount, { amount = it }, label = { Text("Сумма погашения") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-            if (value > 0) Text("После операции: " + money((total - newPaid).coerceAtLeast(0.0)), color = MaterialTheme.colorScheme.primary)
+            if (value > 0) Text("После операции: " + money((total - newPaid).coerceAtLeast(0.0), "RUB"), color = MaterialTheme.colorScheme.primary)
         }
     }, confirmButton = { Button(onClick = { save(debt.copy(paid = newPaid)) }, enabled = value > 0) { Text("Погасить") } }, dismissButton = { TextButton(close) { Text("Отмена") } })
 }
