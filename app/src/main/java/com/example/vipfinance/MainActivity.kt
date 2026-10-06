@@ -39,7 +39,13 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-private val currencies=listOf("RUB","GBP","EUR","USD","CNY","JPY","CHF","CAD","AUD","PLN")
+private val currencies=listOf("RUB","GBP","EUR","USD","CNY","JPY","CHF","CAD","AUD","PLN","BYN")
+private val currencyCountries=mapOf(
+    "RUB" to "Россия", "GBP" to "Великобритания", "EUR" to "Еврозона", "USD" to "США",
+    "CNY" to "Китай", "JPY" to "Япония", "CHF" to "Швейцария", "CAD" to "Канада",
+    "AUD" to "Австралия", "PLN" to "Польша", "BYN" to "Беларусь"
+)
+private fun currencyLabel(code:String)=code+" ("+(currencyCountries[code] ?: "—")+")"
 private val pages=listOf("Главная","Операции","Счета","Категории","Бюджеты","Аналитика","Конвертер","Долги","Цели","Напоминания","Чеки")
 private val defaultCategories=listOf(
     Category(name="Продукты",icon="shopping_cart",color="#43A047"), Category(name="Транспорт",icon="directions_car",color="#1E88E5"),
@@ -54,7 +60,7 @@ private val colorChoices=listOf("#5B35F5","#00A7B5","#007A5A","#E53935","#FB8C00
 private fun iconText(icon:String)=when(icon){"account_balance"->"▥";"credit_card"->"▣";"wallet"->"◫";"savings"->"◉";"shopping_cart"->"🛒";"home"->"⌂";"directions_car"->"🚗";"payments"->"₽";"favorite"->"♥";"phone"->"☎";"school"->"◆";"flight"->"✈";"movie"->"▶";"subscriptions"->"◉";"shopping_bag"->"▱";else->"•"}
 private fun uiColor(hex:String)=runCatching{Color(android.graphics.Color.parseColor(hex))}.getOrDefault(Color(0xFF5B35F5))
 
-private fun sym(c:String)=when(c){"GBP"->"£";"USD"->"$";"EUR"->"€";"RUB"->"₽";"CNY"->"¥";"JPY"->"¥";"CHF"->"Fr";"CAD"->"C$";"AUD"->"A$";"PLN"->"zł";else->c}
+private fun sym(c:String)=when(c){"GBP"->"£";"USD"->"$";"EUR"->"€";"RUB"->"₽";"CNY"->"¥";"JPY"->"¥";"CHF"->"Fr";"CAD"->"C$";"AUD"->"A$";"PLN"->"zł";"BYN"->"Br";else->c}
 private fun money(v:Double,c:String)=sym(c)+"%.2f".format(Locale.getDefault(),v)
 private fun conv(v:Double,from:String,to:String,auto:Boolean,r:Map<String,Double>)=if(auto)ExchangeRates.convert(v,from,to,r) else v
 
@@ -268,7 +274,7 @@ fun FinanceApp(s: FinanceStore) {
                         "Категории" -> Categories(categories, { editingCategory = null; dialog = "category" }, { editingCategory = it; dialog = "category" }, { c0 -> categories = categories.filterNot { it.id == c0.id }; s.saveCategories(categories) })
                         "Бюджеты" -> Budgets(budgets, tx, currency, auto, rates, accounts, { dialog = "budget" }) { b0 -> budgets = budgets.filterNot { it.id == b0.id }; s.saveBudgets(budgets) }
                         "Аналитика" -> Analytics(tx, currency, auto, rates)
-                        "Конвертер" -> Converter(currency, rates, loading)
+                        "Конвертер" -> Converter(currency, rates, loading, rateTime)
                         "Долги" -> Debts(debts, { dialog = "debt" }) { d -> debts = debts.filterNot { it.id == d.id }; s.saveDebts(debts) }
                         "Цели" -> Goals(goals, { dialog = "goal" }, { g -> editingGoal = g; dialog = "goalProgress" }) { g -> goals = goals.filterNot { it.id == g.id }; s.saveGoals(goals) }
                         "Напоминания" -> Reminders(reminders, { dialog = "reminder" }, { r -> reminders = reminders.map { if (it.id == r.id) it.copy(done = !it.done) else it }; s.saveReminders(reminders) }, { r -> reminders = reminders.filterNot { it.id == r.id }; s.saveReminders(reminders) })
@@ -631,9 +637,20 @@ private fun endOfDay(c: Calendar): Calendar = (c.clone() as Calendar).apply { se
 private fun daysAgoStart(days: Int): Calendar = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -days); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }
 private fun parseDateStart(s: String): Long? = runCatching { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).apply { isLenient = false }.parse(s)?.let { startOfDay(Calendar.getInstance().apply { time = it }).timeInMillis } }.getOrNull()
 private fun parseDateEnd(s: String): Long? = runCatching { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).apply { isLenient = false }.parse(s)?.let { endOfDay(Calendar.getInstance().apply { time = it }).timeInMillis } }.getOrNull()
-@Composable private fun Converter(c:String,r:Map<String,Double>,loading:Boolean){
+@Composable private fun Converter(c:String,r:Map<String,Double>,loading:Boolean,rateTime:Long){
  var amount by remember{mutableStateOf("")};var from by remember{mutableStateOf(c)};var to by remember{mutableStateOf(if(c=="EUR")"GBP" else "EUR")};val v=amount.replace(',','.').toDoubleOrNull();val out=v?.let{ExchangeRates.convert(it,from,to,r)}
- Text("Конвертер",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);OutlinedTextField(amount,{amount=it},label={Text("Сумма")},modifier=Modifier.fillMaxWidth());Text("Из");Row(horizontalArrangement=Arrangement.spacedBy(3.dp)){currencies.forEach{x->FilterChip(from==x,{from=x},label={Text(x)})}};Text("В");Row(horizontalArrangement=Arrangement.spacedBy(3.dp)){currencies.forEach{x->FilterChip(to==x,{to=x},label={Text(x)})}};if(loading)Text("Обновляю курсы…");if(out!=null)Text(money(out,to),style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold);Text("ECB: справочные курсы. RUB не входит в актуальный набор ECB.",style=MaterialTheme.typography.bodySmall)
+ Text("Конвертер",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
+ Text("Рубль России и белорусский рубль участвуют в конвертации и получают ежедневные котировки ЦБ РФ.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+ Spacer(Modifier.height(6.dp))
+ OutlinedTextField(amount,{amount=it},label={Text("Сумма")},modifier=Modifier.fillMaxWidth())
+ Text("Из",fontWeight=FontWeight.SemiBold)
+ Row(modifier=Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(5.dp)){currencies.forEach{x->FilterChip(from==x,{from=x},label={Text(currencyLabel(x))})}}
+ Text("В",fontWeight=FontWeight.SemiBold)
+ Row(modifier=Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(5.dp)){currencies.forEach{x->FilterChip(to==x,{to=x},label={Text(currencyLabel(x))})}}
+ if(loading)Text("Обновляю курсы…")
+ if(rateTime>0L&&!loading)Text("Курсы обновлены: "+SimpleDateFormat("dd.MM.yyyy HH:mm",Locale.getDefault()).format(Date(rateTime)),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+ if(out!=null)Text(money(out,to),style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold)
+ Text("Источник: ЦБ РФ для RUB/BYN и поддерживаемых валют; ECB — резервный источник.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable
@@ -909,7 +926,7 @@ private fun More(
                     FilterChip(
                         selected = c == code,
                         onClick = { save(code, auto, theme, style, menu) },
-                        label = { Text(code) }
+                        label = { Text(currencyLabel(code)) }
                     )
                 }
             }
