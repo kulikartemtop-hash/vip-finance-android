@@ -35,8 +35,8 @@ object AppUpdater {
                 val json = connection.inputStream.bufferedReader().use { it.readText() }
                 val release = JSONObject(json)
                 val tag = release.optString("tag_name")
-                val versionCode = release.optInt("version_code", -1)
-                if (versionCode <= BuildConfig.VERSION_CODE) return@Thread
+                val remoteVersion = tag.removePrefix("v").trim()
+                if (!isNewerVersion(remoteVersion, BuildConfig.VERSION_NAME)) return@Thread
                 val assets = release.optJSONArray("assets") ?: return@Thread
                 var downloadUrl: String? = null
                 for (i in 0 until assets.length()) {
@@ -87,5 +87,17 @@ object AppUpdater {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         activity.startActivity(intent)
+    }
+    private fun isNewerVersion(remote: String, current: String): Boolean {
+        fun parts(v: String) = v.split(".", "-", "_").map { it.toIntOrNull() ?: 0 }
+        val a = parts(remote)
+        val b = parts(current)
+        val size = maxOf(a.size, b.size)
+        for (i in 0 until size) {
+            val x = a.getOrElse(i) { 0 }
+            val y = b.getOrElse(i) { 0 }
+            if (x != y) return x > y
+        }
+        return false
     }
 }
