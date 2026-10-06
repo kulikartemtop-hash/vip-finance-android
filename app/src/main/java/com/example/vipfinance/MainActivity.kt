@@ -25,6 +25,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -74,6 +75,7 @@ class MainActivity:ComponentActivity(){
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FinanceApp(s: FinanceStore) {
+    val context = LocalContext.current
     var unlocked by remember { mutableStateOf(s.loadPin().isBlank()) }
     if (!unlocked) {
         PinLock(s.loadPin()) { unlocked = it }
@@ -113,10 +115,16 @@ fun FinanceApp(s: FinanceStore) {
     var receiptText by remember { mutableStateOf("") }
     var receiptDraft by remember { mutableStateOf<Transaction?>(null) }
     var drawerOpen by remember { mutableStateOf(false) }
+    var startupUpdate by remember { mutableStateOf<UpdateInfo?>(null) }
     val drawerState = rememberDrawerState(if (drawerOpen) DrawerValue.Open else DrawerValue.Closed)
 
     LaunchedEffect(drawerOpen) { if (drawerOpen) drawerState.open() else drawerState.close() }
     LaunchedEffect(menu) { if (page !in menu && menu.isNotEmpty()) page = menu.first() }
+    LaunchedEffect(Unit) {
+        UpdateManager.checkLatest()
+            .onSuccess { if (it.isNewer) startupUpdate = it }
+    }
+
     LaunchedEffect(Unit) {
         if (s.loadCategories().isEmpty()) s.saveCategories(categories)
         loading = true
@@ -312,6 +320,28 @@ fun FinanceApp(s: FinanceStore) {
                 }
             }
         }
+    }
+
+    startupUpdate?.let { info ->
+        AlertDialog(
+            onDismissRequest = { startupUpdate = null },
+            title = { Text("Доступно обновление") },
+            text = {
+                Text(
+                    "Вышла новая версия VIP Finance ${info.versionName}. " +
+                        "Обновление установится поверх текущей версии и сохранит данные."
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    startupUpdate = null
+                    UpdateManager.downloadAndInstall(context, info)
+                }) { Text("Обновить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { startupUpdate = null }) { Text("Позже") }
+            }
+        )
     }
 
     VIPFinanceTheme(theme = theme, style = style) {
@@ -1291,8 +1321,12 @@ private fun SettingsDialog(
 ) {
     val context = LocalContext.current
     var menuExpanded by remember { mutableStateOf(false) }
+    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+    var updateChecking by remember { mutableStateOf(false) }
+    var updateError by remember { mutableStateOf<String?>(null) }
     var pinText by remember { mutableStateOf(currentPin) }
     var pinVisible by remember { mutableStateOf(false) }
+    val updateScope = rememberCoroutineScope()
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { uri0 ->
             runCatching { context.contentResolver.openInputStream(uri0)?.bufferedReader()?.use { it.readText() } }
@@ -1408,6 +1442,65 @@ private fun SettingsDialog(
                             ),
                             onSelected = { save(c, auto, theme, it, menu) }
                         )
+                    }
+                }
+
+                item {
+                    SettingsSection(
+                        "Обновление приложения",
+                        "Проверить новую версию VIP Finance прямо из приложения"
+                    ) {
+                        if (updateInfo == null) {
+                            OutlinedButton(
+                                onClick = {
+                                    updateChecking = true
+                                    updateError = null
+                                    updateScope.launch {
+                                        val result = UpdateManager.checkLatest()
+                                        updateChecking = false
+                                        result.onSuccess { info ->
+                                            updateInfo = if (info.isNewer) info else info.copy(message = "Установлена последняя версия ${UpdateManager.currentVersionName}")
+                                        }.onFailure { e ->
+                                            updateError = e.message ?: "Не удалось проверить обновления"
+                                        }
+                                    }
+                                },
+                                enabled = !updateChecking,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Text(if (updateChecking) "Проверяю…" else "Проверить обновления")
+                            }
+                        } else {
+                            val info = updateInfo!!
+                            Text(
+                                info.message,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (info.isNewer) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (info.isNewer) {
+                                Button(
+                                    onClick = {
+                                        UpdateManager.downloadAndInstall(context, info)
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp)
+                                ) {
+                                    Text("Скачать и установить ${info.versionName}", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            TextButton(
+                                onClick = { updateInfo = null; updateError = null },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("Проверить ещё раз") }
+                        }
+                        updateError?.let {
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                 }
 
