@@ -1324,18 +1324,20 @@ private fun Analytics(
                         )
                     }
                 }
+                val chartPrimary = MaterialTheme.colorScheme.primary
+                val chartError = MaterialTheme.colorScheme.error
                 Canvas(modifier = Modifier.fillMaxWidth().height(120.dp)) {
                     val total = income + expense
                     if (total > 0) {
                         val incWidth = (size.width * (income / total).toFloat())
                             .coerceAtMost(size.width)
                         drawRoundRect(
-                            color = MaterialTheme.colorScheme.primary,
+                            color = chartPrimary,
                             size = androidx.compose.ui.geometry.Size(incWidth, size.height),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(20f)
                         )
                         drawRoundRect(
-                            color = MaterialTheme.colorScheme.error,
+                            color = chartError,
                             topLeft = androidx.compose.ui.geometry.Offset(incWidth, 0f),
                             size = androidx.compose.ui.geometry.Size(
                                 size.width - incWidth, size.height
@@ -1613,14 +1615,16 @@ private fun Goals(
                             )
                         }
                         val pct = (g.saved / g.target).coerceIn(0.0, 1.0)
+                        val goalTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                        val goalProgressColor = MaterialTheme.colorScheme.primary
                         Canvas(modifier = Modifier.fillMaxWidth().height(8.dp)) {
                             drawRoundRect(
-                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                color = goalTrackColor,
                                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(20f),
                                 size = androidx.compose.ui.geometry.Size(size.width, size.height)
                             )
                             drawRoundRect(
-                                color = MaterialTheme.colorScheme.primary,
+                                color = goalProgressColor,
                                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(20f),
                                 size = androidx.compose.ui.geometry.Size(
                                     size.width * pct.toFloat(), size.height
@@ -1863,15 +1867,18 @@ private fun Budgets(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        val budgetTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                        val budgetProgressColor = MaterialTheme.colorScheme.primary
+                        val budgetErrorColor = MaterialTheme.colorScheme.error
                         Canvas(modifier = Modifier.fillMaxWidth().height(10.dp)) {
                             drawRoundRect(
-                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                color = budgetTrackColor,
                                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(20f),
                                 size = androidx.compose.ui.geometry.Size(size.width, size.height)
                             )
                             drawRoundRect(
-                                color = if (pct > 0.9) MaterialTheme.colorScheme.error
-                                else MaterialTheme.colorScheme.primary,
+                                color = if (pct > 0.9) budgetErrorColor
+                                else budgetProgressColor,
                                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(20f),
                                 size = androidx.compose.ui.geometry.Size(
                                     size.width * pct.toFloat(), size.height
@@ -2524,14 +2531,9 @@ private fun ReminderDialog(
                     shape = RoundedCornerShape(16.dp)
                 )
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("Один раз", "Еженедельно", "Ежемесячно").forEach { x ->
-                        FilterChip(
-                            selected = rep == x,
-                            onClick = { rep = x },
-                            label = { Text(x) },
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                    }
+                    item { FilterChip(selected = rep == "Один раз", onClick = { rep = "Один раз" }, label = { Text("Один раз") }, shape = RoundedCornerShape(12.dp)) }
+                    item { FilterChip(selected = rep == "Еженедельно", onClick = { rep = "Еженедельно" }, label = { Text("Еженедельно") }, shape = RoundedCornerShape(12.dp)) }
+                    item { FilterChip(selected = rep == "Ежемесячно", onClick = { rep = "Ежемесячно" }, label = { Text("Ежемесячно") }, shape = RoundedCornerShape(12.dp)) }
                 }
             }
         },
