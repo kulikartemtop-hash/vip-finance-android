@@ -52,7 +52,8 @@ data class Debt(
     val interest: Boolean = false,
     val interestRate: Double = 0.0,
     val dueDate: String = "",
-    val note: String = ""
+    val note: String = "",
+    val paid: Double = 0.0
 )
 
 data class Goal(
