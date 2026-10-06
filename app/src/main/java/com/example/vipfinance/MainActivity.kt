@@ -82,6 +82,7 @@ fun FinanceApp(s: FinanceStore) {
     var categories by remember { mutableStateOf(s.loadCategories().ifEmpty { defaultCategories }) }
     var editingCategory by remember { mutableStateOf<Category?>(null) }
     var editingGoal by remember { mutableStateOf<Goal?>(null) }
+    var editingDebt by remember { mutableStateOf<Debt?>(null) }
     var page by remember { mutableStateOf("Главная") }
     var currency by remember { mutableStateOf(s.loadCurrency()) }
     var auto by remember { mutableStateOf(s.loadAutoConversion()) }
@@ -297,7 +298,7 @@ fun FinanceApp(s: FinanceStore) {
                         "Аналитика" -> Analytics(tx, currency, auto, rates)
                         "Календарь" -> SmartCalendar(tx, reminders, currency, auto, rates)
                         "Конвертер" -> Converter(currency, rates, loading, rateTime)
-                        "Долги" -> Debts(debts, { dialog = "debt" }) { d -> debts = debts.filterNot { it.id == d.id }; s.saveDebts(debts) }
+                        "Долги" -> Debts(debts, { dialog = "debt" }, { d -> editingDebt = d; dialog = "debtProgress" }) { d -> debts = debts.filterNot { it.id == d.id }; s.saveDebts(debts) }
                         "Цели" -> Goals(goals, { dialog = "goal" }, { g -> editingGoal = g; dialog = "goalProgress" }) { g -> goals = goals.filterNot { it.id == g.id }; s.saveGoals(goals) }
                         "Напоминания" -> Reminders(reminders, { dialog = "reminder" }, { r -> reminders = reminders.map { if (it.id == r.id) it.copy(done = !it.done) else it }; s.saveReminders(reminders) }, { r -> reminders = reminders.filterNot { it.id == r.id }; s.saveReminders(reminders) })
                         "Чеки" -> Receipt(receiptUri, receiptText, { u -> receiptUri = u; receiptText = "" }, { t -> receiptText = t }, accounts.firstOrNull(), categories) { draft -> receiptDraft = draft; dialog = "receiptExpense" }
@@ -319,6 +320,7 @@ fun FinanceApp(s: FinanceStore) {
             "expense" -> TransactionDialog(accounts, categories, false, repeatSource, { dialog = ""; repeatSource = null }) { add(it); dialog = ""; repeatSource = null }
             "income" -> TransactionDialog(accounts, categories, true, repeatSource, { dialog = ""; repeatSource = null }) { add(it); dialog = ""; repeatSource = null }
             "debt" -> DebtDialog({ dialog = "" }) { debts = debts + it; s.saveDebts(debts); dialog = "" }
+            "debtProgress" -> DebtProgressDialog(editingDebt, { dialog = ""; editingDebt = null }) { updated -> debts = debts.map { if (it.id == updated.id) updated else it }; s.saveDebts(debts); dialog = ""; editingDebt = null }
             "goal" -> GoalDialog(currency, { dialog = "" }) { goals = goals + it; s.saveGoals(goals); dialog = "" }
             "goalProgress" -> GoalProgressDialog(editingGoal, { dialog = ""; editingGoal = null }) { updated -> goals = goals.map { if (it.id == updated.id) updated else it }; s.saveGoals(goals); dialog = ""; editingGoal = null }
             "reminder" -> ReminderDialog({ dialog = "" }) { reminders = reminders + it; s.saveReminders(reminders); dialog = "" }
@@ -893,7 +895,7 @@ private fun BudgetDialog(accounts:List<Account>,categories:List<Category>,c:Stri
  var n by remember{mutableStateOf("")};var lim by remember{mutableStateOf("")};var cat by remember{mutableStateOf("")};var acc by remember{mutableStateOf("")};var per by remember{mutableStateOf("Месяц")}
  AlertDialog(onDismissRequest=close,title={Text("Новый бюджет")},text={Column(Modifier.heightIn(max=560.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)){OutlinedTextField(n,{n=it},label={Text("Название")},modifier=Modifier.fillMaxWidth(),singleLine=true);OutlinedTextField(lim,{lim=it},label={Text("Лимит $c")},modifier=Modifier.fillMaxWidth(),singleLine=true);Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){FilterChip(per=="Месяц",{per="Месяц"},label={Text("Месяц")});FilterChip(per=="Неделя",{per="Неделя"},label={Text("Неделя")})};Text("Категория",fontWeight=FontWeight.Bold);LazyRow(horizontalArrangement=Arrangement.spacedBy(5.dp)){items(categories){z->FilterChip(cat==z.name,{cat=z.name},label={Text(iconText(z.icon)+" "+z.name)})}};Text("Счёт",fontWeight=FontWeight.Bold);LazyRow(horizontalArrangement=Arrangement.spacedBy(5.dp)){items(accounts){z->FilterChip(acc==z.name,{acc=z.name},label={Text(iconText(z.icon)+" "+z.name)})}}}},confirmButton={Button(onClick={save(Budget(name=n.trim(),category=cat,accountName=acc,limit=lim.replace(',','.').toDoubleOrNull()?:0.0,currency=c,period=per))},enabled=n.isNotBlank()&&(lim.replace(',','.').toDoubleOrNull()?:0.0)>0){Text("Создать")}},dismissButton={TextButton(close){Text("Отмена")}})
 }
-@Composable private fun Debts(items: List<Debt>, add: () -> Unit, remove: (Debt) -> Unit) {
+@Composable private fun Debts(items: List<Debt>, add: () -> Unit, progress: (Debt) -> Unit, remove: (Debt) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Column { Text("Долги", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold); Text(items.size.toString() + " обязательств", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -908,6 +910,8 @@ private fun BudgetDialog(accounts:List<Account>,categories:List<Category>,c:Stri
         items.forEach { d ->
             val interestAmount = if (d.interest) d.amount * d.interestRate / 100.0 else 0.0
             val total = d.amount + interestAmount
+            val remaining = (total - d.paid).coerceAtLeast(0.0)
+            val paidRatio = if (total > 0) (d.paid / total).coerceIn(0.0, 1.0) else 0.0
             Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), elevation = CardDefaults.cardElevation(3.dp)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
@@ -919,8 +923,11 @@ private fun BudgetDialog(accounts:List<Account>,categories:List<Category>,c:Stri
                         MetricCard("Итого", "%.2f RUB".format(total), if (d.interest) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, Modifier.weight(1f))
                     }
                     if (d.interest) Text("Проценты за год: %.2f RUB (%.2f%%)".format(interestAmount, d.interestRate), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
+                    Text("Погашено: " + money(d.paid) + " • Осталось: " + money(remaining), style = MaterialTheme.typography.bodySmall)
+                    LinearProgressIndicator(progress = { paidRatio.toFloat() }, Modifier.fillMaxWidth().height(7.dp))
                     if (d.dueDate.isNotBlank()) Text("Срок: " + d.dueDate, style = MaterialTheme.typography.bodySmall)
                     if (d.note.isNotBlank()) Text(d.note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(Modifier.fillMaxWidth(), Arrangement.End) { TextButton(onClick = { progress(d) }, enabled = remaining > 0.0) { Text("Погасить") }; TextButton(onClick = { remove(d) }) { Text("Удалить") } }
                 }
             }
         }
@@ -941,6 +948,9 @@ private fun BudgetDialog(accounts:List<Account>,categories:List<Category>,c:Stri
         items.forEach { g ->
             val ratio = if (g.target > 0) (g.saved / g.target).coerceIn(0.0, 1.0) else 0.0
             val remaining = (g.target - g.saved).coerceAtLeast(0.0)
+            val deadlineMillis = parseDateEnd(g.deadline)
+            val daysLeft = deadlineMillis?.let { ((it - System.currentTimeMillis()) / 86400000L).coerceAtLeast(1L) }
+            val monthlyNeed = if (daysLeft != null) remaining / (daysLeft.toDouble() / 30.44) else 0.0
             Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), elevation = CardDefaults.cardElevation(4.dp)) {
                 Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.Top) {
@@ -953,6 +963,7 @@ private fun BudgetDialog(accounts:List<Account>,categories:List<Category>,c:Stri
                         Column(horizontalAlignment = Alignment.End) { Text("Осталось", style = MaterialTheme.typography.labelSmall); Text(money(remaining, g.currency), fontWeight = FontWeight.Bold) }
                     }
                     Text("Цель: " + money(g.target, g.currency), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (daysLeft != null && remaining > 0) Text("Нужно откладывать примерно " + money(monthlyNeed, g.currency) + " в месяц", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                     Row(Modifier.fillMaxWidth(), Arrangement.End) { TextButton(onClick = { progress(g) }) { Text("+ Пополнить") }; TextButton(onClick = { remove(g) }) { Text("Удалить") } }
                 }
             }
@@ -1972,4 +1983,21 @@ private fun DebtDialog(close: () -> Unit, save: (Debt) -> Unit) {
  },confirmButton={Button({save(Reminder(title=n,date=d,repeat=rep))},enabled=n.isNotBlank()&&d.isNotBlank()){Text("Сохранить")}},dismissButton={TextButton(close){Text("Отмена")}})
 }
 
+@Composable
+private fun DebtProgressDialog(debt: Debt?, close: () -> Unit, save: (Debt) -> Unit) {
+    if (debt == null) { close(); return }
+    var amount by remember { mutableStateOf("") }
+    val value = amount.replace(',','.').toDoubleOrNull() ?: 0.0
+    val interestAmount = if (debt.interest) debt.amount * debt.interestRate / 100.0 else 0.0
+    val total = debt.amount + interestAmount
+    val newPaid = (debt.paid + value).coerceAtMost(total)
+    AlertDialog(onDismissRequest = close, title = { Text("Погашение долга") }, text = {
+        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Text(debt.person, fontWeight = FontWeight.Bold)
+            Text("Осталось: " + money((total - debt.paid).coerceAtLeast(0.0)))
+            OutlinedTextField(amount, { amount = it }, label = { Text("Сумма погашения") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            if (value > 0) Text("После операции: " + money((total - newPaid).coerceAtLeast(0.0)), color = MaterialTheme.colorScheme.primary)
+        }
+    }, confirmButton = { Button(onClick = { save(debt.copy(paid = newPaid)) }, enabled = value > 0) { Text("Погасить") } }, dismissButton = { TextButton(close) { Text("Отмена") } })
+}
 
