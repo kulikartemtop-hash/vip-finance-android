@@ -47,11 +47,11 @@ class FinanceStore(context: Context) {
 
     fun loadDebts(): List<Debt> = runCatching {
         val a=JSONArray(prefs.getString("debts","[]"))
-        buildList { for(i in 0 until a.length()){val o=a.getJSONObject(i);add(Debt(o.optLong("id"),o.optString("person"),o.optDouble("amount"),o.optBoolean("mine"),o.optBoolean("interest"),o.optDouble("interestRate",0.0),o.optString("dueDate"),o.optString("note"))) } }
+        buildList { for(i in 0 until a.length()){val o=a.getJSONObject(i);add(Debt(o.optLong("id"),o.optString("person"),o.optDouble("amount"),o.optBoolean("mine"),o.optBoolean("interest"),o.optDouble("interestRate",0.0),o.optString("dueDate"),o.optString("note"),o.optDouble("paid",0.0))) } }
     }.getOrDefault(emptyList())
 
     fun saveDebts(items: List<Debt>) {
-        val a=JSONArray();items.forEach{x->a.put(JSONObject().apply{put("id",x.id);put("person",x.person);put("amount",x.amount);put("mine",x.mine);put("interest",x.interest);put("interestRate",x.interestRate);put("dueDate",x.dueDate);put("note",x.note)})};prefs.edit().putString("debts",a.toString()).apply()
+        val a=JSONArray();items.forEach{x->a.put(JSONObject().apply{put("id",x.id);put("person",x.person);put("amount",x.amount);put("mine",x.mine);put("interest",x.interest);put("interestRate",x.interestRate);put("dueDate",x.dueDate);put("note",x.note);put("paid",x.paid)})};prefs.edit().putString("debts",a.toString()).apply()
     }
 
     fun loadGoals(): List<Goal> = runCatching {
