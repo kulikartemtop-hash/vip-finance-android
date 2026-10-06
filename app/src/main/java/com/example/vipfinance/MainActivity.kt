@@ -1,6 +1,7 @@
 package com.example.vipfinance
 
 import android.net.Uri
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -73,6 +74,11 @@ class MainActivity:ComponentActivity(){
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FinanceApp(s: FinanceStore) {
+    var unlocked by remember { mutableStateOf(s.loadPin().isBlank()) }
+    if (!unlocked) {
+        PinLock(s.loadPin()) { unlocked = it }
+        return
+    }
     var accounts by remember { mutableStateOf(s.loadAccounts()) }
     var tx by remember { mutableStateOf(s.loadTransactions()) }
     var debts by remember { mutableStateOf(s.loadDebts()) }
@@ -326,7 +332,7 @@ fun FinanceApp(s: FinanceStore) {
             "reminder" -> ReminderDialog({ dialog = "" }) { reminders = reminders + it; s.saveReminders(reminders); dialog = "" }
             "budget" -> BudgetDialog(accounts, categories, currency, { dialog = "" }) { budgets = budgets + it; s.saveBudgets(budgets); dialog = "" }
             "receiptExpense" -> TransactionDialog(accounts, categories, false, receiptDraft, { dialog = ""; receiptDraft = null }) { add(it); dialog = ""; receiptDraft = null }
-            "settings" -> SettingsDialog(currency, auto, theme, style, menu, rateTime, { c: String, a: Boolean, t: String, st: String, m: Set<String> -> saveSettings(c, a, t, st, m) }, { s.exportBackupJson() }) { dialog = "" }
+            "settings" -> SettingsDialog(currency, auto, theme, style, menu, rateTime, s.loadPin(), { c: String, a: Boolean, t: String, st: String, m: Set<String> -> saveSettings(c, a, t, st, m) }, { s.savePin(it) }, { s.exportBackupJson() }, { json -> s.importBackupJson(json) }) { dialog = "" }
         }
     }
 }
