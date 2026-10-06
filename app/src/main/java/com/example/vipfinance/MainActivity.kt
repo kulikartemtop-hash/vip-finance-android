@@ -113,10 +113,16 @@ fun FinanceApp(s: FinanceStore) {
     var receiptText by remember { mutableStateOf("") }
     var receiptDraft by remember { mutableStateOf<Transaction?>(null) }
     var drawerOpen by remember { mutableStateOf(false) }
+    var startupUpdate by remember { mutableStateOf<UpdateInfo?>(null) }
     val drawerState = rememberDrawerState(if (drawerOpen) DrawerValue.Open else DrawerValue.Closed)
 
     LaunchedEffect(drawerOpen) { if (drawerOpen) drawerState.open() else drawerState.close() }
     LaunchedEffect(menu) { if (page !in menu && menu.isNotEmpty()) page = menu.first() }
+    LaunchedEffect(Unit) {
+        runCatching { UpdateManager.checkLatest() }
+            .onSuccess { if (it.isNewer) startupUpdate = it }
+    }
+
     LaunchedEffect(Unit) {
         if (s.loadCategories().isEmpty()) s.saveCategories(categories)
         loading = true
@@ -312,6 +318,28 @@ fun FinanceApp(s: FinanceStore) {
                 }
             }
         }
+    }
+
+    startupUpdate?.let { info ->
+        AlertDialog(
+            onDismissRequest = { startupUpdate = null },
+            title = { Text("Доступно обновление") },
+            text = {
+                Text(
+                    "Вышла новая версия VIP Finance ${info.versionName}. " +
+                        "Обновление установится поверх текущей версии и сохранит данные."
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    startupUpdate = null
+                    UpdateManager.downloadAndInstall(this@MainActivity, info)
+                }) { Text("Обновить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { startupUpdate = null }) { Text("Позже") }
+            }
+        )
     }
 
     VIPFinanceTheme(theme = theme, style = style) {
