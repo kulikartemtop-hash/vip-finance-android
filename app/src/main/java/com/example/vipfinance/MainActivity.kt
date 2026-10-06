@@ -475,6 +475,7 @@ private fun Operations(
             }
         }
     }
+    }
 }
 @Composable
 private fun Categories(
