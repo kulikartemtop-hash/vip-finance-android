@@ -30,7 +30,8 @@ data class Transaction(
     val operationType: String = if (income) "income" else "expense",
     val toAccountName: String = "",
     val note: String = "",
-    val repeat: String = "Не повторять"
+    val repeat: String = "Не повторять",
+    val tags: String = ""
 )
 
 data class Budget(
