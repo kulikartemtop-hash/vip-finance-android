@@ -296,7 +296,7 @@ fun FinanceApp(s: FinanceStore) {
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
                     when (page) {
-                        "Главная" -> Home(total, currency, accounts, auto, rates, selected, inc, exp) { selected = it }
+                        "Главная" -> Home(total, currency, accounts, auto, rates, selected, inc, exp, goals, debts, reminders) { selected = it }
                         "Операции" -> Operations(shown, accounts, filter, { filter = it }, { dialog = "expense" }, ::remove, currency, auto, rates, search, { search = it }, tagSearch, { tagSearch = it }, newest, { newest = it }, typeFilter, { typeFilter = it }, categoryFilter, { categoryFilter = it }, fromDate, { fromDate = it }, toDate, { toDate = it }, categories.map { it.name }, { original -> repeatSource = original; dialog = if (original.income) "income" else "expense" })
                         "Счета" -> Accounts(accounts, currency, auto, rates, { dialog = "account" }, { selected = it }) { n -> val updated = accounts.map { if (it.name == n) it.copy(hidden = !it.hidden) else it }; accounts = updated; s.saveAccounts(updated) }
                         "Категории" -> Categories(categories, { editingCategory = null; dialog = "category" }, { editingCategory = it; dialog = "category" }, { c0 -> categories = categories.filterNot { it.id == c0.id }; s.saveCategories(categories) })
@@ -340,7 +340,8 @@ fun FinanceApp(s: FinanceStore) {
 @Composable
 private fun Home(
     total: Double, c: String, accounts: List<Account>, auto: Boolean, r: Map<String,Double>,
-    selected: String?, income: Double, expense: Double, pick: (String?) -> Unit
+    selected: String?, income: Double, expense: Double, goals: List<Goal>, debts: List<Debt>, reminders: List<Reminder>,
+    pick: (String?) -> Unit
 ) {
     val visible = accounts.filter { !it.hidden }
     val selectedBalance = selected?.let { n -> visible.firstOrNull { it.name == n }?.let { conv(it.balance,it.currency,c,auto,r) } } ?: total
@@ -366,6 +367,28 @@ private fun Home(
                             Surface(shape=RoundedCornerShape(14.dp),color=Color.White.copy(.12f),modifier=Modifier.weight(1f)){Column(Modifier.padding(12.dp)){Text("Остаток",color=Color.White.copy(.72f),style=MaterialTheme.typography.labelSmall);Text(money(net,c),color=Color.White,fontWeight=FontWeight.Bold)}}
                         }
                     }
+                }
+            }
+        }
+        item {
+            Card(shape = RoundedCornerShape(24.dp), elevation = CardDefaults.cardElevation(4.dp)) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    val expenseRate = if (income > 0) expense / income * 100.0 else 0.0
+                    val status = when {
+                        income <= 0.0 && expense > 0.0 -> "Расходы выше доступного дохода"
+                        expenseRate <= 60.0 -> "Финансовый темп выглядит комфортно"
+                        expenseRate <= 85.0 -> "Расходы стоит держать под контролем"
+                        else -> "Высокая нагрузка расходов"
+                    }
+                    Text("Умная сводка", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(status, color = if (expenseRate <= 60.0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MetricCard("Расходы", "%.0f%%".format(expenseRate), if (expenseRate <= 60.0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error, Modifier.weight(1f))
+                        MetricCard("Целей", goals.count { it.saved < it.target }.toString(), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+                        MetricCard("Долгов", debts.count { it.paid < it.amount }.toString(), MaterialTheme.colorScheme.secondary, Modifier.weight(1f))
+                    }
+                    val next = reminders.filter { !it.done }.sortedBy { it.date }.firstOrNull()
+                    if (next != null) Text("Ближайшее: " + next.title + " • " + next.date, style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
