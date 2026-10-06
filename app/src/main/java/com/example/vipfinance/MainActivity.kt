@@ -114,6 +114,7 @@ fun FinanceApp(s: FinanceStore) {
     var receiptDraft by remember { mutableStateOf<Transaction?>(null) }
     var drawerOpen by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(if (drawerOpen) DrawerValue.Open else DrawerValue.Closed)
+    val activity = LocalContext.current as? Activity
 
     LaunchedEffect(drawerOpen) { if (drawerOpen) drawerState.open() else drawerState.close() }
     LaunchedEffect(menu) { if (page !in menu && menu.isNotEmpty()) page = menu.first() }
@@ -236,7 +237,7 @@ fun FinanceApp(s: FinanceStore) {
                         selected = false,
                         onClick = {
                             drawerOpen = false
-                            AppUpdater.checkNow(activity = this@MainActivity)
+                            activity?.let { AppUpdater.checkNow(it) }
                         },
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
                     )
