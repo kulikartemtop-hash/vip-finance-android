@@ -1263,12 +1263,23 @@ private fun SettingsDialog(
     style: String,
     menu: Set<String>,
     time: Long,
+    currentPin: String,
     save: (String, Boolean, String, String, Set<String>) -> Unit,
+    savePin: (String) -> Unit,
     backup: () -> String,
+    importBackup: (String) -> Boolean,
     close: () -> Unit
 ) {
     val context = LocalContext.current
     var menuExpanded by remember { mutableStateOf(false) }
+    var pinText by remember { mutableStateOf(currentPin) }
+    var pinVisible by remember { mutableStateOf(false) }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { uri0 ->
+            runCatching { context.contentResolver.openInputStream(uri0)?.bufferedReader()?.use { it.readText() } }
+                .getOrNull()?.let { json -> if (importBackup(json)) (context as? Activity)?.recreate() }
+        }
+    }
 
     Dialog(
         onDismissRequest = close,
@@ -1403,6 +1414,41 @@ private fun SettingsDialog(
                         ) {
                             Text("Экспортировать JSON", fontWeight = FontWeight.Bold)
                         }
+                    }
+                }
+
+                item {
+                    SettingsSection(
+                        "Безопасность",
+                        "Защитите приложение PIN-кодом"
+                    ) {
+                        var pinTextLocal by remember { mutableStateOf(currentPin) }
+                        var pinVisible by remember { mutableStateOf(false) }
+                        OutlinedTextField(
+                            pinTextLocal,
+                            { pinTextLocal = it.filter(Char::isDigit).take(6) },
+                            label = { Text("PIN-код (4–6 цифр)") },
+                            visualTransformation = if (pinVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(Modifier.fillMaxWidth(), Arrangement.End) {
+                            TextButton(onClick = { pinTextLocal = ""; savePin("") }) { Text("Отключить") }
+                            Button(onClick = { savePin(pinTextLocal) }, enabled = pinTextLocal.length >= 4) { Text("Сохранить PIN") }
+                        }
+                    }
+                }
+
+                item {
+                    SettingsSection(
+                        "Импорт резервной копии",
+                        "Восстановление данных из JSON"
+                    ) {
+                        OutlinedButton(
+                            onClick = { importLauncher.launch(arrayOf("application/json", "text/plain")) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp)
+                        ) { Text("Импортировать JSON") }
                     }
                 }
 
