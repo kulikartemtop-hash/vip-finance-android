@@ -1,6 +1,7 @@
 package com.example.vipfinance
 
 import android.net.Uri
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -73,6 +74,11 @@ class MainActivity:ComponentActivity(){
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FinanceApp(s: FinanceStore) {
+    var unlocked by remember { mutableStateOf(s.loadPin().isBlank()) }
+    if (!unlocked) {
+        PinLock(s.loadPin()) { unlocked = it }
+        return
+    }
     var accounts by remember { mutableStateOf(s.loadAccounts()) }
     var tx by remember { mutableStateOf(s.loadTransactions()) }
     var debts by remember { mutableStateOf(s.loadDebts()) }
@@ -326,7 +332,7 @@ fun FinanceApp(s: FinanceStore) {
             "reminder" -> ReminderDialog({ dialog = "" }) { reminders = reminders + it; s.saveReminders(reminders); dialog = "" }
             "budget" -> BudgetDialog(accounts, categories, currency, { dialog = "" }) { budgets = budgets + it; s.saveBudgets(budgets); dialog = "" }
             "receiptExpense" -> TransactionDialog(accounts, categories, false, receiptDraft, { dialog = ""; receiptDraft = null }) { add(it); dialog = ""; receiptDraft = null }
-            "settings" -> SettingsDialog(currency, auto, theme, style, menu, rateTime, { c: String, a: Boolean, t: String, st: String, m: Set<String> -> saveSettings(c, a, t, st, m) }, { s.exportBackupJson() }) { dialog = "" }
+            "settings" -> SettingsDialog(currency, auto, theme, style, menu, rateTime, s.loadPin(), { c: String, a: Boolean, t: String, st: String, m: Set<String> -> saveSettings(c, a, t, st, m) }, { s.savePin(it) }, { s.exportBackupJson() }, { json -> s.importBackupJson(json) }) { dialog = "" }
         }
     }
 }
@@ -1257,12 +1263,23 @@ private fun SettingsDialog(
     style: String,
     menu: Set<String>,
     time: Long,
+    currentPin: String,
     save: (String, Boolean, String, String, Set<String>) -> Unit,
+    savePin: (String) -> Unit,
     backup: () -> String,
+    importBackup: (String) -> Boolean,
     close: () -> Unit
 ) {
     val context = LocalContext.current
     var menuExpanded by remember { mutableStateOf(false) }
+    var pinText by remember { mutableStateOf(currentPin) }
+    var pinVisible by remember { mutableStateOf(false) }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { uri0 ->
+            runCatching { context.contentResolver.openInputStream(uri0)?.bufferedReader()?.use { it.readText() } }
+                .getOrNull()?.let { json -> if (importBackup(json)) (context as? Activity)?.recreate() }
+        }
+    }
 
     Dialog(
         onDismissRequest = close,
@@ -1397,6 +1414,41 @@ private fun SettingsDialog(
                         ) {
                             Text("Экспортировать JSON", fontWeight = FontWeight.Bold)
                         }
+                    }
+                }
+
+                item {
+                    SettingsSection(
+                        "Безопасность",
+                        "Защитите приложение PIN-кодом"
+                    ) {
+                        var pinTextLocal by remember { mutableStateOf(currentPin) }
+                        var pinVisible by remember { mutableStateOf(false) }
+                        OutlinedTextField(
+                            pinTextLocal,
+                            { pinTextLocal = it.filter(Char::isDigit).take(6) },
+                            label = { Text("PIN-код (4–6 цифр)") },
+                            visualTransformation = if (pinVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(Modifier.fillMaxWidth(), Arrangement.End) {
+                            TextButton(onClick = { pinTextLocal = ""; savePin("") }) { Text("Отключить") }
+                            Button(onClick = { savePin(pinTextLocal) }, enabled = pinTextLocal.length >= 4) { Text("Сохранить PIN") }
+                        }
+                    }
+                }
+
+                item {
+                    SettingsSection(
+                        "Импорт резервной копии",
+                        "Восстановление данных из JSON"
+                    ) {
+                        OutlinedButton(
+                            onClick = { importLauncher.launch(arrayOf("application/json", "text/plain")) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp)
+                        ) { Text("Импортировать JSON") }
                     }
                 }
 
@@ -1999,5 +2051,19 @@ private fun DebtProgressDialog(debt: Debt?, close: () -> Unit, save: (Debt) -> U
             if (value > 0) Text("После операции: " + money((total - newPaid).coerceAtLeast(0.0), "RUB"), color = MaterialTheme.colorScheme.primary)
         }
     }, confirmButton = { Button(onClick = { save(debt.copy(paid = newPaid)) }, enabled = value > 0) { Text("Погасить") } }, dismissButton = { TextButton(close) { Text("Отмена") } })
+}
+@Composable
+private fun PinLock(pin: String, result: (Boolean) -> Unit) {
+    var value by remember { mutableStateOf("") }
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(Modifier.fillMaxSize().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Text("VIP Finance", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("Приложение защищено PIN-кодом", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(18.dp))
+            OutlinedTextField(value, { value = it.filter(Char::isDigit).take(6) }, label = { Text("PIN") }, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), singleLine = true)
+            Spacer(Modifier.height(10.dp))
+            Button(onClick = { if (value == pin) result(true) }, enabled = value.length >= 4) { Text("Войти") }
+        }
+    }
 }
 

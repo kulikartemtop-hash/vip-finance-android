@@ -94,6 +94,34 @@ class FinanceStore(context: Context) {
         val a=JSONArray();items.forEach{x->a.put(JSONObject().apply{put("id",x.id);put("name",x.name);put("category",x.category);put("accountName",x.accountName);put("limit",x.limit);put("currency",x.currency);put("period",x.period)})};prefs.edit().putString("budgets",a.toString()).apply()
     }
 
+    fun loadPin(): String = prefs.getString("app_pin", "") ?: ""
+    fun savePin(v: String) = prefs.edit().putString("app_pin", v).apply()
+
+    fun importBackupJson(json: String): Boolean = runCatching {
+        val root = JSONObject(json)
+        require(root.optString("format") == "VIP Finance backup")
+        val a = root.optJSONArray("accounts") ?: JSONArray()
+        saveAccounts(buildList { for (i in 0 until a.length()) { val o=a.getJSONObject(i); add(Account(o.optString("name"),o.optDouble("balance"),o.optBoolean("hidden"),o.optString("type","Счёт"),o.optString("currency","RUB"),o.optString("icon","account_balance"),o.optString("iconColor","#5B35F5"))) } })
+        val t = root.optJSONArray("transactions") ?: JSONArray()
+        saveTransactions(buildList { for (i in 0 until t.length()) { val o=t.getJSONObject(i); add(Transaction(o.optLong("id"),o.optString("title"),o.optDouble("amount"),o.optBoolean("income"),o.optString("accountName"),o.optString("category","Без категории"),o.optLong("timestamp",System.currentTimeMillis()),o.optString("currency","RUB"),o.optString("operationType",if(o.optBoolean("income"))"income" else "expense"),o.optString("toAccountName",""),o.optString("note",""),o.optString("repeat","Не повторять"),o.optString("tags",""))) } })
+        val c = root.optJSONArray("categories") ?: JSONArray()
+        saveCategories(buildList { for (i in 0 until c.length()) { val o=c.getJSONObject(i); add(Category(o.optLong("id"),o.optString("name"),o.optString("kind","expense"),o.optString("icon","category"),o.optString("color","#5B35F5"))) } })
+        val b = root.optJSONArray("budgets") ?: JSONArray()
+        saveBudgets(buildList { for (i in 0 until b.length()) { val o=b.getJSONObject(i); add(Budget(o.optLong("id"),o.optString("name"),o.optString("category"),o.optString("accountName"),o.optDouble("limit"),o.optString("currency","RUB"),o.optString("period","Месяц"))) } })
+        val d = root.optJSONArray("debts") ?: JSONArray()
+        saveDebts(buildList { for (i in 0 until d.length()) { val o=d.getJSONObject(i); add(Debt(o.optLong("id"),o.optString("person"),o.optDouble("amount"),o.optBoolean("mine"),o.optBoolean("interest"),o.optDouble("interestRate"),o.optString("dueDate"),o.optString("note"),o.optDouble("paid",0.0))) } })
+        val g = root.optJSONArray("goals") ?: JSONArray()
+        saveGoals(buildList { for (i in 0 until g.length()) { val o=g.getJSONObject(i); add(Goal(o.optLong("id"),o.optString("name"),o.optDouble("target"),o.optDouble("saved"),o.optString("currency","RUB"),o.optString("deadline"))) } })
+        val rr = root.optJSONArray("reminders") ?: JSONArray()
+        saveReminders(buildList { for (i in 0 until rr.length()) { val o=rr.getJSONObject(i); add(Reminder(o.optLong("id"),o.optString("title"),o.optDouble("amount"),o.optString("date"),o.optString("repeat","Один раз"),o.optBoolean("done"))) } })
+        root.optJSONObject("settings")?.let { q ->
+            saveCurrency(q.optString("currency","RUB")); saveAutoConversion(q.optBoolean("autoConversion",true)); saveTheme(q.optString("theme","system")); saveStyle(q.optString("style","platinum"))
+            val menuArr=q.optJSONArray("menu"); if(menuArr!=null){ saveMenu(buildSet { for(i in 0 until menuArr.length()) add(menuArr.getString(i)) }) }
+            val ratesObj=q.optJSONObject("rates"); if(ratesObj!=null){ val map=buildMap<String,Double>{ ratesObj.keys().forEach{ k->put(k,ratesObj.optDouble(k)) } }; saveRates(map) }
+        }
+        true
+    }.getOrDefault(false)
+
     fun exportBackupJson(): String {
         val root = JSONObject()
         root.put("format", "VIP Finance backup")
