@@ -296,3 +296,11 @@ All three builds completed successfully. Each variant preserves the existing bus
 
 ### Important
 The three visual directions were implemented in the repository based on documented prompts. There is no direct connector in this environment that submits the repository to the external design products themselves; the branch names identify the design direction, not an external AI-generated code export.
+
+
+## VIP Finance 4.1 — Calendar expansion
+- Expanded calendar into Month / Events / Forecast modes.
+- Added selectable days with daily income, expenses, net result, operations and reminders.
+- Added quick actions for expense, income and reminder from a selected day.
+- Added recurring operations overview and 30-day financial movement forecast.
+- Added financial warning state based on current spending/income pace.
