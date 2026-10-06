@@ -231,6 +231,15 @@ fun FinanceApp(s: FinanceStore) {
                     }
                     Spacer(Modifier.height(10.dp))
                     NavigationDrawerItem(label = { Text("Настройки") }, selected = false, onClick = { dialog = "settings"; drawerOpen = false }, modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp))
+                    NavigationDrawerItem(
+                        label = { Text("↻ Обновить приложение") },
+                        selected = false,
+                        onClick = {
+                            drawerOpen = false
+                            AppUpdater.checkNow(activity = this@MainActivity)
+                        },
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
+                    )
                 }
             }
         ) {
