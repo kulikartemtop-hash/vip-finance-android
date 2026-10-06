@@ -90,7 +90,7 @@ jobs:
         env:
           VIP_KEYSTORE_PATH: ${{ runner.temp }}/vip-release.jks
           VIP_KEYSTORE_PASSWORD: ${{ secrets.VIP_KEYSTORE_PASSWORD }}
-          VIP_KEY_ALIAS: ${{ secrets.VIP_KEY_ALIAS }}
+          VIP_KEY_ALIAS: vip-finance
           VIP_KEY_PASSWORD: ${{ secrets.VIP_KEY_PASSWORD }}
         run: gradle assembleRelease --no-daemon
 
