@@ -63,7 +63,7 @@ fun SmartCenter(
     val voiceLauncher=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){result->
         val text=result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
         voiceText=text
-        val amount=Regex("""(?i)(\\d+(?:[.,]\\d+)?)""").find(text)?.value?.replace(',','.')?.toDoubleOrNull()
+        val amount=Regex("""(?i)(\d+(?:[.,]\d+)?)""").find(text)?.value?.replace(',','.')?.toDoubleOrNull()
         val account=accounts.firstOrNull{!it.hidden}
         if(amount!=null&&account!=null){
             onVoiceTransaction(Transaction(id=System.currentTimeMillis(),title=text,amount=amount,income=false,accountName=account.name,category="Другое",timestamp=System.currentTimeMillis(),currency=account.currency))
@@ -77,7 +77,7 @@ fun SmartCenter(
                 val p=line.split(';',',','	').map{it.trim().trim('"')}
                 if(p.size<2)null else {
                     val amount=p.firstNotNullOfOrNull{it.replace(" ","").replace(",",".").toDoubleOrNull()}
-                    val title=p.firstOrNull{it.toDoubleOrNull()==null&&!it.matches(Regex("""\\d{1,2}[./]\\d{1,2}[./]\\d{2,4}"""))}
+                    val title=p.firstOrNull{it.toDoubleOrNull()==null&&!it.matches(Regex("""\d{1,2}[./]\d{1,2}[./]\d{2,4}"""))}
                     if(amount!=null&&title!=null) Transaction(id=System.currentTimeMillis()+p.hashCode(),title=title,amount=amount,income=false,accountName=accounts.firstOrNull()?.name.orEmpty(),category="Импорт",timestamp=System.currentTimeMillis(),currency=currency) else null
                 }
             }
