@@ -10,12 +10,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -34,7 +34,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.google.mlkit.vision.common.InputImage
@@ -276,15 +275,13 @@ fun FinanceApp(s: FinanceStore) {
             }
         ) {
             BoxWithConstraints(Modifier.fillMaxSize()) {
-                // Адаптивный масштаб: уменьшаем интерфейс на узких/низких экранах,
-                // но не увеличиваем его на больших, чтобы ничего не обрезалось.
                 val uiScale = minOf(
                     maxWidth.value / 390f,
                     maxHeight.value / 780f
                 ).coerceIn(0.78f, 1f)
                 Box(
                     Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+                    contentAlignment = Alignment.TopCenter
                 ) {
                     Box(
                         Modifier
@@ -294,7 +291,7 @@ fun FinanceApp(s: FinanceStore) {
                                 scaleY = uiScale
                             }
                     ) {
-                    Scaffold(
+                        Scaffold(
                 topBar = {
                     TopAppBar(
                         title = {
@@ -309,9 +306,7 @@ fun FinanceApp(s: FinanceStore) {
                         ),
                         navigationIcon = {
                             Surface(
-                                modifier = Modifier
-                                    .padding(start = 6.dp)
-                                    .size(52.dp),
+                                modifier = Modifier.padding(start = 6.dp).size(52.dp),
                                 shape = RoundedCornerShape(17.dp),
                                 color = MaterialTheme.colorScheme.primaryContainer,
                                 tonalElevation = 8.dp,
@@ -397,6 +392,9 @@ fun FinanceApp(s: FinanceStore) {
                         "Напоминания" -> Reminders(reminders, { dialog = "reminder" }, { r -> reminders = reminders.map { if (it.id == r.id) it.copy(done = !it.done) else it }; s.saveReminders(reminders) }, { r -> reminders = reminders.filterNot { it.id == r.id }; s.saveReminders(reminders) })
                         "Чеки" -> Receipt(receiptUri, receiptText, { u -> receiptUri = u; receiptText = "" }, { t -> receiptText = t }, accounts.firstOrNull(), categories, { draft -> receiptDraft = draft; dialog = "receiptExpense" }) { imported -> imported.forEach { add(it) } }
                         "VIP Центр" -> SmartCenter(accounts, tx, debts, goals, budgets, currency, auto, rates, { add(it) }, { imported -> imported.forEach { add(it) } }, { s.exportBackupJson() })
+                    }
+                }
+                        }
                     }
                 }
             }
@@ -622,7 +620,7 @@ private fun Operations(
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)){Text(t.title,fontWeight=FontWeight.SemiBold);Text(if(transfer)"${t.accountName} → ${t.toAccountName}" else "${t.category} • ${t.accountName}",style=MaterialTheme.typography.bodySmall);if(t.tags.isNotBlank())Text("🏷 ${t.tags}",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary);if(t.note.isNotBlank())Text(t.note,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant);Text(SimpleDateFormat("dd.MM.yyyy HH:mm",Locale.getDefault()).format(Date(t.timestamp)),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant);if(t.repeat!="Не повторять")Text("↻ ${t.repeat}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.primary)}
                         Column(horizontalAlignment=Alignment.End){Text((if(transfer)"⇄"else if(t.income)"+"else"−")+" "+money(conv(t.amount,t.currency,c,auto,r),c),fontWeight=FontWeight.Bold,color=if(transfer)MaterialTheme.colorScheme.secondary else if(t.income)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error);Row{
-                            if(!transfer) TextButton(onClick={edit(t)}){Text("✎ Изменить",fontWeight=FontWeight.SemiBold)}
+                            if(!transfer) TextButton(onClick={edit(t)}){Text("Изменить")}
                             TextButton(onClick={repeat(t)}){Text("Повторить")}
                             TextButton(onClick={remove(t)}){Text("Удалить")}
                         }}
@@ -630,6 +628,7 @@ private fun Operations(
                 }
             }
         }
+    }
     }
 }
 @Composable
@@ -659,7 +658,6 @@ private fun Categories(
                         Text(c0.name, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
                         TextButton(onClick = { edit(c0) }) { Text("Изменить") }
                         TextButton(onClick = { remove(c0) }) { Text("Удалить") }
-                    }
                     }
                 }
             }
@@ -1931,8 +1929,7 @@ private fun TransactionDialog(
     val parsed = runCatching { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).parse(dateText)?.time }.getOrNull()
         ?: System.currentTimeMillis()
     val other = accounts.filter { it.name != acc }
-    val isEditing = source != null
-    val title = if (type == "transfer") (if (isEditing) "Изменить перевод" else "Новый перевод") else if (type == "income") (if (isEditing) "Изменить доход" else "Новый доход") else (if (isEditing) "Изменить расход" else "Новый расход")
+    val title = if (type == "transfer") "Новый перевод" else if (type == "income") "Новый доход" else "Новый расход"
     val amountPreview = v?.let { money(it, cc) } ?: "0,00 $cc"
 
     Dialog(
@@ -2124,7 +2121,7 @@ private fun TransactionDialog(
                             enabled = n.isNotBlank() && v != null && v > 0 && acc.isNotBlank() && (type != "transfer" || toAcc.isNotBlank()),
                             modifier = Modifier.weight(1.35f),
                             shape = RoundedCornerShape(16.dp)
-                        ) { Text(if (isEditing) "Сохранить изменения" else "Сохранить", fontWeight = FontWeight.Bold) }
+                        ) { Text("Сохранить", fontWeight = FontWeight.Bold) }
                     }
                 }
             }
