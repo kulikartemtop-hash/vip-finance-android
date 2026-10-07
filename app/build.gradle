@@ -12,8 +12,8 @@ android {
         applicationId "com.example.vipfinance"
         minSdk 24
         targetSdk 36
-        versionCode 430
-        versionName "4.3" // VIP Intelligence center
+        versionCode 440
+        versionName "4.4" // net worth and financial scenarios
     }
     buildTypes {
         release {
