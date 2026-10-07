@@ -90,6 +90,7 @@ fun FinanceApp(s: FinanceStore) {
     var categories by remember { mutableStateOf(s.loadCategories().ifEmpty { defaultCategories }) }
     var editingCategory by remember { mutableStateOf<Category?>(null) }
     var editingGoal by remember { mutableStateOf<Goal?>(null) }
+    var editingGoalDetails by remember { mutableStateOf<Goal?>(null) }
     var editingDebt by remember { mutableStateOf<Debt?>(null) }
     var page by remember { mutableStateOf("Главная") }
     var currency by remember { mutableStateOf(s.loadCurrency()) }
@@ -386,7 +387,7 @@ fun FinanceApp(s: FinanceStore) {
                         "Календарь" -> SmartCalendar(tx, reminders, currency, auto, rates, { dialog = "expense" }, { dialog = "income" }, { dialog = "reminder" })
                         "Конвертер" -> Converter(currency, rates, loading, rateTime)
                         "Долги" -> Debts(debts, { dialog = "debt" }, { d -> editingDebt = d; dialog = "debtProgress" }) { d -> debts = debts.filterNot { it.id == d.id }; s.saveDebts(debts) }
-                        "Цели" -> Goals(goals, { dialog = "goal" }, { g -> editingGoal = g; dialog = "goalProgress" }) { g -> goals = goals.filterNot { it.id == g.id }; s.saveGoals(goals) }
+                        "Цели" -> Goals(goals, { editingGoalDetails = null; dialog = "goal" }, { g -> editingGoal = g; dialog = "goalProgress" }, { g -> editingGoalDetails = g; dialog = "goal" }) { g -> goals = goals.filterNot { it.id == g.id }; s.saveGoals(goals) }
                         "Напоминания" -> Reminders(reminders, { dialog = "reminder" }, { r -> reminders = reminders.map { if (it.id == r.id) it.copy(done = !it.done) else it }; s.saveReminders(reminders) }, { r -> reminders = reminders.filterNot { it.id == r.id }; s.saveReminders(reminders) })
                         "Чеки" -> Receipt(receiptUri, receiptText, { u -> receiptUri = u; receiptText = "" }, { t -> receiptText = t }, accounts.firstOrNull(), categories, { draft -> receiptDraft = draft; dialog = "receiptExpense" }) { imported -> imported.forEach { add(it) } }
                         "VIP Центр" -> SmartCenter(accounts, tx, debts, goals, budgets, currency, auto, rates, { add(it) }, { imported -> imported.forEach { add(it) } }, { s.exportBackupJson() })
@@ -1077,38 +1078,108 @@ private fun BudgetDialog(accounts:List<Account>,categories:List<Category>,c:Stri
         }
     }
 }
-@Composable private fun Goals(items: List<Goal>, add: () -> Unit, progress: (Goal) -> Unit, remove: (Goal) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+@Composable
+private fun Goals(items: List<Goal>, add: () -> Unit, progress: (Goal) -> Unit, edit: (Goal) -> Unit, remove: (Goal) -> Unit) {
+    var filter by remember { mutableStateOf("Все") }
+    var search by remember { mutableStateOf("") }
+    var sort by remember { mutableStateOf("Срок") }
+    val now = System.currentTimeMillis()
+    fun days(g: Goal): Long? = parseDateEnd(g.deadline)?.let { (it - now) / 86400000L }
+    fun done(g: Goal) = g.target > 0 && g.saved >= g.target
+    fun late(g: Goal) = !done(g) && (days(g)?.let { it < 0 } == true)
+    val list = items.filter { g ->
+        (search.isBlank() || g.name.contains(search, true)) && when (filter) {
+            "Активные" -> !done(g) && !late(g)
+            "Выполнены" -> done(g)
+            "Просрочены" -> late(g)
+            else -> true
+        }
+    }.sortedWith(when(sort) {
+        "Прогресс" -> compareByDescending<Goal> { if (it.target > 0) it.saved / it.target else 0.0 }
+        "Сумма" -> compareByDescending { it.target - it.saved }
+        else -> compareBy { days(it) ?: Long.MAX_VALUE }
+    })
+    val target = items.sumOf { it.target }
+    val saved = items.sumOf { it.saved }
+    val remaining = items.sumOf { (it.target - it.saved).coerceAtLeast(0.0) }
+    val percent = if (target > 0) (saved / target).coerceIn(0.0, 1.0) else 0.0
+    val cur = items.firstOrNull()?.currency ?: "RUB"
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-            Column { Text("Цели", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold); Text("Накопления и финансовые планы", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Column(Modifier.weight(1f)) {
+                Text("Цели", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text("Планы, накопления и большие покупки", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             FilledTonalButton(onClick = add) { Text("+ Цель") }
         }
-        if (items.isEmpty()) Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
-            Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Целей пока нет", fontWeight = FontWeight.SemiBold)
-                Text("Создайте цель и отслеживайте путь до суммы.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), elevation = CardDefaults.cardElevation(5.dp)) {
+            Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                    Column {
+                        Text("Общий прогресс", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text((percent * 100).toInt().toString() + "%", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    }
+                    Text(items.count { done(it) }.toString() + "/" + items.size + " выполнено", style = MaterialTheme.typography.labelMedium)
+                }
+                LinearProgressIndicator({ percent.toFloat() }, Modifier.fillMaxWidth().height(9.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MetricCard("Накоплено", money(saved, cur), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+                    MetricCard("Осталось", money(remaining, cur), MaterialTheme.colorScheme.tertiary, Modifier.weight(1f))
+                }
+                Text("Общая сумма целей: " + money(target, cur), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        items.forEach { g ->
-            val ratio = if (g.target > 0) (g.saved / g.target).coerceIn(0.0, 1.0) else 0.0
-            val remaining = (g.target - g.saved).coerceAtLeast(0.0)
-            val deadlineMillis = parseDateEnd(g.deadline)
-            val daysLeft = deadlineMillis?.let { ((it - System.currentTimeMillis()) / 86400000L).coerceAtLeast(1L) }
-            val monthlyNeed = if (daysLeft != null) remaining / (daysLeft.toDouble() / 30.44) else 0.0
-            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), elevation = CardDefaults.cardElevation(4.dp)) {
-                Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(search, { search = it }, Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Поиск цели") }, shape = RoundedCornerShape(18.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            listOf("Все", "Активные", "Выполнены", "Просрочены").forEach { x -> FilterChip(filter == x, { filter = x }, label = { Text(x) }) }
+        }
+        Row(Modifier.fillMaxWidth(), Arrangement.End, Alignment.CenterVertically) {
+            Text("Сортировка ", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            listOf("Срок", "Прогресс", "Сумма").forEach { x -> FilterChip(sort == x, { sort = x }, label = { Text(x) }) }
+        }
+        if (list.isEmpty()) {
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
+                Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(if (items.isEmpty()) "Целей пока нет" else "Ничего не найдено", fontWeight = FontWeight.SemiBold)
+                    Text(if (items.isEmpty()) "Создайте первую цель и начните копить." else "Попробуйте изменить фильтр или поиск.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (items.isEmpty()) FilledTonalButton(onClick = add) { Text("Создать цель") }
+                }
+            }
+        }
+        list.forEach { g ->
+            val p = if (g.target > 0) (g.saved / g.target).coerceIn(0.0, 1.0) else 0.0
+            val left = (g.target - g.saved).coerceAtLeast(0.0)
+            val d = days(g)
+            val isDone = done(g)
+            val isLate = late(g)
+            val month = if (d != null && d > 0) left / (d.toDouble() / 30.44) else 0.0
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), elevation = CardDefaults.cardElevation(5.dp)) {
+                Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.Top) {
-                        Column(Modifier.weight(1f)) { Text(g.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold); if (g.deadline.isNotBlank()) Text("До " + g.deadline, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                        Text((ratio * 100).toInt().toString() + "%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Column(Modifier.weight(1f)) {
+                            Text(g.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text(when {
+                                isDone -> "✓ Цель достигнута"
+                                isLate -> "⚠ Срок прошёл"
+                                d != null -> "До срока: " + d.coerceAtLeast(0) + " дн."
+                                else -> "Без срока"
+                            }, style = MaterialTheme.typography.bodySmall, color = if (isLate) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Text((p * 100).toInt().toString() + "%", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     }
-                    LinearProgressIndicator(progress = { ratio.toFloat() }, Modifier.fillMaxWidth().height(9.dp))
+                    LinearProgressIndicator({ p.toFloat() }, Modifier.fillMaxWidth().height(10.dp))
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                         Column { Text("Накоплено", style = MaterialTheme.typography.labelSmall); Text(money(g.saved, g.currency), fontWeight = FontWeight.Bold) }
-                        Column(horizontalAlignment = Alignment.End) { Text("Осталось", style = MaterialTheme.typography.labelSmall); Text(money(remaining, g.currency), fontWeight = FontWeight.Bold) }
+                        Column(horizontalAlignment = Alignment.End) { Text("Цель", style = MaterialTheme.typography.labelSmall); Text(money(g.target, g.currency), fontWeight = FontWeight.Bold) }
                     }
-                    Text("Цель: " + money(g.target, g.currency), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (daysLeft != null && remaining > 0) Text("Нужно откладывать примерно " + money(monthlyNeed, g.currency) + " в месяц", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                    Row(Modifier.fillMaxWidth(), Arrangement.End) { TextButton(onClick = { progress(g) }) { Text("+ Пополнить") }; TextButton(onClick = { remove(g) }) { Text("Удалить") } }
+                    Text("Осталось: " + money(left, g.currency), fontWeight = FontWeight.SemiBold)
+                    if (d != null && d > 0 && !isDone) Text("Рекомендуемый темп: " + money(month, g.currency) + "/мес.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                    if (g.deadline.isNotBlank()) Text("Срок: " + g.deadline, style = MaterialTheme.typography.labelSmall)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        FilledTonalButton(onClick = { progress(g) }, Modifier.weight(1f), enabled = !isDone) { Text(if (isDone) "Готово" else "+ Пополнить") }
+                        OutlinedButton(onClick = { edit(g) }, Modifier.weight(1f)) { Text("Изменить") }
+                        TextButton(onClick = { remove(g) }) { Text("Удалить") }
+                    }
                 }
             }
         }
@@ -2239,9 +2310,17 @@ private fun DebtDialog(close: () -> Unit, save: (Debt) -> Unit) {
         dismissButton = { TextButton(close) { Text("Отмена") } }
     )
 }
-@Composable private fun GoalDialog(c:String,close:()->Unit,save:(Goal)->Unit){
- var n by remember{mutableStateOf("")};var t by remember{mutableStateOf("")};var d by remember{mutableStateOf("")}
- AlertDialog(onDismissRequest=close,title={Text("Новая цель")},text={Column{OutlinedTextField(n,{n=it},label={Text("Название")});OutlinedTextField(t,{t=it},label={Text("Цель "+c)});OutlinedTextField(d,{d=it},label={Text("Срок")})}},confirmButton={Button({save(Goal(name=n,target=t.replace(',','.').toDoubleOrNull()?:0.0,currency=c,deadline=d))},enabled=n.isNotBlank()){Text("Сохранить")}},dismissButton={TextButton(close){Text("Отмена")}})
+@Composable private fun GoalDialog(c:String, initial:Goal?, close:()->Unit, save:(Goal)->Unit){
+ var n by remember(initial?.id){mutableStateOf(initial?.name ?: "")}
+ var t by remember(initial?.id){mutableStateOf(initial?.target?.toString() ?: "")}
+ var d by remember(initial?.id){mutableStateOf(initial?.deadline ?: "")}
+ val value=t.replace(',','.').toDoubleOrNull()?:0.0
+ AlertDialog(onDismissRequest=close,title={Text(if(initial==null) "Новая цель" else "Изменить цель")},text={Column(Modifier.heightIn(max=420.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)){
+  OutlinedTextField(n,{n=it},label={Text("Название")},modifier=Modifier.fillMaxWidth())
+  OutlinedTextField(t,{t=it},label={Text("Целевая сумма "+c)},modifier=Modifier.fillMaxWidth(),singleLine=true)
+  OutlinedTextField(d,{d=it},label={Text("Срок")},placeholder={Text("дд.мм.гггг")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+  if(initial!=null) Text("Уже накоплено: "+money(initial.saved,initial.currency),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+ }},confirmButton={Button(onClick={save((initial ?: Goal(name=n,target=0.0,currency=c)).copy(name=n.trim(),target=value,deadline=d.trim()))},enabled=n.isNotBlank()&&value>0){Text(if(initial==null) "Создать" else "Сохранить")}},dismissButton={TextButton(onClick=close){Text("Отмена")}})
 }
 @Composable private fun GoalProgressDialog(goal:Goal?,close:()->Unit,save:(Goal)->Unit){
  if(goal==null){close();return}
