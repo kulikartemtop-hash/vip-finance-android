@@ -1114,83 +1114,134 @@ private fun parseReceiptDraft(text: String, account: Account?, categories: List<
     return Transaction(title = title, amount = amount, income = false, accountName = account.name, category = category, timestamp = timestamp, currency = account.currency, operationType = "expense")
 }
 
-@Composable private fun Receipt(uri:Uri?,text:String,setUri:(Uri?)->Unit,setText:(String)->Unit,account:Account?,categories:List<Category>,prepare:(Transaction)->Unit,onImportTransactions:(List<Transaction>)->Unit){
-    val context=LocalContext.current
-    val launcher=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){u->
-        if(u!=null){
+@Composable
+private fun Receipt(
+    uri: Uri?,
+    text: String,
+    setUri: (Uri?) -> Unit,
+    setText: (String) -> Unit,
+    account: Account?,
+    categories: List<Category>,
+    prepare: (Transaction) -> Unit,
+    onImportTransactions: (List<Transaction>) -> Unit
+) {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { u ->
+        if (u != null) {
             setUri(u)
-            runCatching{InputImage.fromFilePath(context,u)}.onSuccess{image->
+            runCatching { InputImage.fromFilePath(context, u) }.onSuccess { image ->
                 TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(image)
-                    .addOnSuccessListener{result->setText(result.text.ifBlank{"Текст не найден."})}
-                    .addOnFailureListener{setText("Не удалось распознать текст.")}
+                    .addOnSuccessListener { result -> setText(result.text.ifBlank { "Текст не найден." }) }
+                    .addOnFailureListener { setText("Не удалось распознать текст.") }
             }
         }
     }
-    val importLauncher=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){u->
-        if(u!=null) runCatching{
-            val raw=context.contentResolver.openInputStream(u)?.bufferedReader()?.readText().orEmpty()
-            val result=raw.lines().mapNotNull{line->
-                val p=line.split(';',',','	').map{it.trim().trim('"')}
-                if(p.size<2)null else {
-                    val amount=p.mapNotNull{normalizeReceiptAmount(it)}.firstOrNull{it>0.0}
-                    val title=p.firstOrNull{it.isNotBlank()&&it.toDoubleOrNull()==null&&!it.matches(Regex("""d{1,2}[./]d{1,2}[./]d{2,4}"""))}
-                    if(amount!=null&&title!=null&&account!=null) Transaction(
-                        id=System.currentTimeMillis()+p.hashCode(),
-                        title=title.take(80),
-                        amount=amount,
-                        income=false,
-                        accountName=account.name,
-                        category="Импорт",
-                        timestamp=System.currentTimeMillis(),
-                        currency=account.currency
-                    ) else null
-                }
-            }
-            onImportTransactions(result)
-        }
-    }
-    LazyColumn(Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(12.dp),contentPadding=PaddingValues(bottom=20.dp)){
-        item{
-            Text("Чеки",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
-            Text("Умные чеки, OCR и выписки из банка в одном разделе.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        item{
-            Card(shape=RoundedCornerShape(22.dp),elevation=CardDefaults.cardElevation(4.dp)){
-                Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
-                    Text("🧾 Умные чеки",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
-                    Text("Распознавание покупки по фото с автоматическим определением суммы и категории.",style=MaterialTheme.typography.bodySmall)
-                    Button({launcher.launch("image/*")}){Text("Выбрать фото чека")}
-        }
-        Text("Распознай чек и проверь операцию перед сохранением.",style=MaterialTheme.typography.bodySmall)
-        Button({launcher.launch("image/*")}){Text("Выбрать фото чека")}
-        if(uri!=null)Text("Фото выбрано: "+uri.lastPathSegment)
-        if(text.isNotBlank()){
-            Card(Modifier.fillMaxWidth()){Text(text,Modifier.padding(12.dp))}
-            val draft=parseReceiptDraft(text,account,categories)
-            if(draft!=null){
-                Card(colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.primaryContainer)){
-                    Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(5.dp)){
-                        Text("Найдена операция",fontWeight=FontWeight.Bold)
-                        Text(draft.title)
-                        Text(money(draft.amount,draft.currency),style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
-                        Text("Дата: "+SimpleDateFormat("dd.MM.yyyy",Locale.getDefault()).format(Date(draft.timestamp)))
-                        Button({prepare(draft)}){Text("Проверить и добавить")}
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { u ->
+        if (u != null) {
+            runCatching {
+                val raw = context.contentResolver.openInputStream(u)?.bufferedReader()?.readText().orEmpty()
+                val result = raw.lines().mapNotNull { line ->
+                    val p = line.split(';', ',', '	').map { it.trim().trim('"') }
+                    if (p.size < 2) null else {
+                        val amount = p.mapNotNull { normalizeReceiptAmount(it) }.firstOrNull { it > 0.0 }
+                        val title = p.firstOrNull {
+                            it.isNotBlank() &&
+                            it.toDoubleOrNull() == null &&
+                            !it.matches(Regex("""d{1,2}[./]d{1,2}[./]d{2,4}"""))
+                        }
+                        if (amount != null && title != null && account != null) {
+                            Transaction(
+                                id = System.currentTimeMillis() + p.hashCode(),
+                                title = title.take(80),
+                                amount = amount,
+                                income = false,
+                                accountName = account.name,
+                                category = "Импорт",
+                                timestamp = System.currentTimeMillis(),
+                                currency = account.currency
+                            )
+                        } else null
                     }
                 }
-            } else {
-                Text("Сумма в чеке не найдена. Проверьте распознанный текст.",color=MaterialTheme.colorScheme.error)
+                onImportTransactions(result)
             }
-        } else Card(Modifier.fillMaxWidth()){Text("После выбора фото здесь появится распознанный текст.",Modifier.padding(12.dp))}
+        }
+    }
+
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(bottom = 20.dp)
+    ) {
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Чеки", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    "Умные чеки, OCR и выписки из банка в одном разделе.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        item {
+            Card(shape = RoundedCornerShape(22.dp), elevation = CardDefaults.cardElevation(4.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("🧾 Умные чеки", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Распознавание покупки по фото с автоматическим определением суммы и категории.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Button(onClick = { launcher.launch("image/*") }) { Text("Выбрать фото чека") }
+                    if (uri != null) Text("Фото выбрано: " + uri.lastPathSegment)
+                    if (text.isNotBlank()) {
+                        Card(Modifier.fillMaxWidth()) {
+                            Text(text, Modifier.padding(12.dp))
+                        }
+                        val draft = parseReceiptDraft(text, account, categories)
+                        if (draft != null) {
+                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    Text("Найдена операция", fontWeight = FontWeight.Bold)
+                                    Text(draft.title)
+                                    Text(
+                                        money(draft.amount, draft.currency),
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text("Дата: " + SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date(draft.timestamp)))
+                                    Button(onClick = { prepare(draft) }) { Text("Проверить и добавить") }
+                                }
+                            }
+                        } else {
+                            Text(
+                                "Сумма в чеке не найдена. Проверьте распознанный текст.",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    } else {
+                        Text(
+                            "После выбора фото здесь появится распознанный текст.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
-        item{
-            Card(shape=RoundedCornerShape(22.dp),elevation=CardDefaults.cardElevation(4.dp)){
-                Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
-                    Text("🏦 Выписки из банка",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
-                    Text("Импортируйте CSV или TXT из банковского приложения — найденные операции добавятся в историю.",style=MaterialTheme.typography.bodySmall)
-                    Button({importLauncher.launch("text/*")}){Text("Выбрать выписку")}
-                    Text("Поддерживается поиск суммы и описания в каждой строке.",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        item {
+            Card(shape = RoundedCornerShape(22.dp), elevation = CardDefaults.cardElevation(4.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("🏦 Выписки из банка", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Импортируйте CSV или TXT из банковского приложения — найденные операции добавятся в историю.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Button(onClick = { importLauncher.launch("text/*") }) { Text("Выбрать выписку") }
+                    Text(
+                        "Поддерживается поиск суммы и описания в каждой строке.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
