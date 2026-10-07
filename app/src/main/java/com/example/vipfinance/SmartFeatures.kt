@@ -23,7 +23,9 @@ fun SmartCenter(
     budgets: List<Budget>, currency: String, auto: Boolean, rates: Map<String,Double>,
     onVoiceTransaction: (Transaction) -> Unit,
     onImportTransactions: (List<Transaction>) -> Unit,
-    backupJson: () -> String
+    backupJson: () -> String,
+    exportCsv: () -> String,
+    receiptText: String
 ) {
     val visible=accounts.filter{!it.hidden}
     val balance=visible.sumOf{conv(it.balance,it.currency,currency,auto,rates)}
@@ -57,6 +59,11 @@ fun SmartCenter(
         val limit=conv(b.limit,b.currency,currency,auto,rates)
         if(limit>0&&spent/limit>=.8)b.name to spent/limit*100 else null
     }
+    val duplicateGroups=tx.groupBy{Triple(it.title.trim().lowercase(Locale.getDefault()),it.amount,it.timestamp/86400000L)}.filterValues{it.size>1}
+    val receiptLines=receiptText.lines().mapNotNull{line->
+        val m=Regex("""(?i)(.+?)\\s+(\\d+(?:[.,]\\d+)?)\\s*(?:₽|руб|rub)?\\s*$""").find(line.trim())
+        m?.groupValues?.let{it[1] to it[2].replace(',','.').toDoubleOrNull()}
+    }.filter{it.second!=null}
     val context=androidx.compose.ui.platform.LocalContext.current
     var voiceText by remember{mutableStateOf("")}
     var voiceMessage by remember{mutableStateOf("")}
@@ -198,6 +205,32 @@ fun SmartCenter(
         item{SmartCard("💾 Экспорт и резервная копия","Полная локальная копия данных"){
             Button(onClick={exportLauncher.launch("VIP-Finance-backup.json")}){Text("Сохранить резервную копию")}
             Text("Файл можно хранить отдельно и восстановить через настройки.")
+        }}
+        item{SmartCard("🧾 Разбор строк чека","Выделение товаров и сумм из распознанного текста"){
+            if(receiptLines.isEmpty()) Text("Откройте раздел «Чеки» и распознайте чек — найденные строки появятся здесь.")
+            receiptLines.take(10).forEach{Text("${it.first} • ${"%.2f".format(it.second ?: 0.0)} $currency")}
+            if(receiptLines.isNotEmpty())Text("Позиций найдено: ${receiptLines.size}",fontWeight=FontWeight.Bold)
+        }}
+        item{SmartCard("🔎 Защита от дублей","Поиск похожих повторно занесённых операций"){
+            if(duplicateGroups.isEmpty())Text("Подозрительных дублей не найдено.")
+            duplicateGroups.take(8).forEach{(key,items)->Text("${key.first} • ${money(key.second,currency)} • ${items.size} раза")}
+        }}
+        item{SmartCard("📤 CSV отчёт","Выгрузка операций для Excel и таблиц"){
+            val context2=androidx.compose.ui.platform.LocalContext.current
+            val launcher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")){uri->
+                if(uri!=null)runCatching{context2.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use{it.write(exportCsv())}}
+            }
+            Button(onClick={launcher.launch("VIP-Finance-transactions.csv")}){Text("Сохранить CSV")}
+        }}
+        item{SmartCard("✨ VIP-рекомендации","Финальный автоматический контроль"){
+            val tips=buildList{
+                if(recurring.isNotEmpty())add("Проверьте ${recurring.size} регулярных платежей.")
+                if(duplicateGroups.isNotEmpty())add("Проверьте возможные дубли операций.")
+                if(net<0)add("Сократите расходы или увеличьте доход на ${money(-net,currency)} в месяц.")
+                if(balance>0&&monthExpenses>0&&balance/monthExpenses<3)add("Увеличьте резерв до трёх месяцев расходов.")
+                if(isEmpty())add("Система не видит критических проблем.")
+            }
+            tips.forEach{Text("• $it")}
         }}
     }
 }
