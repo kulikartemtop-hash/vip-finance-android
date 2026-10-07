@@ -12,8 +12,8 @@ android {
         applicationId "com.example.vipfinance"
         minSdk 24
         targetSdk 36
-        versionCode 440
-        versionName "4.4" // net worth and financial scenarios
+        versionCode 450
+        versionName "4.5" // voice entry, statement import and backup
     }
     buildTypes {
         release {
