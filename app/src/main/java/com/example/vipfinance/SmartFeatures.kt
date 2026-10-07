@@ -79,7 +79,7 @@ fun SmartCenter(
         }
     }
     val exportLauncher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->
-        if(uri!=null) runCatching{context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use{it.write(backupJson())};voiceMessage="Резервная копия сохранена."}.onFailure{voiceMessage="Ошибка сохранения."}
+        if(uri!=null) runCatching{context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use{it.write(backupJson())}}
     }
     LazyColumn(verticalArrangement=Arrangement.spacedBy(12.dp),contentPadding=PaddingValues(bottom=24.dp)){
         item { PremiumSuite(context, accounts, tx, debts, goals, budgets, currency, auto, rates) }
@@ -196,6 +196,46 @@ fun SmartCenter(
         }}
     }
 }
+@Composable
+fun VoiceInputCard(accounts: List<Account>, onVoiceTransaction: (Transaction) -> Unit) {
+    var voiceText by remember { mutableStateOf("") }
+    var voiceMessage by remember { mutableStateOf("") }
+    val voiceLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val candidates = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS).orEmpty()
+        val text = candidates.maxByOrNull { voiceCandidateScore(it) }.orEmpty().trim()
+        voiceText = text
+        val account = accounts.firstOrNull { !it.hidden }
+        if (account == null) {
+            voiceMessage = "Сначала создайте доступный счёт."
+        } else {
+            val parsed = parseVoiceExpense(text, account, System.currentTimeMillis())
+            if (parsed != null) {
+                onVoiceTransaction(parsed)
+                voiceMessage = "Добавлен расход: ${money(parsed.amount, parsed.currency)} • ${parsed.category}."
+            } else {
+                voiceMessage = "Не смог уверенно определить сумму. Скажите, например: «потратил две тысячи восемьсот рублей на продукты». "
+            }
+        }
+    }
+    SmartCard("🎙️ Голосовой ввод", "Теперь прямо на главном экране: «потратил 2800 на продукты» или «купил продукты за две тысячи восемьсот»") {
+        Button(onClick = {
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU")
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "ru-RU")
+                putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, "ru-RU")
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "Скажите сумму и категорию, например: потратил 2800 на продукты")
+            }
+            runCatching { voiceLauncher.launch(intent) }
+                .onFailure { voiceMessage = "Голосовой ввод недоступен на устройстве." }
+        }) { Text("🎤 Говорить") }
+        if (voiceText.isNotBlank()) Text("Распознано: $voiceText")
+        if (voiceMessage.isNotBlank()) Text(voiceMessage, color = MaterialTheme.colorScheme.primary)
+    }
+}
+
 @Composable private fun SmartCard(title:String,subtitle:String,content:@Composable ColumnScope.()->Unit){
     Card(shape=MaterialTheme.shapes.large){
         Column(Modifier.padding(17.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
