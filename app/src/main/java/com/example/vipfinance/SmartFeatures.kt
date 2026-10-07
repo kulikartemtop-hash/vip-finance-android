@@ -16,6 +16,7 @@ import java.util.Calendar
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.pow
 
 @Composable
 fun SmartCenter(
@@ -63,27 +64,36 @@ fun SmartCenter(
     val voiceLauncher=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){result->
         val text=result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
         voiceText=text
-        val amount=Regex("""(?i)(\d+(?:[.,]\d+)?)""").find(text)?.value?.replace(',','.')?.toDoubleOrNull()
+        val amountToken=Regex("""(?i)d{1,3}(?:[ .]d{3})+(?:[.,]d{1,2})?|d+(?:[.,]d+)?""").find(text)?.value
+        val amount=amountToken?.let{token->
+            val compact=token.replace(" ","")
+            val comma=compact.lastIndexOf(',')
+            val dot=compact.lastIndexOf('.')
+            when{
+                comma>=0&&dot>=0->{
+                    val last=maxOf(comma,dot)
+                    val fraction=compact.length-last-1
+                    if(fraction==3)compact.replace(",","").replace(".","").toDoubleOrNull()
+                    else compact.substring(0,last).replace(",","").replace(".","").toDoubleOrNull()?.let{whole->
+                        compact.substring(last+1).toDoubleOrNull()?.let{frac->whole+frac/10.0.pow(fraction.toDouble())}
+                    }
+                }
+                comma>=0->{
+                    val fraction=compact.length-comma-1
+                    if(fraction==3)compact.replace(",","").toDoubleOrNull() else compact.replace(',','.').toDoubleOrNull()
+                }
+                dot>=0->{
+                    val fraction=compact.length-dot-1
+                    if(fraction==3)compact.replace(".","").toDoubleOrNull() else compact.toDoubleOrNull()
+                }
+                else->compact.toDoubleOrNull()
+            }
+        }
         val account=accounts.firstOrNull{!it.hidden}
         if(amount!=null&&account!=null){
             onVoiceTransaction(Transaction(id=System.currentTimeMillis(),title=text,amount=amount,income=false,accountName=account.name,category="Другое",timestamp=System.currentTimeMillis(),currency=account.currency))
             voiceMessage="Расход на $amount ${account.currency} добавлен."
         }else voiceMessage="Не удалось определить сумму или доступный счёт."
-    }
-    val importLauncher=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){uri->
-        if(uri!=null) runCatching{
-            val raw=context.contentResolver.openInputStream(uri)?.bufferedReader()?.readText().orEmpty()
-            val result=raw.lines().mapNotNull{line->
-                val p=line.split(';',',','	').map{it.trim().trim('"')}
-                if(p.size<2)null else {
-                    val amount=p.mapNotNull{it.replace(" ","").replace(",",".").toDoubleOrNull()}.firstOrNull()
-                    val title=p.firstOrNull{it.toDoubleOrNull()==null&&!it.matches(Regex("""\d{1,2}[./]\d{1,2}[./]\d{2,4}"""))}
-                    if(amount!=null&&title!=null) Transaction(id=System.currentTimeMillis()+p.hashCode(),title=title,amount=amount,income=false,accountName=accounts.firstOrNull()?.name.orEmpty(),category="Импорт",timestamp=System.currentTimeMillis(),currency=currency) else null
-                }
-            }
-            onImportTransactions(result)
-            voiceMessage="Импортировано операций: ${result.size}"
-        }.onFailure{voiceMessage="Не удалось прочитать файл."}
     }
     val exportLauncher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->
         if(uri!=null) runCatching{context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use{it.write(backupJson())};voiceMessage="Резервная копия сохранена."}.onFailure{voiceMessage="Ошибка сохранения."}
@@ -191,10 +201,6 @@ fun SmartCenter(
             }){Text("🎤 Говорить")}
             if(voiceText.isNotBlank())Text("Распознано: $voiceText")
             if(voiceMessage.isNotBlank())Text(voiceMessage,color=MaterialTheme.colorScheme.primary)
-        }}
-        item{SmartCard("🏦 Импорт выписки","CSV / TXT с операциями"){
-            Button(onClick={importLauncher.launch("text/*")}){Text("Выбрать файл")}
-            Text("Приложение ищет сумму и описание в каждой строке и добавляет найденные операции.")
         }}
         item{SmartCard("💾 Экспорт и резервная копия","Полная локальная копия данных"){
             Button(onClick={exportLauncher.launch("VIP-Finance-backup.json")}){Text("Сохранить резервную копию")}
