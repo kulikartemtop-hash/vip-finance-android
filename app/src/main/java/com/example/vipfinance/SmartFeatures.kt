@@ -208,16 +208,16 @@ fun VoiceInputCard(accounts: List<Account>, onVoiceTransaction: (Transaction) ->
         if (account == null) {
             voiceMessage = "Сначала создайте доступный счёт."
         } else {
-            val parsed = parseVoiceExpense(text, account, System.currentTimeMillis())
+            val parsed = parseVoiceTransaction(text, account, System.currentTimeMillis())
             if (parsed != null) {
                 onVoiceTransaction(parsed)
-                voiceMessage = "Добавлен расход: ${money(parsed.amount, parsed.currency)} • ${parsed.category}."
+                voiceMessage = if (parsed.income) "Добавлен доход: ${money(parsed.amount, parsed.currency)} • ${parsed.category}." else "Добавлен расход: ${money(parsed.amount, parsed.currency)} • ${parsed.category}."
             } else {
-                voiceMessage = "Не смог уверенно определить сумму. Скажите, например: «потратил две тысячи восемьсот рублей на продукты». "
+                voiceMessage = "Не смог определить операцию. Скажите: «потратил 2800 на продукты» или «получил зарплату 50000»."
             }
         }
     }
-    SmartCard("🎙️ Голосовой ввод", "Теперь прямо на главном экране: «потратил 2800 на продукты» или «купил продукты за две тысячи восемьсот»") {
+    SmartCard("🎙️ Голосовой ввод", "Расход или доход: «потратил 2800 на продукты» или «получил зарплату 50000»") {
         Button(onClick = {
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -226,7 +226,7 @@ fun VoiceInputCard(accounts: List<Account>, onVoiceTransaction: (Transaction) ->
                 putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, "ru-RU")
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "Скажите сумму и категорию, например: потратил 2800 на продукты")
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "Скажите операцию: потратил 2800 на продукты или получил зарплату 50000")
             }
             runCatching { voiceLauncher.launch(intent) }
                 .onFailure { voiceMessage = "Голосовой ввод недоступен на устройстве." }
@@ -249,71 +249,64 @@ private fun voiceCandidateScore(text:String):Int{
     val t=text.lowercase(Locale.getDefault())
     var score=0
     if(Regex("""\d""").containsMatchIn(t)) score+=5
-    if(listOf("тысяч","руб","рублей","потрат","купил","оплат","расход").any{t.contains(it)}) score+=3
-    if(listOf("на ","за ","в ").any{t.contains(it)}) score+=1
+    if(listOf("тысяч","руб","рублей","потрат","купил","оплат","расход","заработ","получил","получила","зарплат","доход","поступил","поступление","начисли").any{t.contains(it)}) score+=3
+    if(listOf("на ","за ","в ","от ","с ").any{t.contains(it)}) score+=1
     if(t.length>4) score+=1
     return score
 }
 
-private fun parseVoiceExpense(text:String,account:Account,timestamp:Long):Transaction?{
+private fun parseVoiceTransaction(text:String,account:Account,timestamp:Long):Transaction?{
     if(text.isBlank()) return null
     val normalized=text.lowercase(Locale.getDefault()).replace('ё','е').replace(Regex("""\s+""")," ").trim()
     val amount=extractVoiceAmount(normalized) ?: return null
-    val category=extractVoiceCategory(normalized)
-    val title=normalized
-        .replace(Regex("""\b(я|сегодня|вчера)\b""")," ")
-        .replace(Regex("""\b(потратил|потратила|потратить|потрачено|купил|купила|оплатил|оплатила|заплатил|заплатила|расход)\b""")," ")
-        .replace(Regex("""\b(на|за|в)\s+(продукты|продукт|транспорт|такси|жилье|квартиру|зарплату|зарплата|развлечения|одежду|здоровье|связь|подписки)\b""")," ")
-        .replace(Regex("""\d[\d\s.,]*""")," ")
-        .replace(Regex("""\s+""")," ").trim().ifBlank { category ?: "Расход" }
-    return Transaction(
-        id=timestamp,title=title.replaceFirstChar{it.uppercase()},amount=amount,income=false,
-        accountName=account.name,category=category ?: "Другое",timestamp=timestamp,currency=account.currency
-    )
+    val incomeWords=listOf("получил","получила","получено","заработал","заработала","зарплата","зарплату","доход","поступил","поступила","поступление","начисли","начислили","аванс","премия","кэшбэк","кешбек","вернули","возврат","продал","продала","фриланс")
+    val expenseWords=listOf("потратил","потратила","потратить","потрачено","купил","купила","оплатил","оплатила","заплатил","заплатила","расход","покупка")
+    val isIncome=incomeWords.any{normalized.contains(it)} && !expenseWords.any{normalized.contains(it)}
+    val category=if(isIncome) extractVoiceIncomeCategory(normalized) else extractVoiceCategory(normalized)
+    val title=if(isIncome){
+        normalized.replace(Regex("""\b(я|сегодня|вчера|мне)\b""")," ")
+            .replace(Regex("""\b(получил|получила|получено|заработал|заработала|получить|заработать|поступил|поступила|поступление|начисли|начислили|получение|доход|зарплата|зарплату|аванс|премия|кэшбэк|кешбек|вернули|возврат|продал|продала|фриланс)\b""")," ")
+            .replace(Regex("""\d[\d\s.,]*""")," ")
+            .replace(Regex("""\s+""")," ").trim().ifBlank { category ?: "Доход" }
+    }else{
+        normalized.replace(Regex("""\b(я|сегодня|вчера)\b""")," ")
+            .replace(Regex("""\b(потратил|потратила|потратить|потрачено|купил|купила|оплатил|оплатила|заплатил|заплатила|расход|покупка)\b""")," ")
+            .replace(Regex("""\b(на|за|в)\s+(продукты|продукт|транспорт|такси|жилье|квартиру|зарплату|зарплата|развлечения|одежду|здоровье|связь|подписки)\b""")," ")
+            .replace(Regex("""\d[\d\s.,]*""")," ")
+            .replace(Regex("""\s+""")," ").trim().ifBlank { category ?: "Расход" }
+    }
+    return Transaction(id=timestamp,title=title.replaceFirstChar{it.uppercase()},amount=amount,income=isIncome,accountName=account.name,category=category ?: if(isIncome) "Доход" else "Другое",timestamp=timestamp,currency=account.currency,operationType=if(isIncome) "income" else "expense")
+}
+
+private fun parseVoiceExpense(text:String,account:Account,timestamp:Long):Transaction? =
+    parseVoiceTransaction(text,account,timestamp)?.takeIf{!it.income}
+
+private fun extractVoiceIncomeCategory(text:String):String?{
+    val map=linkedMapOf("зарплат" to "Зарплата","аванс" to "Зарплата","преми" to "Зарплата","фриланс" to "Другое","кэшбэк" to "Другое","кешбек" to "Другое","возврат" to "Другое","вернули" to "Другое","продал" to "Другое","продала" to "Другое")
+    return map.entries.firstOrNull{text.contains(it.key)}?.value
 }
 
 private fun extractVoiceCategory(text:String):String?{
-    val map=linkedMapOf(
-        "продукты" to "Продукты","продукт" to "Продукты","магазин" to "Продукты",
-        "транспорт" to "Транспорт","такси" to "Транспорт","бензин" to "Транспорт","топливо" to "Транспорт",
-        "жилье" to "Жильё","квартиру" to "Жильё","квартплата" to "Жильё",
-        "развлечения" to "Развлечения","кино" to "Развлечения","игры" to "Развлечения",
-        "одежда" to "Одежда","одежду" to "Одежда",
-        "здоровье" to "Здоровье","аптека" to "Здоровье","лекарства" to "Здоровье",
-        "связь" to "Связь","телефон" to "Связь","интернет" to "Связь",
-        "подписка" to "Подписки","подписки" to "Подписки"
-    )
+    val map=linkedMapOf("продукты" to "Продукты","продукт" to "Продукты","магазин" to "Продукты","транспорт" to "Транспорт","такси" to "Транспорт","бензин" to "Транспорт","топливо" to "Транспорт","жилье" to "Жильё","квартиру" to "Жильё","квартплата" to "Жильё","развлечения" to "Развлечения","кино" to "Развлечения","игры" to "Развлечения","одежда" to "Одежда","одежду" to "Одежда","здоровье" to "Здоровье","аптека" to "Здоровье","лекарства" to "Здоровье","связь" to "Связь","телефон" to "Связь","интернет" to "Связь","подписка" to "Подписки","подписки" to "Подписки")
     return map.entries.firstOrNull{text.contains(it.key)}?.value
 }
 
 private fun extractVoiceAmount(text:String):Double?{
-    val numeric=Regex("""(?<!\d)\d{1,3}(?:[ .]\d{3})+(?:[.,]\d{1,2})?(?!\d)|(?<!\d)\d+(?:[.,]\d+)?(?!\d)""")
-        .findAll(text).map{it.value}.toList()
-
+    val numeric=Regex("""(?<!\d)\d{1,3}(?:[ .]\d{3})+(?:[.,]\d{1,2})?(?!\d)|(?<!\d)\d+(?:[.,]\d+)?(?!\d)""").findAll(text).map{it.value}.toList()
     numeric.firstOrNull{token->
         val compact=token.replace(" ","")
         val separator=compact.lastIndexOfAny(charArrayOf('.',','))
         val fraction=if(separator>=0) compact.length-separator-1 else 0
         fraction==3 && separator>=0
-    }?.let{token->
-        val v=token.replace(" ","").replace(".","").replace(",","").toDoubleOrNull()
-        if(v!=null&&v>=1.0)return v
-    }
-
+    }?.let{token->token.replace(" ","").replace(".","").replace(",","").toDoubleOrNull()?.let{v->if(v>=1.0)return v}}
     numeric.firstOrNull()?.let{token->
         val compact=token.replace(" ","")
         val comma=compact.lastIndexOf(',')
         val dot=compact.lastIndexOf('.')
         return when{
-            comma>=0&&dot>=0->{
-                val last=maxOf(comma,dot); val frac=compact.length-last-1
-                if(frac==3)compact.replace(",","").replace(".","").toDoubleOrNull()
-                else compact.substring(0,last).replace(",","").replace(".","").toDoubleOrNull()?.let{whole->
-                    compact.substring(last+1).toDoubleOrNull()?.let{part->whole+part/10.0.pow(frac.toDouble())}
-                }
-            }
-            comma>=0->{ val frac=compact.length-comma-1; if(frac==3)compact.replace(",","").toDoubleOrNull() else compact.replace(',','.').toDoubleOrNull() }
-            dot>=0->{ val frac=compact.length-dot-1; if(frac==3)compact.replace(".","").toDoubleOrNull() else compact.toDoubleOrNull() }
+            comma>=0&&dot>=0->{val last=maxOf(comma,dot);val frac=compact.length-last-1;if(frac==3)compact.replace(",","").replace(".","").toDoubleOrNull() else compact.substring(0,last).replace(",","").replace(".","").toDoubleOrNull()?.let{whole->compact.substring(last+1).toDoubleOrNull()?.let{part->whole+part/10.0.pow(frac.toDouble())}}}
+            comma>=0->{val frac=compact.length-comma-1;if(frac==3)compact.replace(",","").toDoubleOrNull() else compact.replace(',','.').toDoubleOrNull()}
+            dot>=0->{val frac=compact.length-dot-1;if(frac==3)compact.replace(".","").toDoubleOrNull() else compact.toDoubleOrNull()}
             else->compact.toDoubleOrNull()
         }
     }
@@ -326,16 +319,14 @@ private fun parseRussianNumber(text:String):Double?{
     val tens=mapOf("двадцать" to 20,"тридцать" to 30,"сорок" to 40,"пятьдесят" to 50,"шестьдесят" to 60,"семьдесят" to 70,"восемьдесят" to 80,"девяносто" to 90)
     val hundreds=mapOf("сто" to 100,"двести" to 200,"триста" to 300,"четыреста" to 400,"пятьсот" to 500,"шестьсот" to 600,"семьсот" to 700,"восемьсот" to 800,"девятьсот" to 900)
     val words=text.split(Regex("""[^а-я0-9]+""")).filter{it.isNotBlank()}
-    var total=0; var current=0; var found=false
-    for(w in words){
-        when{
-            ones[w]!=null->{current+=ones[w]!!;found=true}
-            teens[w]!=null->{current+=teens[w]!!;found=true}
-            tens[w]!=null->{current+=tens[w]!!;found=true}
-            hundreds[w]!=null->{current+=hundreds[w]!!;found=true}
-            w=="тысяча"||w=="тысячи"||w=="тысяч"->{total+=if(current==0)1000 else current*1000;current=0;found=true}
-            w=="миллион"||w=="миллиона"||w=="миллионов"->{total+=if(current==0)1000000 else current*1000000;current=0;found=true}
-        }
+    var total=0;var current=0;var found=false
+    for(w in words) when{
+        ones[w]!=null->{current+=ones[w]!!;found=true}
+        teens[w]!=null->{current+=teens[w]!!;found=true}
+        tens[w]!=null->{current+=tens[w]!!;found=true}
+        hundreds[w]!=null->{current+=hundreds[w]!!;found=true}
+        w=="тысяча"||w=="тысячи"||w=="тысяч"->{total+=if(current==0)1000 else current*1000;current=0;found=true}
+        w=="миллион"||w=="миллиона"||w=="миллионов"->{total+=if(current==0)1000000 else current*1000000;current=0;found=true}
     }
     val result=total+current
     return if(found&&result>0)result.toDouble() else null
