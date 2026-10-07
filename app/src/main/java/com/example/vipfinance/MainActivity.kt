@@ -566,7 +566,7 @@ private fun Operations(
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)){Text(t.title,fontWeight=FontWeight.SemiBold);Text(if(transfer)"${t.accountName} → ${t.toAccountName}" else "${t.category} • ${t.accountName}",style=MaterialTheme.typography.bodySmall);if(t.tags.isNotBlank())Text("🏷 ${t.tags}",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary);if(t.note.isNotBlank())Text(t.note,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant);Text(SimpleDateFormat("dd.MM.yyyy HH:mm",Locale.getDefault()).format(Date(t.timestamp)),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant);if(t.repeat!="Не повторять")Text("↻ ${t.repeat}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.primary)}
                         Column(horizontalAlignment=Alignment.End){Text((if(transfer)"⇄"else if(t.income)"+"else"−")+" "+money(conv(t.amount,t.currency,c,auto,r),c),fontWeight=FontWeight.Bold,color=if(transfer)MaterialTheme.colorScheme.secondary else if(t.income)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error);Row{
-                            if(!transfer) TextButton(onClick={edit(t)}){Text("Изменить")}
+                            if(!transfer) TextButton(onClick={edit(t)}){Text("✎ Изменить",fontWeight=FontWeight.SemiBold)}
                             TextButton(onClick={repeat(t)}){Text("Повторить")}
                             TextButton(onClick={remove(t)}){Text("Удалить")}
                         }}
@@ -1875,7 +1875,8 @@ private fun TransactionDialog(
     val parsed = runCatching { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).parse(dateText)?.time }.getOrNull()
         ?: System.currentTimeMillis()
     val other = accounts.filter { it.name != acc }
-    val title = if (type == "transfer") "Новый перевод" else if (type == "income") "Новый доход" else "Новый расход"
+    val isEditing = source != null
+    val title = if (type == "transfer") (if (isEditing) "Изменить перевод" else "Новый перевод") else if (type == "income") (if (isEditing) "Изменить доход" else "Новый доход") else (if (isEditing) "Изменить расход" else "Новый расход")
     val amountPreview = v?.let { money(it, cc) } ?: "0,00 $cc"
 
     Dialog(
@@ -2067,7 +2068,7 @@ private fun TransactionDialog(
                             enabled = n.isNotBlank() && v != null && v > 0 && acc.isNotBlank() && (type != "transfer" || toAcc.isNotBlank()),
                             modifier = Modifier.weight(1.35f),
                             shape = RoundedCornerShape(16.dp)
-                        ) { Text("Сохранить", fontWeight = FontWeight.Bold) }
+                        ) { Text(if (isEditing) "Сохранить изменения" else "Сохранить", fontWeight = FontWeight.Bold) }
                     }
                 }
             }
