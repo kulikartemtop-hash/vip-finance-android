@@ -64,8 +64,8 @@ private fun iconText(icon:String)=when(icon){"account_balance"->"▥";"credit_ca
 private fun uiColor(hex:String)=runCatching{Color(android.graphics.Color.parseColor(hex))}.getOrDefault(Color(0xFF5B35F5))
 
 private fun sym(c:String)=when(c){"GBP"->"£";"USD"->"$";"EUR"->"€";"RUB"->"₽";"CNY"->"¥";"JPY"->"¥";"CHF"->"Fr";"CAD"->"C$";"AUD"->"A$";"PLN"->"zł";"BYN"->"Br";else->c}
-private fun money(v:Double,c:String)=sym(c)+"%.2f".format(Locale.getDefault(),v)
-private fun conv(v:Double,from:String,to:String,auto:Boolean,r:Map<String,Double>)=if(auto)ExchangeRates.convert(v,from,to,r) else v
+fun money(v:Double,c:String)=sym(c)+"%.2f".format(Locale.getDefault(),v)
+fun conv(v:Double,from:String,to:String,auto:Boolean,r:Map<String,Double>)=if(auto)ExchangeRates.convert(v,from,to,r) else v
 
 class MainActivity:ComponentActivity(){
  override fun onCreate(b:Bundle?){super.onCreate(b);enableEdgeToEdge();val s=FinanceStore(this);setContent{VIPFinanceTheme(s.loadTheme(),s.loadStyle()){FinanceApp(s)}}; AppUpdater.checkAndOffer(this)}
