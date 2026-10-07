@@ -71,7 +71,6 @@ fun PremiumSuite(context: Context, accounts: List<Account>, tx: List<Transaction
             if(goals.none{it.saved<it.target})Text("Добавьте цель для персонального сценария.")
         }
         PremiumCard("🧪 Сценарии «Что если?»","Сократите расходы и увидите эффект"){val a=monthExpenses*.10;val b=monthExpenses*.20;Text("−10%: +"+money(a,currency)+"/мес. • +"+money(a*12,currency)+"/год");Text("−20%: +"+money(b,currency)+"/мес. • +"+money(b*12,currency)+"/год");Text("Консервативный режим");Switch(conservative,{conservative=it;prefs.edit().putBoolean("conservative",it).apply()})}
-        }
     }
     if(BuildConfig.VERSION_NAME>="5.2"){
         PremiumCard("🧾 Умные чеки","Контроль распознанных покупок"){val c=tx.count{it.title.contains("чек",true)||it.category.contains("чек",true)};Text("Чековых операций: "+c);Text("OCR уже доступен в разделе «Чеки».")}
