@@ -59,25 +59,6 @@ fun SmartCenter(
         if(limit>0&&spent/limit>=.8)b.name to spent/limit*100 else null
     }
     val context=androidx.compose.ui.platform.LocalContext.current
-    var voiceText by remember{mutableStateOf("")}
-    var voiceMessage by remember{mutableStateOf("")}
-    val voiceLauncher=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){result->
-        val candidates=result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS).orEmpty()
-        val text=candidates.maxByOrNull { voiceCandidateScore(it) }.orEmpty().trim()
-        voiceText=text
-        val account=accounts.firstOrNull{!it.hidden}
-        if(account==null){
-            voiceMessage="Сначала создайте доступный счёт."
-        }else{
-            val parsed=parseVoiceExpense(text, account, System.currentTimeMillis())
-            if(parsed!=null){
-                onVoiceTransaction(parsed)
-                voiceMessage="Добавлен расход: \${money(parsed.amount,parsed.currency)} • \${parsed.category}."
-            }else{
-                voiceMessage="Не смог уверенно определить сумму. Скажите, например: «потратил две тысячи восемьсот рублей на продукты»."
-            }
-        }
-    }
     val exportLauncher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->
         if(uri!=null) runCatching{context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use{it.write(backupJson())}}
     }
