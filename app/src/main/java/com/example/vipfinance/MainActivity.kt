@@ -2361,7 +2361,7 @@ private fun GoalDialog(c:String, initial:Goal?, close:()->Unit, save:(Goal)->Uni
         OutlinedTextField(n,{n=it},label={Text("Название")},modifier=Modifier.fillMaxWidth(),singleLine=true)
         OutlinedTextField(t,{t=it},label={Text("Целевая сумма "+c)},modifier=Modifier.fillMaxWidth(),singleLine=true)
         Text("Срок цели",fontWeight=FontWeight.Bold)
-        LazyRow(horizontalArrangement=Arrangement.spacedBy(7.dp)){listOf("Без срока" to "", "1 неделя" to "+7", "1 месяц" to "+1m", "3 месяца" to "+3m", "6 месяцев" to "+6m", "1 год" to "+1y").forEach{(label,key)->FilterChip(d==goalDeadlineFromPreset(key),{d=goalDeadlineFromPreset(key)},label={Text(label)})}}
+        LazyRow(horizontalArrangement=Arrangement.spacedBy(7.dp)){items(listOf("Без срока" to "", "1 неделя" to "+7", "1 месяц" to "+1m", "3 месяца" to "+3m", "6 месяцев" to "+6m", "1 год" to "+1y")){(label,key)->FilterChip(d==goalDeadlineFromPreset(key),{d=goalDeadlineFromPreset(key)},label={Text(label)})}}
         OutlinedButton(onClick={showPicker=true},modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(16.dp)){Text(if(d.isBlank()) "Выбрать конкретную дату" else "Дата: $d")}
         if(d.isNotBlank())TextButton(onClick={d=""}){Text("Сбросить срок")}
         if(initial!=null) Text("Уже накоплено: "+money(initial.saved,initial.currency),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
