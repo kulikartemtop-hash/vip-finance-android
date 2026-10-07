@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +25,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +45,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 private val currencies=listOf("RUB","GBP","EUR","USD","CNY","JPY","CHF","CAD","AUD","PLN","BYN")
 private val currencyCountries=mapOf(
@@ -114,16 +118,9 @@ fun FinanceApp(s: FinanceStore) {
     var receiptUri by remember { mutableStateOf<Uri?>(null) }
     var receiptText by remember { mutableStateOf("") }
     var receiptDraft by remember { mutableStateOf<Transaction?>(null) }
-    var drawerOpen by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val drawerScope = rememberCoroutineScope()
     val activity = LocalContext.current as? Activity
-
-    LaunchedEffect(drawerState) {
-        snapshotFlow { drawerState.currentValue }.collect { value ->
-            drawerOpen = value == DrawerValue.Open
-        }
-    }
     LaunchedEffect(menu) { if (page !in menu && menu.isNotEmpty()) page = menu.first() }
     LaunchedEffect(Unit) {
         if (s.loadCategories().isEmpty()) s.saveCategories(categories)
@@ -279,13 +276,24 @@ fun FinanceApp(s: FinanceStore) {
             }
         ) {
             BoxWithConstraints(Modifier.fillMaxSize()) {
-                val uiScale = minOf(maxWidth.value / 390f, maxHeight.value / 780f).coerceIn(0.82f, 1.12f)
+                // Адаптивный масштаб: уменьшаем интерфейс на узких/низких экранах,
+                // но не увеличиваем его на больших, чтобы ничего не обрезалось.
+                val uiScale = minOf(
+                    maxWidth.value / 390f,
+                    maxHeight.value / 780f
+                ).coerceIn(0.78f, 1f)
                 Box(
-                    Modifier.fillMaxSize().graphicsLayer {
-                        scaleX = uiScale
-                        scaleY = uiScale
-                    }
+                    Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                scaleX = uiScale
+                                scaleY = uiScale
+                            }
+                    ) {
                     Scaffold(
                 topBar = {
                     TopAppBar(
@@ -301,22 +309,34 @@ fun FinanceApp(s: FinanceStore) {
                         ),
                         navigationIcon = {
                             Surface(
-                                modifier = Modifier.padding(start = 8.dp).size(48.dp),
-                                shape = RoundedCornerShape(15.dp),
+                                modifier = Modifier
+                                    .padding(start = 6.dp)
+                                    .size(52.dp),
+                                shape = RoundedCornerShape(17.dp),
                                 color = MaterialTheme.colorScheme.primaryContainer,
-                                tonalElevation = 5.dp,
-                                shadowElevation = 3.dp,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f))
+                                tonalElevation = 8.dp,
+                                shadowElevation = 7.dp,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.5.dp,
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.60f)
+                                )
                             ) {
-                                Box(
-                                    Modifier.fillMaxSize().clickable {
+                                IconButton(
+                                    onClick = {
                                         drawerScope.launch {
-                                            if (drawerState.isClosed) drawerState.open() else drawerState.close()
+                                            drawerState.apply {
+                                                if (isClosed) open() else close()
+                                            }
                                         }
                                     },
-                                    contentAlignment = Alignment.Center
+                                    modifier = Modifier.fillMaxSize()
                                 ) {
-                                    Text("☰", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                    Icon(
+                                        imageVector = Icons.Default.Menu,
+                                        contentDescription = "Меню",
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(30.dp)
+                                    )
                                 }
                             }
                         },
@@ -380,8 +400,6 @@ fun FinanceApp(s: FinanceStore) {
                     }
                 }
             }
-        }
-    }
         }
     }
 
@@ -612,7 +630,6 @@ private fun Operations(
                 }
             }
         }
-    }
     }
 }
 @Composable
