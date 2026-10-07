@@ -94,6 +94,28 @@ fun SmartCenter(
             Text("$score / 100",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.ExtraBold)
             Text(when{score>=80->"Отличное состояние";score>=60->"Нормальное состояние";else->"Есть зоны для улучшения"})
         }}
+        item{SmartCard("💎 Чистый капитал","Активы минус обязательства"){
+            val netWorth=balance-debtOutstanding
+            Text("Активы: ${money(balance,currency)}")
+            Text("Обязательства: ${money(debtOutstanding,"RUB")}")
+            Text("Чистый капитал: ${money(netWorth,currency)}",fontWeight=FontWeight.ExtraBold)
+        }}
+        item{SmartCard("📊 История капитала","Оценка динамики по денежному потоку"){
+            Text("Изменение за месяц: ${money(avgNet,currency)}")
+            Text(if(avgNet>=0)"Капитал растёт по текущему тренду." else "Капитал снижается — стоит пересмотреть расходы.")
+        }}
+        item{SmartCard("🧪 Сценарии «Что если?»","Влияние сокращения расходов"){
+            val save10=monthExpenses*.10
+            val save20=monthExpenses*.20
+            Text("−10% расходов: +${money(save10,currency)} в месяц")
+            Text("−20% расходов: +${money(save20,currency)} в месяц")
+            Text("За год при −20%: +${money(save20*12,currency)}")
+        }}
+        item{SmartCard("🛟 Финансовая подушка","Покрытие текущих расходов"){
+            val runway=if(monthExpenses>0)balance/monthExpenses else Double.POSITIVE_INFINITY
+            Text(if(runway.isFinite())"Запас: ${"%.1f".format(runway)} месяца" else "Расходы пока не определены")
+            Text(if(runway>=6)"Подушка сильная." else if(runway>=3)"Подушка приемлемая." else "Запас небольшой — резерв стоит увеличить.")
+        }}
     }
 }
 @Composable private fun SmartCard(title:String,subtitle:String,content:@Composable ColumnScope.()->Unit){
