@@ -89,6 +89,7 @@ fun SmartCenter(
         if(uri!=null) runCatching{context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use{it.write(backupJson())};voiceMessage="Резервная копия сохранена."}.onFailure{voiceMessage="Ошибка сохранения."}
     }
     LazyColumn(verticalArrangement=Arrangement.spacedBy(12.dp),contentPadding=PaddingValues(bottom=24.dp)){
+        item { PremiumSuite(context, accounts, tx, debts, goals, budgets, currency, auto, rates) }
         item{SmartCard("🤖 Финансовый помощник","Локальный анализ без отправки финансовых данных"){
             Text(when{
                 monthIncome<=0&&monthExpenses>0->"В этом месяце есть расходы без зафиксированного дохода."
