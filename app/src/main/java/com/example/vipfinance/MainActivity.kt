@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.google.mlkit.vision.common.InputImage
@@ -114,10 +115,15 @@ fun FinanceApp(s: FinanceStore) {
     var receiptText by remember { mutableStateOf("") }
     var receiptDraft by remember { mutableStateOf<Transaction?>(null) }
     var drawerOpen by remember { mutableStateOf(false) }
-    val drawerState = rememberDrawerState(if (drawerOpen) DrawerValue.Open else DrawerValue.Closed)
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val drawerScope = rememberCoroutineScope()
     val activity = LocalContext.current as? Activity
 
-    LaunchedEffect(drawerOpen) { if (drawerOpen) drawerState.open() else drawerState.close() }
+    LaunchedEffect(drawerState) {
+        snapshotFlow { drawerState.currentValue }.collect { value ->
+            drawerOpen = value == DrawerValue.Open
+        }
+    }
     LaunchedEffect(menu) { if (page !in menu && menu.isNotEmpty()) page = menu.first() }
     LaunchedEffect(Unit) {
         if (s.loadCategories().isEmpty()) s.saveCategories(categories)
@@ -241,10 +247,16 @@ fun FinanceApp(s: FinanceStore) {
                     HorizontalDivider()
                     Text("Разделы", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
                     menu.forEach { item ->
-                        NavigationDrawerItem(label = { Text(item) }, selected = page == item, onClick = { page = item; drawerOpen = false }, modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp))
+                        NavigationDrawerItem(label = { Text(item) }, selected = page == item, onClick = {
+                            page = item
+                            drawerScope.launch { drawerState.close() }
+                        }, modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp))
                     }
                     Spacer(Modifier.height(10.dp))
-                    NavigationDrawerItem(label = { Text("Настройки") }, selected = false, onClick = { dialog = "settings"; drawerOpen = false }, modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp))
+                    NavigationDrawerItem(label = { Text("Настройки") }, selected = false, onClick = {
+                        dialog = "settings"
+                        drawerScope.launch { drawerState.close() }
+                    }, modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp))
                     NavigationDrawerItem(
                         label = {
                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -258,7 +270,7 @@ fun FinanceApp(s: FinanceStore) {
                         },
                         selected = false,
                         onClick = {
-                            drawerOpen = false
+                            drawerScope.launch { drawerState.close() }
                             activity?.let { AppUpdater.checkNow(it) }
                         },
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
@@ -266,7 +278,15 @@ fun FinanceApp(s: FinanceStore) {
                 }
             }
         ) {
-            Scaffold(
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val uiScale = minOf(maxWidth.value / 390f, maxHeight.value / 780f).coerceIn(0.82f, 1.12f)
+                Box(
+                    Modifier.fillMaxSize().graphicsLayer {
+                        scaleX = uiScale
+                        scaleY = uiScale
+                    }
+                ) {
+                    Scaffold(
                 topBar = {
                     TopAppBar(
                         title = {
@@ -280,8 +300,24 @@ fun FinanceApp(s: FinanceStore) {
                             titleContentColor = MaterialTheme.colorScheme.onBackground
                         ),
                         navigationIcon = {
-                            IconButton(onClick = { drawerOpen = true }) {
-                                Text("☰", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                            Surface(
+                                modifier = Modifier.padding(start = 8.dp).size(48.dp),
+                                shape = RoundedCornerShape(15.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                tonalElevation = 5.dp,
+                                shadowElevation = 3.dp,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f))
+                            ) {
+                                Box(
+                                    Modifier.fillMaxSize().clickable {
+                                        drawerScope.launch {
+                                            if (drawerState.isClosed) drawerState.open() else drawerState.close()
+                                        }
+                                    },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("☰", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                }
                             }
                         },
                         actions = {
@@ -604,6 +640,7 @@ private fun Categories(
                         Text(c0.name, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
                         TextButton(onClick = { edit(c0) }) { Text("Изменить") }
                         TextButton(onClick = { remove(c0) }) { Text("Удалить") }
+                    }
                     }
                 }
             }
