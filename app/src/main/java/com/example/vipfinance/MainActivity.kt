@@ -333,7 +333,7 @@ fun FinanceApp(s: FinanceStore) {
                         "Долги" -> Debts(debts, { dialog = "debt" }, { d -> editingDebt = d; dialog = "debtProgress" }) { d -> debts = debts.filterNot { it.id == d.id }; s.saveDebts(debts) }
                         "Цели" -> Goals(goals, { dialog = "goal" }, { g -> editingGoal = g; dialog = "goalProgress" }) { g -> goals = goals.filterNot { it.id == g.id }; s.saveGoals(goals) }
                         "Напоминания" -> Reminders(reminders, { dialog = "reminder" }, { r -> reminders = reminders.map { if (it.id == r.id) it.copy(done = !it.done) else it }; s.saveReminders(reminders) }, { r -> reminders = reminders.filterNot { it.id == r.id }; s.saveReminders(reminders) })
-                        "Чеки" -> Receipt(receiptUri, receiptText, { u -> receiptUri = u; receiptText = "" }, { t -> receiptText = t }, accounts.firstOrNull(), categories) { draft -> receiptDraft = draft; dialog = "receiptExpense" }
+                        "Чеки" -> Receipt(receiptUri, receiptText, { u -> receiptUri = u; receiptText = "" }, { t -> receiptText = t }, accounts.firstOrNull(), categories, { draft -> receiptDraft = draft; dialog = "receiptExpense" }) { imported -> imported.forEach { add(it) } }
                         "VIP Центр" -> SmartCenter(accounts, tx, debts, goals, budgets, currency, auto, rates, { add(it) }, { imported -> imported.forEach { add(it) } }, { s.exportBackupJson() })
                     }
                 }
@@ -486,7 +486,9 @@ private fun Operations(
     categoryFilter: String, setCategoryFilter: (String) -> Unit, fromDate: String, setFromDate: (String) -> Unit,
     toDate: String, setToDate: (String) -> Unit, categories: List<String>, repeat: (Transaction) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    var filtersOpen by remember { mutableStateOf(false) }
+
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Card(shape = RoundedCornerShape(22.dp), elevation = CardDefaults.cardElevation(4.dp)) {
             Row(Modifier.fillMaxWidth().padding(15.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MetricCard("Доходы", money(ts.filter { it.income && it.operationType != "transfer" }.sumOf { conv(it.amount, it.currency, c, auto, r) }, c), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
@@ -496,8 +498,17 @@ private fun Operations(
         }
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Column { Text("Операции", style=MaterialTheme.typography.headlineMedium, fontWeight=FontWeight.Bold); Text("${ts.size} операций", style=MaterialTheme.typography.bodySmall) }
-            FilledTonalButton(onClick=add){Text("+ Добавить")}
+            Row(horizontalArrangement=Arrangement.spacedBy(7.dp)) {
+                FilterChip(filtersOpen, { filtersOpen = !filtersOpen }, label = { Text(if (filtersOpen) "Скрыть фильтры" else "Фильтры") })
+                FilledTonalButton(onClick=add){Text("+ Добавить")}
+            }
         }
+        if (filtersOpen) {
+            Card(Modifier.fillMaxWidth(), shape=RoundedCornerShape(20.dp), elevation=CardDefaults.cardElevation(2.dp)) {
+                Column(
+                    Modifier.fillMaxWidth().padding(12.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement=Arrangement.spacedBy(8.dp)
+                ) {
         OutlinedTextField(search,setSearch,label={Text("Поиск операций")},singleLine=true,modifier=Modifier.fillMaxWidth())
         OutlinedTextField(tagSearch,setTagSearch,label={Text("Поиск по тегу")},placeholder={Text("например: Авто")},singleLine=true,modifier=Modifier.fillMaxWidth())
         Text("Тип операции",fontWeight=FontWeight.SemiBold)
@@ -516,7 +527,18 @@ private fun Operations(
             FilterChip(fromDate==fmt.format(Calendar.getInstance().apply{set(Calendar.DAY_OF_MONTH,1)}.time),{val start=Calendar.getInstance().apply{set(Calendar.DAY_OF_MONTH,1)};setFromDate(fmt.format(start.time));setToDate(fmt.format(today.time))},label={Text("Месяц")})
             TextButton(onClick={setFromDate("");setToDate("");setTagSearch("");setTypeFilter("Все");setCategoryFilter("Все");setFilter(null)}){Text("Сбросить")}}
         Row(verticalAlignment=Alignment.CenterVertically){Text("Сначала новые",Modifier.weight(1f));Switch(newest,setNewest)}
-        LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+            Text("Последние операции", style=MaterialTheme.typography.titleMedium, fontWeight=FontWeight.Bold)
+            Text(if (newest) "Новые сверху" else "Старые сверху", style=MaterialTheme.typography.labelSmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        LazyColumn(
+            Modifier.fillMaxWidth().weight(1f),
+            verticalArrangement=Arrangement.spacedBy(8.dp),
+            contentPadding=PaddingValues(bottom=8.dp)
+        ){
             val ordered=if(newest)ts.sortedByDescending{it.timestamp}else ts.sortedBy{it.timestamp}
             itemsIndexed(ordered){index,t->
                 val day=SimpleDateFormat("dd MMMM yyyy",Locale.getDefault()).format(Date(t.timestamp))
@@ -1092,7 +1114,7 @@ private fun parseReceiptDraft(text: String, account: Account?, categories: List<
     return Transaction(title = title, amount = amount, income = false, accountName = account.name, category = category, timestamp = timestamp, currency = account.currency, operationType = "expense")
 }
 
-@Composable private fun Receipt(uri:Uri?,text:String,setUri:(Uri?)->Unit,setText:(String)->Unit,account:Account?,categories:List<Category>,prepare:(Transaction)->Unit){
+@Composable private fun Receipt(uri:Uri?,text:String,setUri:(Uri?)->Unit,setText:(String)->Unit,account:Account?,categories:List<Category>,prepare:(Transaction)->Unit,onImportTransactions:(List<Transaction>)->Unit){
     val context=LocalContext.current
     val launcher=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){u->
         if(u!=null){
@@ -1104,8 +1126,41 @@ private fun parseReceiptDraft(text: String, account: Account?, categories: List<
             }
         }
     }
-    Column(verticalArrangement=Arrangement.spacedBy(10.dp)){
-        Text("Чеки и OCR",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
+    val importLauncher=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){u->
+        if(u!=null) runCatching{
+            val raw=context.contentResolver.openInputStream(u)?.bufferedReader()?.readText().orEmpty()
+            val result=raw.lines().mapNotNull{line->
+                val p=line.split(';',',','	').map{it.trim().trim('"')}
+                if(p.size<2)null else {
+                    val amount=p.mapNotNull{normalizeReceiptAmount(it)}.firstOrNull{it>0.0}
+                    val title=p.firstOrNull{it.isNotBlank()&&it.toDoubleOrNull()==null&&!it.matches(Regex("""d{1,2}[./]d{1,2}[./]d{2,4}"""))}
+                    if(amount!=null&&title!=null&&account!=null) Transaction(
+                        id=System.currentTimeMillis()+p.hashCode(),
+                        title=title.take(80),
+                        amount=amount,
+                        income=false,
+                        accountName=account.name,
+                        category="Импорт",
+                        timestamp=System.currentTimeMillis(),
+                        currency=account.currency
+                    ) else null
+                }
+            }
+            onImportTransactions(result)
+        }
+    }
+    LazyColumn(Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(12.dp),contentPadding=PaddingValues(bottom=20.dp)){
+        item{
+            Text("Чеки",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
+            Text("Умные чеки, OCR и выписки из банка в одном разделе.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        item{
+            Card(shape=RoundedCornerShape(22.dp),elevation=CardDefaults.cardElevation(4.dp)){
+                Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+                    Text("🧾 Умные чеки",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
+                    Text("Распознавание покупки по фото с автоматическим определением суммы и категории.",style=MaterialTheme.typography.bodySmall)
+                    Button({launcher.launch("image/*")}){Text("Выбрать фото чека")}
+        }
         Text("Распознай чек и проверь операцию перед сохранением.",style=MaterialTheme.typography.bodySmall)
         Button({launcher.launch("image/*")}){Text("Выбрать фото чека")}
         if(uri!=null)Text("Фото выбрано: "+uri.lastPathSegment)
@@ -1126,6 +1181,19 @@ private fun parseReceiptDraft(text: String, account: Account?, categories: List<
                 Text("Сумма в чеке не найдена. Проверьте распознанный текст.",color=MaterialTheme.colorScheme.error)
             }
         } else Card(Modifier.fillMaxWidth()){Text("После выбора фото здесь появится распознанный текст.",Modifier.padding(12.dp))}
+                }
+            }
+        }
+        item{
+            Card(shape=RoundedCornerShape(22.dp),elevation=CardDefaults.cardElevation(4.dp)){
+                Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+                    Text("🏦 Выписки из банка",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
+                    Text("Импортируйте CSV или TXT из банковского приложения — найденные операции добавятся в историю.",style=MaterialTheme.typography.bodySmall)
+                    Button({importLauncher.launch("text/*")}){Text("Выбрать выписку")}
+                    Text("Поддерживается поиск суммы и описания в каждой строке.",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
     }
 }
 
