@@ -100,6 +100,7 @@ fun FinanceApp(s: FinanceStore) {
     var loading by remember { mutableStateOf(false) }
     var dialog by remember { mutableStateOf("") }
     var repeatSource by remember { mutableStateOf<Transaction?>(null) }
+    var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
     var filter by remember { mutableStateOf<String?>(null) }
     var newest by remember { mutableStateOf(true) }
     var search by remember { mutableStateOf("") }
@@ -171,6 +172,11 @@ fun FinanceApp(s: FinanceStore) {
             accounts = accounts.map { if (it.name == t.accountName) it.copy(balance = it.balance + delta) else it }
             s.saveAccounts(accounts)
         }
+    }
+
+    fun replaceTransaction(old: Transaction, updated: Transaction) {
+        remove(old)
+        add(updated.copy(id = old.id))
     }
 
     val visible = accounts.filter { !it.hidden }
@@ -323,7 +329,7 @@ fun FinanceApp(s: FinanceStore) {
                 ) {
                     when (page) {
                         "Главная" -> Home(total, currency, accounts, auto, rates, selected, inc, exp, goals, debts, reminders, ::add) { selected = it }
-                        "Операции" -> Operations(shown, accounts, filter, { filter = it }, { dialog = "expense" }, ::remove, currency, auto, rates, search, { search = it }, tagSearch, { tagSearch = it }, newest, { newest = it }, typeFilter, { typeFilter = it }, categoryFilter, { categoryFilter = it }, fromDate, { fromDate = it }, toDate, { toDate = it }, categories.map { it.name }, { original -> repeatSource = original; dialog = if (original.income) "income" else "expense" })
+                        "Операции" -> Operations(shown, accounts, filter, { filter = it }, { dialog = "expense" }, ::remove, { editingTransaction = it; dialog = "editTransaction" }, currency, auto, rates, search, { search = it }, tagSearch, { tagSearch = it }, newest, { newest = it }, typeFilter, { typeFilter = it }, categoryFilter, { categoryFilter = it }, fromDate, { fromDate = it }, toDate, { toDate = it }, categories.map { it.name }, { original -> repeatSource = original; dialog = if (original.income) "income" else "expense" })
                         "Счета" -> Accounts(accounts, currency, auto, rates, { dialog = "account" }, { selected = it }) { n -> val updated = accounts.map { if (it.name == n) it.copy(hidden = !it.hidden) else it }; accounts = updated; s.saveAccounts(updated) }
                         "Категории" -> Categories(categories, { editingCategory = null; dialog = "category" }, { editingCategory = it; dialog = "category" }, { c0 -> categories = categories.filterNot { it.id == c0.id }; s.saveCategories(categories) })
                         "Бюджеты" -> Budgets(budgets, tx, currency, auto, rates, accounts, { dialog = "budget" }) { b0 -> budgets = budgets.filterNot { it.id == b0.id }; s.saveBudgets(budgets) }
@@ -352,6 +358,13 @@ fun FinanceApp(s: FinanceStore) {
             }
             "expense" -> TransactionDialog(accounts, categories, false, repeatSource, { dialog = ""; repeatSource = null }) { add(it); dialog = ""; repeatSource = null }
             "income" -> TransactionDialog(accounts, categories, true, repeatSource, { dialog = ""; repeatSource = null }) { add(it); dialog = ""; repeatSource = null }
+            "editTransaction" -> editingTransaction?.let { original ->
+                TransactionDialog(accounts, categories, original.income, original, { dialog = ""; editingTransaction = null }) { updated ->
+                    replaceTransaction(original, updated)
+                    dialog = ""
+                    editingTransaction = null
+                }
+            }
             "debt" -> DebtDialog({ dialog = "" }) { debts = debts + it; s.saveDebts(debts); dialog = "" }
             "debtProgress" -> DebtProgressDialog(editingDebt, { dialog = ""; editingDebt = null }) { updated -> debts = debts.map { if (it.id == updated.id) updated else it }; s.saveDebts(debts); dialog = ""; editingDebt = null }
             "goal" -> GoalDialog(currency, { dialog = "" }) { goals = goals + it; s.saveGoals(goals); dialog = "" }
@@ -481,7 +494,7 @@ private fun MetricCard(title: String, value: String, accent: Color, modifier: Mo
 @Composable
 private fun Operations(
     ts: List<Transaction>, accounts: List<Account>, filter: String?, setFilter: (String?) -> Unit,
-    add: () -> Unit, remove: (Transaction) -> Unit, c: String, auto: Boolean, r: Map<String, Double>,
+    add: () -> Unit, remove: (Transaction) -> Unit, edit: (Transaction) -> Unit, c: String, auto: Boolean, r: Map<String, Double>,
     search: String, setSearch: (String) -> Unit, tagSearch: String, setTagSearch: (String) -> Unit,
     newest: Boolean, setNewest: (Boolean) -> Unit, typeFilter: String, setTypeFilter: (String) -> Unit,
     categoryFilter: String, setCategoryFilter: (String) -> Unit, fromDate: String, setFromDate: (String) -> Unit,
@@ -552,7 +565,11 @@ private fun Operations(
                         Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(if(transfer)MaterialTheme.colorScheme.secondaryContainer else if(t.income)MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer),contentAlignment=Alignment.Center){Text(if(transfer)"⇄"else if(t.income)"↗"else"↘",color=if(transfer)MaterialTheme.colorScheme.secondary else if(t.income)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,fontWeight=FontWeight.Bold)}
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)){Text(t.title,fontWeight=FontWeight.SemiBold);Text(if(transfer)"${t.accountName} → ${t.toAccountName}" else "${t.category} • ${t.accountName}",style=MaterialTheme.typography.bodySmall);if(t.tags.isNotBlank())Text("🏷 ${t.tags}",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary);if(t.note.isNotBlank())Text(t.note,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant);Text(SimpleDateFormat("dd.MM.yyyy HH:mm",Locale.getDefault()).format(Date(t.timestamp)),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant);if(t.repeat!="Не повторять")Text("↻ ${t.repeat}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.primary)}
-                        Column(horizontalAlignment=Alignment.End){Text((if(transfer)"⇄"else if(t.income)"+"else"−")+" "+money(conv(t.amount,t.currency,c,auto,r),c),fontWeight=FontWeight.Bold,color=if(transfer)MaterialTheme.colorScheme.secondary else if(t.income)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error);Row{TextButton(onClick={repeat(t)}){Text("Повторить")};TextButton(onClick={remove(t)}){Text("Удалить")}}}
+                        Column(horizontalAlignment=Alignment.End){Text((if(transfer)"⇄"else if(t.income)"+"else"−")+" "+money(conv(t.amount,t.currency,c,auto,r),c),fontWeight=FontWeight.Bold,color=if(transfer)MaterialTheme.colorScheme.secondary else if(t.income)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error);Row{
+                            if(!transfer) TextButton(onClick={edit(t)}){Text("Изменить")}
+                            TextButton(onClick={repeat(t)}){Text("Повторить")}
+                            TextButton(onClick={remove(t)}){Text("Удалить")}
+                        }}
                     }
                 }
             }
