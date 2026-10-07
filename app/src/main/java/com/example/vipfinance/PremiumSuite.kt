@@ -73,8 +73,7 @@ fun PremiumSuite(context: Context, accounts: List<Account>, tx: List<Transaction
         PremiumCard("🧪 Сценарии «Что если?»","Сократите расходы и увидите эффект"){val a=monthExpenses*.10;val b=monthExpenses*.20;Text("−10%: +"+money(a,currency)+"/мес. • +"+money(a*12,currency)+"/год");Text("−20%: +"+money(b,currency)+"/мес. • +"+money(b*12,currency)+"/год");Text("Консервативный режим");Switch(conservative,{conservative=it;prefs.edit().putBoolean("conservative",it).apply()})}
     }
     if(BuildConfig.VERSION_NAME>="5.2"){
-        PremiumCard("🧾 Умные чеки","Контроль распознанных покупок"){val c=tx.count{it.title.contains("чек",true)||it.category.contains("чек",true)};Text("Чековых операций: "+c);Text("OCR уже доступен в разделе «Чеки».")}
-        PremiumCard("🏦 Выписки","Контроль импорта"){val c=tx.count{it.category.equals("Импорт",true)};Text("Импортировано операций: "+c);Text(if(c>0)"Они участвуют в аналитике." else "Импортируйте CSV/TXT из банковского приложения.")}
+
     }
     if(BuildConfig.VERSION_NAME>="5.3"){
         PremiumCard("👨‍👩‍👧 Семейные финансы","Общий обзор на одном устройстве"){Text(if(family)"Семейный режим включён" else "Личный режим");Switch(family,{family=it;prefs.edit().putBoolean("family_mode",it).apply()});if(family){Text("Общий баланс: "+money(balance,currency),fontWeight=FontWeight.Bold);Text("Общий капитал: "+money(netWorth,currency))}}
