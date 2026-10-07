@@ -12,8 +12,8 @@ android {
         applicationId "com.example.vipfinance"
         minSdk 24
         targetSdk 36
-        versionCode 480
-        versionName "4.8" // New VIP Finance icon and 2.5s launch screen
+        versionCode 490
+        versionName "4.9" // New VIP Finance icon and 2.5s launch screen
     }
     buildTypes {
         release {
