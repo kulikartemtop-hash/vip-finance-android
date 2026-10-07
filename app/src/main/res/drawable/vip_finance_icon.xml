@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="28dp" />
+            <gradient android:angle="315" android:startColor="#063D18" android:centerColor="#16A83A" android:endColor="#39F26A" />
+        </shape>
+    </item>
+    <item android:left="13dp" android:top="13dp" android:right="13dp" android:bottom="13dp">
+        <shape android:shape="oval">
+            <solid android:color="@android:color/transparent" />
+            <stroke android:width="10dp" android:color="#E9FFE9" />
+        </shape>
+    </item>
+    <item android:left="31dp" android:top="28dp" android:right="31dp" android:bottom="28dp">
+        <vector android:width="50dp" android:height="52dp" android:viewportWidth="50" android:viewportHeight="52">
+            <path android:fillColor="#E9FFE9" android:pathData="M25,2 L29,2 L29,8 C38,9 44,14 45,21 L37,21 C36,17 33,14 29,14 L29,23 L33,24 C41,26 46,30 46,37 C46,44 40,49 29,50 L29,52 L25,52 L25,50 C15,49 8,45 7,37 L15,37 C16,41 20,43 25,44 L25,34 L21,33 C12,31 7,27 7,20 C7,13 13,9 25,8 Z M25,14 C19,14 15,16 15,20 C15,23 18,25 25,26 Z M29,32 L29,44 C35,44 38,42 38,38 C38,35 35,33 29,32 Z" />
+        </vector>
+    </item>
+</layer-list>
