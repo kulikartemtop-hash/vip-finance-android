@@ -334,7 +334,7 @@ fun FinanceApp(s: FinanceStore) {
                         "Цели" -> Goals(goals, { dialog = "goal" }, { g -> editingGoal = g; dialog = "goalProgress" }) { g -> goals = goals.filterNot { it.id == g.id }; s.saveGoals(goals) }
                         "Напоминания" -> Reminders(reminders, { dialog = "reminder" }, { r -> reminders = reminders.map { if (it.id == r.id) it.copy(done = !it.done) else it }; s.saveReminders(reminders) }, { r -> reminders = reminders.filterNot { it.id == r.id }; s.saveReminders(reminders) })
                         "Чеки" -> Receipt(receiptUri, receiptText, { u -> receiptUri = u; receiptText = "" }, { t -> receiptText = t }, accounts.firstOrNull(), categories) { draft -> receiptDraft = draft; dialog = "receiptExpense" }
-                        "VIP Центр" -> SmartCenter(accounts, tx, debts, goals, budgets, currency, auto, rates, { add(it) }, { imported -> imported.forEach { add(it) } }, { s.exportBackupJson() }, { exportCsvText() }, receiptText)
+                        "VIP Центр" -> SmartCenter(accounts, tx, debts, goals, budgets, currency, auto, rates, { add(it) }, { imported -> imported.forEach { add(it) } }, { s.exportBackupJson() })
                     }
                 }
             }
