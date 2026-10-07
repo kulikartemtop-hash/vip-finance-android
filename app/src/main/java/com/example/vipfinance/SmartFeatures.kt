@@ -62,38 +62,21 @@ fun SmartCenter(
     var voiceText by remember{mutableStateOf("")}
     var voiceMessage by remember{mutableStateOf("")}
     val voiceLauncher=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){result->
-        val text=result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
+        val candidates=result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS).orEmpty()
+        val text=candidates.maxByOrNull { voiceCandidateScore(it) }.orEmpty().trim()
         voiceText=text
-        val amountToken=Regex("""(?i)d{1,3}(?:[ .]d{3})+(?:[.,]d{1,2})?|d+(?:[.,]d+)?""").find(text)?.value
-        val amount=amountToken?.let{token->
-            val compact=token.replace(" ","")
-            val comma=compact.lastIndexOf(',')
-            val dot=compact.lastIndexOf('.')
-            when{
-                comma>=0&&dot>=0->{
-                    val last=maxOf(comma,dot)
-                    val fraction=compact.length-last-1
-                    if(fraction==3)compact.replace(",","").replace(".","").toDoubleOrNull()
-                    else compact.substring(0,last).replace(",","").replace(".","").toDoubleOrNull()?.let{whole->
-                        compact.substring(last+1).toDoubleOrNull()?.let{frac->whole+frac/10.0.pow(fraction.toDouble())}
-                    }
-                }
-                comma>=0->{
-                    val fraction=compact.length-comma-1
-                    if(fraction==3)compact.replace(",","").toDoubleOrNull() else compact.replace(',','.').toDoubleOrNull()
-                }
-                dot>=0->{
-                    val fraction=compact.length-dot-1
-                    if(fraction==3)compact.replace(".","").toDoubleOrNull() else compact.toDoubleOrNull()
-                }
-                else->compact.toDoubleOrNull()
+        val account=accounts.firstOrNull{!it.hidden}
+        if(account==null){
+            voiceMessage="Сначала создайте доступный счёт."
+        }else{
+            val parsed=parseVoiceExpense(text, account, System.currentTimeMillis())
+            if(parsed!=null){
+                onVoiceTransaction(parsed)
+                voiceMessage="Добавлен расход: \${money(parsed.amount,parsed.currency)} • \${parsed.category}."
+            }else{
+                voiceMessage="Не смог уверенно определить сумму. Скажите, например: «потратил две тысячи восемьсот рублей на продукты»."
             }
         }
-        val account=accounts.firstOrNull{!it.hidden}
-        if(amount!=null&&account!=null){
-            onVoiceTransaction(Transaction(id=System.currentTimeMillis(),title=text,amount=amount,income=false,accountName=account.name,category="Другое",timestamp=System.currentTimeMillis(),currency=account.currency))
-            voiceMessage="Расход на $amount ${account.currency} добавлен."
-        }else voiceMessage="Не удалось определить сумму или доступный счёт."
     }
     val exportLauncher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->
         if(uri!=null) runCatching{context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use{it.write(backupJson())};voiceMessage="Резервная копия сохранена."}.onFailure{voiceMessage="Ошибка сохранения."}
@@ -191,11 +174,16 @@ fun SmartCenter(
             Text(if(runway.isFinite())"Запас: ${"%.1f".format(runway)} месяца" else "Расходы пока не определены")
             Text(if(runway>=6)"Подушка сильная." else if(runway>=3)"Подушка приемлемая." else "Запас небольшой — резерв стоит увеличить.")
         }}
-        item{SmartCard("🎙️ Голосовой ввод","Скажите: «потратил 1250 на продукты»"){
+        item{SmartCard("🎙️ Голосовой ввод","Скажите: «потратил 2800 на продукты» или «купил продукты за две тысячи восемьсот»"){
             Button(onClick={
                 val intent=Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply{
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE,Locale.getDefault())
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE,"ru-RU")
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE,"ru-RU")
+                    putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE,"ru-RU")
+                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS,5)
+                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS,false)
+                    putExtra(RecognizerIntent.EXTRA_PROMPT,"Скажите сумму и категорию, например: потратил 2800 на продукты")
                 }
                 runCatching{voiceLauncher.launch(intent)}.onFailure{voiceMessage="Голосовой ввод недоступен на устройстве."}
             }){Text("🎤 Говорить")}
@@ -216,4 +204,99 @@ fun SmartCenter(
             Column(verticalArrangement=Arrangement.spacedBy(5.dp),content=content)
         }
     }
+}
+private fun voiceCandidateScore(text:String):Int{
+    val t=text.lowercase(Locale.getDefault())
+    var score=0
+    if(Regex("""\d""").containsMatchIn(t)) score+=5
+    if(listOf("тысяч","руб","рублей","потрат","купил","оплат","расход").any{t.contains(it)}) score+=3
+    if(listOf("на ","за ","в ").any{t.contains(it)}) score+=1
+    if(t.length>4) score+=1
+    return score
+}
+
+private fun parseVoiceExpense(text:String,account:Account,timestamp:Long):Transaction?{
+    if(text.isBlank()) return null
+    val normalized=text.lowercase(Locale.getDefault()).replace('ё','е').replace(Regex("""\s+""")," ").trim()
+    val amount=extractVoiceAmount(normalized) ?: return null
+    val category=extractVoiceCategory(normalized)
+    val title=normalized
+        .replace(Regex("""\b(я|сегодня|вчера)\b""")," ")
+        .replace(Regex("""\b(потратил|потратила|потратить|потрачено|купил|купила|оплатил|оплатила|заплатил|заплатила|расход)\b""")," ")
+        .replace(Regex("""\b(на|за|в)\s+(продукты|продукт|транспорт|такси|жилье|квартиру|зарплату|зарплата|развлечения|одежду|здоровье|связь|подписки)\b""")," ")
+        .replace(Regex("""\d[\d\s.,]*""")," ")
+        .replace(Regex("""\s+""")," ").trim().ifBlank { category ?: "Расход" }
+    return Transaction(
+        id=timestamp,title=title.replaceFirstChar{it.uppercase()},amount=amount,income=false,
+        accountName=account.name,category=category ?: "Другое",timestamp=timestamp,currency=account.currency
+    )
+}
+
+private fun extractVoiceCategory(text:String):String?{
+    val map=linkedMapOf(
+        "продукты" to "Продукты","продукт" to "Продукты","магазин" to "Продукты",
+        "транспорт" to "Транспорт","такси" to "Транспорт","бензин" to "Транспорт","топливо" to "Транспорт",
+        "жилье" to "Жильё","квартиру" to "Жильё","квартплата" to "Жильё",
+        "развлечения" to "Развлечения","кино" to "Развлечения","игры" to "Развлечения",
+        "одежда" to "Одежда","одежду" to "Одежда",
+        "здоровье" to "Здоровье","аптека" to "Здоровье","лекарства" to "Здоровье",
+        "связь" to "Связь","телефон" to "Связь","интернет" to "Связь",
+        "подписка" to "Подписки","подписки" to "Подписки"
+    )
+    return map.entries.firstOrNull{text.contains(it.key)}?.value
+}
+
+private fun extractVoiceAmount(text:String):Double?{
+    val numeric=Regex("""(?<!\d)\d{1,3}(?:[ .]\d{3})+(?:[.,]\d{1,2})?(?!\d)|(?<!\d)\d+(?:[.,]\d+)?(?!\d)""")
+        .findAll(text).map{it.value}.toList()
+
+    numeric.firstOrNull{token->
+        val compact=token.replace(" ","")
+        val separator=compact.lastIndexOfAny(charArrayOf('.',','))
+        val fraction=if(separator>=0) compact.length-separator-1 else 0
+        fraction==3 && separator>=0
+    }?.let{token->
+        val v=token.replace(" ","").replace(".","").replace(",","").toDoubleOrNull()
+        if(v!=null&&v>=1.0)return v
+    }
+
+    numeric.firstOrNull()?.let{token->
+        val compact=token.replace(" ","")
+        val comma=compact.lastIndexOf(',')
+        val dot=compact.lastIndexOf('.')
+        return when{
+            comma>=0&&dot>=0->{
+                val last=maxOf(comma,dot); val frac=compact.length-last-1
+                if(frac==3)compact.replace(",","").replace(".","").toDoubleOrNull()
+                else compact.substring(0,last).replace(",","").replace(".","").toDoubleOrNull()?.let{whole->
+                    compact.substring(last+1).toDoubleOrNull()?.let{part->whole+part/10.0.pow(frac.toDouble())}
+                }
+            }
+            comma>=0->{ val frac=compact.length-comma-1; if(frac==3)compact.replace(",","").toDoubleOrNull() else compact.replace(',','.').toDoubleOrNull() }
+            dot>=0->{ val frac=compact.length-dot-1; if(frac==3)compact.replace(".","").toDoubleOrNull() else compact.toDoubleOrNull() }
+            else->compact.toDoubleOrNull()
+        }
+    }
+    return parseRussianNumber(text)
+}
+
+private fun parseRussianNumber(text:String):Double?{
+    val ones=mapOf("ноль" to 0,"один" to 1,"одна" to 1,"два" to 2,"две" to 2,"три" to 3,"четыре" to 4,"пять" to 5,"шесть" to 6,"семь" to 7,"восемь" to 8,"девять" to 9)
+    val teens=mapOf("десять" to 10,"одиннадцать" to 11,"двенадцать" to 12,"тринадцать" to 13,"четырнадцать" to 14,"пятнадцать" to 15,"шестнадцать" to 16,"семнадцать" to 17,"восемнадцать" to 18,"девятнадцать" to 19)
+    val tens=mapOf("двадцать" to 20,"тридцать" to 30,"сорок" to 40,"пятьдесят" to 50,"шестьдесят" to 60,"семьдесят" to 70,"восемьдесят" to 80,"девяносто" to 90)
+    val hundreds=mapOf("сто" to 100,"двести" to 200,"триста" to 300,"четыреста" to 400,"пятьсот" to 500,"шестьсот" to 600,"семьсот" to 700,"восемьсот" to 800,"девятьсот" to 900)
+    val words=text.split(Regex("""[^а-я0-9]+""")).filter{it.isNotBlank()}
+    var total=0; var current=0; var found=false
+    for(w in words){
+        when{
+            ones[w]!=null->{current+=ones[w]!!;found=true}
+            teens[w]!=null->{current+=teens[w]!!;found=true}
+            tens[w]!=null->{current+=tens[w]!!;found=true}
+            hundreds[w]!=null->{current+=hundreds[w]!!;found=true}
+            w=="тысяча"||w=="тысячи"||w=="тысяч"->{total+=if(current==0)1000 else current*1000;current=0;found=true}
+            w=="миллион"||w=="миллиона"||w=="миллионов"->{total+=if(current==0)1000000 else current*1000000;current=0;found=true}
+        }
+    }
+    val result=total+current
+    return if(found&&result>0)result.toDouble() else null
 }
