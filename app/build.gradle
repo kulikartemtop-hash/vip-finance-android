@@ -12,8 +12,8 @@ android {
         applicationId "com.example.vipfinance"
         minSdk 24
         targetSdk 36
-        versionCode 450
-        versionName "4.5" // voice entry, statement import and backup
+        versionCode 460
+        versionName "4.6" // widget, SMS capture and family finance
     }
     buildTypes {
         release {
