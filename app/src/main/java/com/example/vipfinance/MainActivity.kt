@@ -382,6 +382,8 @@ fun FinanceApp(s: FinanceStore) {
             }
         }
     }
+        }
+    }
 
     VIPFinanceTheme(theme = theme, style = style) {
         when (dialog) {
