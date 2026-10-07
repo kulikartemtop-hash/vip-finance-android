@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.VIPFinance" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <style name="Theme.VIPFinance.Splash" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">#043012</item>
+        <item name="android:navigationBarColor">#043012</item>
+    </style>
 </resources>
