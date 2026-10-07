@@ -233,7 +233,16 @@ fun FinanceApp(s: FinanceStore) {
                     Spacer(Modifier.height(10.dp))
                     NavigationDrawerItem(label = { Text("Настройки") }, selected = false, onClick = { dialog = "settings"; drawerOpen = false }, modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp))
                     NavigationDrawerItem(
-                        label = { Text("↻ Обновить приложение") },
+                        label = {
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text("↻ Обновить приложение")
+                                Text(
+                                    "Установлена версия ${BuildConfig.VERSION_NAME}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        },
                         selected = false,
                         onClick = {
                             drawerOpen = false
