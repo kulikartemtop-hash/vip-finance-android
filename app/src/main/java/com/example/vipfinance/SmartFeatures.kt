@@ -83,7 +83,7 @@ fun SmartCenter(
             val result=raw.lines().mapNotNull{line->
                 val p=line.split(';',',','	').map{it.trim().trim('"')}
                 if(p.size<2)null else {
-                    val amount=p.firstNotNullOfOrNull{it.replace(" ","").replace(",",".").toDoubleOrNull()}
+                    val amount=p.mapNotNull{it.replace(" ","").replace(",",".").toDoubleOrNull()}.firstOrNull()
                     val title=p.firstOrNull{it.toDoubleOrNull()==null&&!it.matches(Regex("""\d{1,2}[./]\d{1,2}[./]\d{2,4}"""))}
                     if(amount!=null&&title!=null) Transaction(id=System.currentTimeMillis()+p.hashCode(),title=title,amount=amount,income=false,accountName=accounts.firstOrNull()?.name.orEmpty(),category="Импорт",timestamp=System.currentTimeMillis(),currency=currency) else null
                 }
