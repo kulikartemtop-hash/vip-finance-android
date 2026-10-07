@@ -14,7 +14,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object AppUpdater {
-    private const val API_URL = "https://api.github.com/repos/kulikartemtop-hash/vip-finance-android/releases/latest"
+    private const val API_URL = "https://api.github.com/repos/kulikartemtop-hash/vip-finance-android/releases?per_page=30"
     private const val APK_NAME = "VIP-Finance.apk"
     private const val CHECK_INTERVAL_MS = 6L * 60L * 60L * 1000L
 
@@ -48,9 +48,29 @@ object AppUpdater {
                     return@Thread
                 }
                 val json = connection.inputStream.bufferedReader().use { it.readText() }
-                val release = JSONObject(json)
+                val releases = org.json.JSONArray(json)
+                var release: JSONObject? = null
+                var remoteVersion = ""
+                for (i in 0 until releases.length()) {
+                    val candidate = releases.optJSONObject(i) ?: continue
+                    if (candidate.optBoolean("draft") || candidate.optBoolean("prerelease")) continue
+                    val candidateTag = candidate.optString("tag_name")
+                    val candidateVersion = candidateTag.removePrefix("v").trim()
+                    if (candidateVersion.isBlank()) continue
+                    if (release == null || isNewerVersion(candidateVersion, remoteVersion)) {
+                        release = candidate
+                        remoteVersion = candidateVersion
+                    }
+                }
+                if (release == null) {
+                    if (manual) {
+                        Handler(Looper.getMainLooper()).post {
+                            android.widget.Toast.makeText(activity, "Не удалось найти опубликованный релиз", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    return@Thread
+                }
                 val tag = release.optString("tag_name")
-                val remoteVersion = tag.removePrefix("v").trim()
                 if (!isNewerVersion(remoteVersion, BuildConfig.VERSION_NAME)) {
                     if (manual) {
                         Handler(Looper.getMainLooper()).post {
