@@ -49,7 +49,7 @@ private val currencyCountries=mapOf(
     "AUD" to "Австралия", "PLN" to "Польша", "BYN" to "Беларусь"
 )
 private fun currencyLabel(code:String)=code+" ("+(currencyCountries[code] ?: "—")+")"
-private val pages=listOf("Главная","Операции","Счета","Категории","Бюджеты","Аналитика","Календарь","Конвертер","Долги","Цели","Напоминания","Чеки")
+private val pages=listOf("Главная","Операции","Счета","Категории","Бюджеты","Аналитика","Календарь","Конвертер","Долги","Цели","Напоминания","Чеки","VIP Центр")
 private val defaultCategories=listOf(
     Category(name="Продукты",icon="shopping_cart",color="#43A047"), Category(name="Транспорт",icon="directions_car",color="#1E88E5"),
     Category(name="Жильё",icon="home",color="#8E24AA"), Category(name="Зарплата",icon="payments",color="#00897B"),
@@ -327,6 +327,7 @@ fun FinanceApp(s: FinanceStore) {
                         "Цели" -> Goals(goals, { dialog = "goal" }, { g -> editingGoal = g; dialog = "goalProgress" }) { g -> goals = goals.filterNot { it.id == g.id }; s.saveGoals(goals) }
                         "Напоминания" -> Reminders(reminders, { dialog = "reminder" }, { r -> reminders = reminders.map { if (it.id == r.id) it.copy(done = !it.done) else it }; s.saveReminders(reminders) }, { r -> reminders = reminders.filterNot { it.id == r.id }; s.saveReminders(reminders) })
                         "Чеки" -> Receipt(receiptUri, receiptText, { u -> receiptUri = u; receiptText = "" }, { t -> receiptText = t }, accounts.firstOrNull(), categories) { draft -> receiptDraft = draft; dialog = "receiptExpense" }
+                        "VIP Центр" -> SmartCenter(accounts, tx, debts, goals, budgets, currency, auto, rates)
                     }
                 }
             }
