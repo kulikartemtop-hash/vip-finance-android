@@ -304,3 +304,16 @@ The three visual directions were implemented in the repository based on document
 - Added quick actions for expense, income and reminder from a selected day.
 - Added recurring operations overview and 30-day financial movement forecast.
 - Added financial warning state based on current spending/income pace.
+
+
+## 4.7 — VIP Intelligence milestone (completed 2026-10-07)
+
+Status: **GREEN / released**
+
+- 4.3: VIP Intelligence center — local financial assistant, forecasts, recurring/subscription detection, smart alerts, goal ETA, health score.
+- 4.4: Net worth, capital trend, what-if scenarios, emergency-fund/runway analysis and savings recommendations.
+- 4.5: Voice expense entry, CSV/TXT statement import, local JSON backup export.
+- 4.6: Home-screen balance widget, optional bank-SMS capture module, debt optimizer, investment-account overview, local family mode.
+- 4.7: Final stabilization of the VIP Center and release packaging; current release tag is v4.7.
+
+Current verified release asset: **VIP-Finance.apk**.
