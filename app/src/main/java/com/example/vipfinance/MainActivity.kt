@@ -420,7 +420,12 @@ fun FinanceApp(s: FinanceStore) {
             }
             "debt" -> DebtDialog({ dialog = "" }) { debts = debts + it; s.saveDebts(debts); dialog = "" }
             "debtProgress" -> DebtProgressDialog(editingDebt, { dialog = ""; editingDebt = null }) { updated -> debts = debts.map { if (it.id == updated.id) updated else it }; s.saveDebts(debts); dialog = ""; editingDebt = null }
-            "goal" -> GoalDialog(currency, { dialog = "" }) { goals = goals + it; s.saveGoals(goals); dialog = "" }
+            "goal" -> GoalDialog(currency, editingGoalDetails, { dialog = ""; editingGoalDetails = null }) { value ->
+                goals = if (editingGoalDetails == null) goals + value else goals.map { if (it.id == value.id) value else it }
+                s.saveGoals(goals)
+                dialog = ""
+                editingGoalDetails = null
+            }
             "goalProgress" -> GoalProgressDialog(editingGoal, { dialog = ""; editingGoal = null }) { updated -> goals = goals.map { if (it.id == updated.id) updated else it }; s.saveGoals(goals); dialog = ""; editingGoal = null }
             "reminder" -> ReminderDialog({ dialog = "" }) { reminders = reminders + it; s.saveReminders(reminders); dialog = "" }
             "budget" -> BudgetDialog(accounts, categories, currency, { dialog = "" }) { budgets = budgets + it; s.saveBudgets(budgets); dialog = "" }
