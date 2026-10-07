@@ -92,6 +92,7 @@ fun FinanceApp(s: FinanceStore) {
     var editingGoal by remember { mutableStateOf<Goal?>(null) }
     var editingGoalDetails by remember { mutableStateOf<Goal?>(null) }
     var editingDebt by remember { mutableStateOf<Debt?>(null) }
+    var editingBudget by remember { mutableStateOf<Budget?>(null) }
     var page by remember { mutableStateOf("Главная") }
     var currency by remember { mutableStateOf(s.loadCurrency()) }
     var auto by remember { mutableStateOf(s.loadAutoConversion()) }
@@ -382,7 +383,7 @@ fun FinanceApp(s: FinanceStore) {
                         "Операции" -> Operations(shown, accounts, filter, { filter = it }, { dialog = "expense" }, ::remove, { editingTransaction = it; dialog = "editTransaction" }, currency, auto, rates, search, { search = it }, tagSearch, { tagSearch = it }, newest, { newest = it }, typeFilter, { typeFilter = it }, categoryFilter, { categoryFilter = it }, fromDate, { fromDate = it }, toDate, { toDate = it }, categories.map { it.name }, { original -> repeatSource = original; dialog = if (original.income) "income" else "expense" })
                         "Счета" -> Accounts(accounts, currency, auto, rates, { dialog = "account" }, { selected = it }) { n -> val updated = accounts.map { if (it.name == n) it.copy(hidden = !it.hidden) else it }; accounts = updated; s.saveAccounts(updated) }
                         "Категории" -> Categories(categories, { editingCategory = null; dialog = "category" }, { editingCategory = it; dialog = "category" }, { c0 -> categories = categories.filterNot { it.id == c0.id }; s.saveCategories(categories) })
-                        "Бюджеты" -> Budgets(budgets, tx, currency, auto, rates, accounts, { dialog = "budget" }) { b0 -> budgets = budgets.filterNot { it.id == b0.id }; s.saveBudgets(budgets) }
+                        "Бюджеты" -> Budgets(budgets, tx, currency, auto, rates, accounts, categories, { editingBudget = null; dialog = "budget" }, { editingBudget = it; dialog = "budget" }) { b0 -> budgets = budgets.filterNot { it.id == b0.id }; s.saveBudgets(budgets) }
                         "Аналитика" -> Analytics(tx, currency, auto, rates)
                         "Календарь" -> SmartCalendar(tx, reminders, goals, currency, auto, rates, { dialog = "expense" }, { dialog = "income" }, { dialog = "reminder" })
                         "Конвертер" -> Converter(currency, rates, loading, rateTime)
@@ -435,7 +436,7 @@ fun FinanceApp(s: FinanceStore) {
                 editingGoal = null
             }
             "reminder" -> ReminderDialog({ dialog = "" }) { reminders = reminders + it; s.saveReminders(reminders); dialog = "" }
-            "budget" -> BudgetDialog(accounts, categories, currency, { dialog = "" }) { budgets = budgets + it; s.saveBudgets(budgets); dialog = "" }
+            "budget" -> BudgetDialog(accounts, categories, currency, editingBudget, { dialog = ""; editingBudget = null }) { value -> budgets = if (editingBudget == null) budgets + value else budgets.map { if (it.id == value.id) value else it }; s.saveBudgets(budgets); dialog = ""; editingBudget = null }
             "receiptExpense" -> TransactionDialog(accounts, categories, false, receiptDraft, { dialog = ""; receiptDraft = null }) { add(it); dialog = ""; receiptDraft = null }
             "settings" -> SettingsDialog(currency, auto, theme, style, menu, rateTime, s.loadPin(), { c: String, a: Boolean, t: String, st: String, m: Set<String> -> saveSettings(c, a, t, st, m) }, { s.savePin(it) }, { s.exportBackupJson() }, { json -> s.importBackupJson(json) }) { dialog = "" }
         }
@@ -987,79 +988,251 @@ private fun SmartCalendar(
         }
     }
 }
-@Composable
-private fun Budgets(budgets: List<Budget>, transactions: List<Transaction>, c: String, auto: Boolean, rates: Map<String, Double>, accounts: List<Account>, add: () -> Unit, remove: (Budget) -> Unit) {
-    val cal = Calendar.getInstance()
-    val month = (cal.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, 1); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
-    val week = (cal.clone() as Calendar).apply { add(Calendar.DAY_OF_MONTH, -6); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
-    val current = budgets.map { budget ->
-        val start = if (budget.period == "Неделя") week else month
-        val spent = transactions.filter { !it.income && it.operationType != "transfer" && it.timestamp >= start && (budget.category.isBlank() || it.category == budget.category) && (budget.accountName.isBlank() || it.accountName == budget.accountName) }.sumOf { conv(it.amount, it.currency, budget.currency, auto, rates) }
-        budget to spent
+private data class BudgetPeriodBounds(val start: Long, val end: Long)
+
+private fun budgetPeriodBounds(period: String, now: Long = System.currentTimeMillis()): BudgetPeriodBounds {
+    val start = Calendar.getInstance().apply { timeInMillis = now }
+    start.set(Calendar.HOUR_OF_DAY, 0); start.set(Calendar.MINUTE, 0); start.set(Calendar.SECOND, 0); start.set(Calendar.MILLISECOND, 0)
+    when (period) {
+        "Неделя" -> start.add(Calendar.DAY_OF_MONTH, -6)
+        "3 месяца" -> { start.set(Calendar.DAY_OF_MONTH, 1); start.add(Calendar.MONTH, -2) }
+        "6 месяцев" -> { start.set(Calendar.DAY_OF_MONTH, 1); start.add(Calendar.MONTH, -5) }
+        "Год" -> { start.set(Calendar.DAY_OF_YEAR, 1) }
+        else -> start.set(Calendar.DAY_OF_MONTH, 1)
     }
-    val totalLimit = current.sumOf { it.first.limit }
-    val totalSpent = current.sumOf { it.second }
-    val totalRemaining = (totalLimit - totalSpent).coerceAtLeast(0.0)
-    val totalPercent = if (totalLimit > 0) totalSpent / totalLimit * 100 else 0.0
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-            Column { Text("Бюджеты", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold); Text("Контроль лимитов и расходов", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            FilledTonalButton(onClick = add) { Text("+ Бюджет") }
+    val end = Calendar.getInstance().apply { timeInMillis = start.timeInMillis }
+    when (period) {
+        "Неделя" -> end.add(Calendar.DAY_OF_MONTH, 7)
+        "3 месяца" -> end.add(Calendar.MONTH, 3)
+        "6 месяцев" -> end.add(Calendar.MONTH, 6)
+        "Год" -> end.add(Calendar.YEAR, 1)
+        else -> end.add(Calendar.MONTH, 1)
+    }
+    return BudgetPeriodBounds(start.timeInMillis, end.timeInMillis)
+}
+
+private fun budgetSpent(budget: Budget, transactions: List<Transaction>, auto: Boolean, rates: Map<String, Double>, now: Long = System.currentTimeMillis()): Double {
+    val bounds = budgetPeriodBounds(budget.period, now)
+    return transactions.asSequence()
+        .filter { !it.income && it.operationType != "transfer" }
+        .filter { it.timestamp >= bounds.start && it.timestamp < bounds.end }
+        .filter { budget.category.isBlank() || it.category == budget.category }
+        .filter { budget.accountName.isBlank() || it.accountName == budget.accountName }
+        .sumOf { conv(it.amount, it.currency, budget.currency, auto, rates) }
+}
+
+private fun budgetHistoricalAverage(budget: Budget, transactions: List<Transaction>, auto: Boolean, rates: Map<String, Double>, now: Long = System.currentTimeMillis()): Double {
+    val current = budgetPeriodBounds(budget.period, now)
+    val historyStart = Calendar.getInstance().apply { timeInMillis = current.start }
+    val periods = when (budget.period) { "Неделя" -> 12; "Месяц" -> 3; "3 месяца" -> 3; "6 месяцев" -> 2; "Год" -> 3; else -> 3 }
+    when (budget.period) {
+        "Неделя" -> historyStart.add(Calendar.DAY_OF_MONTH, -7 * periods)
+        "Месяц" -> historyStart.add(Calendar.MONTH, -periods)
+        "3 месяца" -> historyStart.add(Calendar.MONTH, -3 * periods)
+        "6 месяцев" -> historyStart.add(Calendar.MONTH, -6 * periods)
+        "Год" -> historyStart.add(Calendar.YEAR, -periods)
+        else -> historyStart.add(Calendar.MONTH, -periods)
+    }
+    val total = transactions.asSequence()
+        .filter { !it.income && it.operationType != "transfer" }
+        .filter { it.timestamp >= historyStart.timeInMillis && it.timestamp < current.start }
+        .filter { budget.category.isBlank() || it.category == budget.category }
+        .filter { budget.accountName.isBlank() || it.accountName == budget.accountName }
+        .sumOf { conv(it.amount, it.currency, budget.currency, auto, rates) }
+    return total / periods
+}
+
+@Composable
+private fun BudgetAiCard(budgets: List<Budget>, transactions: List<Transaction>, c: String, auto: Boolean, rates: Map<String, Double>, edit: (Budget) -> Unit) {
+    val now = System.currentTimeMillis()
+    val insights = budgets.mapNotNull { budget ->
+        val bounds = budgetPeriodBounds(budget.period, now)
+        val spent = budgetSpent(budget, transactions, auto, rates, now)
+        val avg = budgetHistoricalAverage(budget, transactions, auto, rates, now)
+        val elapsed = ((now - bounds.start).toDouble() / (bounds.end - bounds.start).toDouble()).coerceIn(0.05, 1.0)
+        val forecast = spent / elapsed
+        val limit = budget.limit
+        val forecastRatio = if (limit > 0) forecast / limit else 0.0
+        val text = when {
+            spent <= 0.0 && avg <= 0.0 -> "Пока нет расходов для точного прогноза. После первых операций AI сможет оценить лимит."
+            forecastRatio >= 1.0 -> "При текущем темпе лимит будет превышен примерно на " + money(forecast - limit, budget.currency) + "."
+            forecastRatio >= 0.85 -> "Темп высокий: прогноз " + money(forecast, budget.currency) + " при лимите " + money(limit, budget.currency) + "."
+            avg > limit * 1.15 -> "Исторический расход выше лимита. Стоит увеличить лимит или найти категорию для сокращения."
+            avg < limit * 0.55 && spent < limit * 0.55 -> "Лимит заметно выше обычных расходов. Можно снизить его примерно до " + money(avg * 1.10, budget.currency) + "."
+            else -> "Лимит выглядит сбалансированным. Продолжайте контролировать темп расходов."
         }
-        if (budgets.isNotEmpty()) {
-            Card(shape = RoundedCornerShape(24.dp), elevation = CardDefaults.cardElevation(4.dp)) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Text("Сводка", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        MetricCard("Лимит", money(totalLimit, c), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
-                        MetricCard("Потрачено", money(totalSpent, c), MaterialTheme.colorScheme.error, Modifier.weight(1f))
-                    }
-                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) { Text("Осталось", fontWeight = FontWeight.SemiBold); Text(money(totalRemaining, c), fontWeight = FontWeight.Bold, color = if (totalRemaining > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
-                    LinearProgressIndicator(progress = { (totalPercent / 100.0).toFloat().coerceIn(0f, 1f) }, Modifier.fillMaxWidth().height(8.dp))
-                    Text(totalPercent.toInt().toString() + "% использовано", style = MaterialTheme.typography.labelMedium)
+        val severity = when {
+            forecastRatio >= 1.0 -> 3
+            forecastRatio >= 0.85 -> 2
+            avg > limit * 1.15 -> 2
+            avg < limit * 0.55 && spent < limit * 0.55 -> 1
+            else -> 0
+        }
+        Triple(budget, text, severity)
+    }.sortedByDescending { it.third }
+    val over = insights.count { it.third >= 3 }
+    val warning = insights.count { it.third == 2 }
+    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), elevation = CardDefaults.cardElevation(5.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f))) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("🤖 AI-помощник бюджета", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+                    Text("Локальный анализ расходов без отправки финансовых данных в облако.", style = MaterialTheme.typography.bodySmall)
+                }
+                Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)) {
+                    Text(insights.size.toString() + " бюджетов", Modifier.padding(horizontal = 10.dp, vertical = 7.dp), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                 }
             }
-        }
-        if (budgets.isEmpty()) {
-            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
-                Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Бюджетов пока нет", fontWeight = FontWeight.SemiBold)
-                    Text("Создайте первый лимит, чтобы видеть остаток и предупреждения.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (budgets.isEmpty()) {
+                Text("Создайте бюджет — AI начнёт сравнивать фактические расходы, историю и прогноз.")
+            } else {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MetricCard("В риске", over.toString(), MaterialTheme.colorScheme.error, Modifier.weight(1f))
+                    MetricCard("Внимание", warning.toString(), MaterialTheme.colorScheme.tertiary, Modifier.weight(1f))
                 }
-            }
-        }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(current, key = { it.first.id }) { pair ->
-                val x = pair.first
-                val spent = pair.second
-                val ratio = if (x.limit > 0) spent / x.limit else 0.0
-                val progress = ratio.coerceIn(0.0, 1.0).toFloat()
-                val remaining = (x.limit - spent).coerceAtLeast(0.0)
-                val status = when { spent >= x.limit -> "Лимит превышен"; spent >= x.limit * .9 -> "Осталось меньше 10%"; spent >= x.limit * .75 -> "Использовано больше 75%"; else -> "В норме" }
-                val statusColor = if (spent >= x.limit) MaterialTheme.colorScheme.error else if (spent >= x.limit * .75) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary
-                ElevatedCard(Modifier.fillMaxWidth(), elevation = CardDefaults.elevatedCardElevation(5.dp)) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) { Text(x.name, fontWeight = FontWeight.Bold); Text(listOf(x.period, x.category.ifBlank { "Все категории" }, x.accountName.ifBlank { "Все счета" }).joinToString(" • "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                            TextButton(onClick = { remove(x) }) { Text("Удалить") }
+                insights.take(4).forEach { item ->
+                    val budget = item.first; val message = item.second; val severity = item.third
+                    Surface(shape = RoundedCornerShape(17.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text(budget.name, fontWeight = FontWeight.Bold)
+                            Text((if (severity >= 3) "🔴 " else if (severity == 2) "🟠 " else if (severity == 1) "🔵 " else "🟢 ") + message, style = MaterialTheme.typography.bodySmall)
+                            TextButton(onClick = { edit(budget) }) { Text("Изменить бюджет") }
                         }
-                        LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth().height(8.dp), color = statusColor)
-                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                            Column { Text("Потрачено", style = MaterialTheme.typography.labelSmall); Text(money(spent, x.currency), fontWeight = FontWeight.Bold) }
-                            Column(horizontalAlignment = Alignment.End) { Text("Осталось", style = MaterialTheme.typography.labelSmall); Text(money(remaining, x.currency), fontWeight = FontWeight.Bold) }
-                        }
-                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) { Text((ratio * 100).toInt().toString() + "% использовано", style = MaterialTheme.typography.labelMedium, color = statusColor); Text("из " + money(x.limit, x.currency), style = MaterialTheme.typography.labelMedium) }
-                        Text(status, color = statusColor, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
         }
     }
 }
+
 @Composable
-private fun BudgetDialog(accounts:List<Account>,categories:List<Category>,c:String,close:()->Unit,save:(Budget)->Unit){
- var n by remember{mutableStateOf("")};var lim by remember{mutableStateOf("")};var cat by remember{mutableStateOf("")};var acc by remember{mutableStateOf("")};var per by remember{mutableStateOf("Месяц")}
- AlertDialog(onDismissRequest=close,title={Text("Новый бюджет")},text={Column(Modifier.heightIn(max=560.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)){OutlinedTextField(n,{n=it},label={Text("Название")},modifier=Modifier.fillMaxWidth(),singleLine=true);OutlinedTextField(lim,{lim=it},label={Text("Лимит $c")},modifier=Modifier.fillMaxWidth(),singleLine=true);Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){FilterChip(per=="Месяц",{per="Месяц"},label={Text("Месяц")});FilterChip(per=="Неделя",{per="Неделя"},label={Text("Неделя")})};Text("Категория",fontWeight=FontWeight.Bold);LazyRow(horizontalArrangement=Arrangement.spacedBy(5.dp)){items(categories){z->FilterChip(cat==z.name,{cat=z.name},label={Text(iconText(z.icon)+" "+z.name)})}};Text("Счёт",fontWeight=FontWeight.Bold);LazyRow(horizontalArrangement=Arrangement.spacedBy(5.dp)){items(accounts){z->FilterChip(acc==z.name,{acc=z.name},label={Text(iconText(z.icon)+" "+z.name)})}}}},confirmButton={Button(onClick={save(Budget(name=n.trim(),category=cat,accountName=acc,limit=lim.replace(',','.').toDoubleOrNull()?:0.0,currency=c,period=per))},enabled=n.isNotBlank()&&(lim.replace(',','.').toDoubleOrNull()?:0.0)>0){Text("Создать")}},dismissButton={TextButton(close){Text("Отмена")}})
+private fun Budgets(budgets: List<Budget>, transactions: List<Transaction>, c: String, auto: Boolean, rates: Map<String, Double>, accounts: List<Account>, categories: List<Category>, add: () -> Unit, edit: (Budget) -> Unit, remove: (Budget) -> Unit) {
+    val now = System.currentTimeMillis()
+    val current = budgets.map { it to budgetSpent(it, transactions, auto, rates, now) }
+    val totalLimit = current.sumOf { conv(it.first.limit, it.first.currency, c, auto, rates) }
+    val totalSpent = current.sumOf { conv(it.second, it.first.currency, c, auto, rates) }
+    val totalRemaining = totalLimit - totalSpent
+    val totalPercent = if (totalLimit > 0) (totalSpent / totalLimit * 100).coerceAtLeast(0.0) else 0.0
+    val active = current.count { it.first.limit > 0 && it.second < it.first.limit }
+    val exceeded = current.count { it.first.limit > 0 && it.second >= it.first.limit }
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Бюджеты", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text("Лимиты, прогнозы и умный контроль расходов", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            FilledTonalButton(onClick = add) { Text("+ Бюджет") }
+        }
+        if (budgets.isNotEmpty()) {
+            Card(shape = RoundedCornerShape(24.dp), elevation = CardDefaults.cardElevation(4.dp)) {
+                Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Text("Обзор бюджета", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        MetricCard("Лимит", money(totalLimit, c), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+                        MetricCard("Потрачено", money(totalSpent, c), MaterialTheme.colorScheme.error, Modifier.weight(1f))
+                        MetricCard("Активны", active.toString(), MaterialTheme.colorScheme.tertiary, Modifier.weight(1f))
+                    }
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                        Text("Остаток", fontWeight = FontWeight.SemiBold)
+                        Text(money(totalRemaining, c), fontWeight = FontWeight.Bold, color = if (totalRemaining >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                    }
+                    LinearProgressIndicator(progress = { (totalPercent / 100.0).toFloat().coerceIn(0f, 1f) }, Modifier.fillMaxWidth().height(8.dp))
+                    Text(totalPercent.toInt().toString() + "% лимитов использовано • превышено: " + exceeded, style = MaterialTheme.typography.labelMedium, color = if (exceeded > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        BudgetAiCard(budgets, transactions, c, auto, rates, edit)
+        if (budgets.isEmpty()) {
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
+                Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Бюджетов пока нет", fontWeight = FontWeight.SemiBold)
+                    Text("Создайте первый лимит — затем его можно будет в любой момент изменить.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    FilledTonalButton(onClick = add) { Text("Создать бюджет") }
+                }
+            }
+        }
+        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
+            items(current, key = { it.first.id }) { pair ->
+                val x = pair.first; val spent = pair.second
+                val ratio = if (x.limit > 0) spent / x.limit else 0.0
+                val progress = ratio.coerceIn(0.0, 1.0).toFloat()
+                val remaining = x.limit - spent
+                val status = when { spent >= x.limit -> "Лимит превышен"; spent >= x.limit * .9 -> "Осталось меньше 10%"; spent >= x.limit * .75 -> "Использовано больше 75%"; else -> "В норме" }
+                val statusColor = when { spent >= x.limit -> MaterialTheme.colorScheme.error; spent >= x.limit * .75 -> MaterialTheme.colorScheme.tertiary; else -> MaterialTheme.colorScheme.primary }
+                ElevatedCard(Modifier.fillMaxWidth(), elevation = CardDefaults.elevatedCardElevation(5.dp)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Row(verticalAlignment = Alignment.Top) {
+                            Column(Modifier.weight(1f)) {
+                                Text(x.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                Text(listOf(x.period, x.category.ifBlank { "Все категории" }, x.accountName.ifBlank { "Все счета" }).joinToString(" • "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("Лимит: " + money(x.limit, x.currency), style = MaterialTheme.typography.labelMedium)
+                            }
+                            Row {
+                                TextButton(onClick = { edit(x) }) { Text("Изменить") }
+                                TextButton(onClick = { remove(x) }) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
+                            }
+                        }
+                        LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth().height(8.dp), color = statusColor)
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                            Column { Text("Потрачено", style = MaterialTheme.typography.labelSmall); Text(money(spent, x.currency), fontWeight = FontWeight.Bold) }
+                            Column(horizontalAlignment = Alignment.End) { Text("Осталось", style = MaterialTheme.typography.labelSmall); Text(money(remaining, x.currency), fontWeight = FontWeight.Bold, color = if (remaining >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
+                        }
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                            Text((ratio * 100).toInt().toString() + "% использовано", style = MaterialTheme.typography.labelMedium, color = statusColor)
+                            Text(status, style = MaterialTheme.typography.labelMedium, color = statusColor, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BudgetDialog(accounts: List<Account>, categories: List<Category>, c: String, editing: Budget?, close: () -> Unit, save: (Budget) -> Unit) {
+    var n by remember(editing?.id) { mutableStateOf(editing?.name ?: "") }
+    var lim by remember(editing?.id) { mutableStateOf(editing?.limit?.toString() ?: "") }
+    var cat by remember(editing?.id) { mutableStateOf(editing?.category ?: "") }
+    var acc by remember(editing?.id) { mutableStateOf(editing?.accountName ?: "") }
+    var per by remember(editing?.id) { mutableStateOf(editing?.period ?: "Месяц") }
+    var budgetCurrency by remember(editing?.id) { mutableStateOf(editing?.currency ?: c) }
+    val parsedLimit = lim.replace(" ", "").replace(",", ".").toDoubleOrNull() ?: 0.0
+    val title = if (editing == null) "Новый бюджет" else "Редактирование бюджета"
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Column(verticalArrangement = Arrangement.spacedBy(3.dp)) { Text(title); if (editing != null) Text("Изменения сохраняются в существующий бюджет.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) } },
+        text = {
+            Column(Modifier.heightIn(max = 620.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(n, { n = it }, label = { Text("Название") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(lim, { lim = it }, label = { Text("Лимит " + budgetCurrency) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Text("Валюта бюджета", fontWeight = FontWeight.Bold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) { items(currencies) { code -> FilterChip(budgetCurrency == code, { budgetCurrency = code }, label = { Text(code) }) } }
+                Text("Период", fontWeight = FontWeight.Bold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) { items(listOf("Неделя", "Месяц", "3 месяца", "6 месяцев", "Год")) { value -> FilterChip(per == value, { per = value }, label = { Text(value) }) } }
+                Text("Категория", fontWeight = FontWeight.Bold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    item { FilterChip(cat.isBlank(), { cat = "" }, label = { Text("Все") }) }
+                    items(categories) { z -> FilterChip(cat == z.name, { cat = z.name }, label = { Text(iconText(z.icon) + " " + z.name) }) }
+                }
+                Text("Счёт / карта", fontWeight = FontWeight.Bold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    item { FilterChip(acc.isBlank(), { acc = "" }, label = { Text("Все") }) }
+                    items(accounts) { z -> FilterChip(acc == z.name, { acc = z.name }, label = { Text(iconText(z.icon) + " " + z.name) }) }
+                }
+                if (parsedLimit > 0 && n.isNotBlank()) {
+                    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Предпросмотр", fontWeight = FontWeight.Bold)
+                            Text(n + " • " + per + " • " + cat.ifBlank { "все категории" } + " • " + acc.ifBlank { "все счета" })
+                            Text("Лимит: " + money(parsedLimit, budgetCurrency))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { Button(onClick = { save(Budget(id = editing?.id ?: System.currentTimeMillis(), name = n.trim(), category = cat, accountName = acc, limit = parsedLimit, currency = budgetCurrency, period = per)) }, enabled = n.isNotBlank() && parsedLimit > 0) { Text(if (editing == null) "Создать" else "Сохранить изменения") } },
+        dismissButton = { TextButton(close) { Text("Отмена") } }
+    )
 }
 @Composable private fun Debts(items: List<Debt>, add: () -> Unit, progress: (Debt) -> Unit, remove: (Debt) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
