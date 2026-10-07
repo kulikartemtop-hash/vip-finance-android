@@ -12,8 +12,8 @@ android {
         applicationId "com.example.vipfinance"
         minSdk 24
         targetSdk 36
-        versionCode 600
-        versionName "6.0" // New VIP Finance icon and 2.5s launch screen
+        versionCode 601
+        versionName "6.0.1" // Smart voice routing and advanced goals
     }
     buildTypes {
         release {
