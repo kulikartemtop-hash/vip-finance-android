@@ -23,7 +23,6 @@ fun SmartCenter(
     budgets: List<Budget>, currency: String, auto: Boolean, rates: Map<String,Double>,
     onVoiceTransaction: (Transaction) -> Unit,
     onImportTransactions: (List<Transaction>) -> Unit,
-    backupJson: () -> String,
     backupJson: () -> String
 ) {
     val visible=accounts.filter{!it.hidden}
