@@ -21,7 +21,7 @@ import kotlin.math.pow
 @Composable
 fun SmartCenter(
     accounts: List<Account>, tx: List<Transaction>, debts: List<Debt>, goals: List<Goal>,
-    budgets: List<Budget>, currency: String, auto: Boolean, rates: Map<String,Double>,
+    budgets: List<Budget>, categories: List<Category>, currency: String, auto: Boolean, rates: Map<String,Double>,
     onVoiceTransaction: (Transaction) -> Unit,
     onImportTransactions: (List<Transaction>) -> Unit,
     backupJson: () -> String
@@ -174,22 +174,7 @@ fun SmartCenter(
             Text(if(runway.isFinite())"Запас: ${"%.1f".format(runway)} месяца" else "Расходы пока не определены")
             Text(if(runway>=6)"Подушка сильная." else if(runway>=3)"Подушка приемлемая." else "Запас небольшой — резерв стоит увеличить.")
         }}
-        item{SmartCard("🎙️ Голосовой ввод","Скажите: «потратил 2800 на продукты» или «купил продукты за две тысячи восемьсот»"){
-            Button(onClick={
-                val intent=Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply{
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE,"ru-RU")
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE,"ru-RU")
-                    putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE,"ru-RU")
-                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS,5)
-                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS,false)
-                    putExtra(RecognizerIntent.EXTRA_PROMPT,"Скажите сумму и категорию, например: потратил 2800 на продукты")
-                }
-                runCatching{voiceLauncher.launch(intent)}.onFailure{voiceMessage="Голосовой ввод недоступен на устройстве."}
-            }){Text("🎤 Говорить")}
-            if(voiceText.isNotBlank())Text("Распознано: $voiceText")
-            if(voiceMessage.isNotBlank())Text(voiceMessage,color=MaterialTheme.colorScheme.primary)
-        }}
+        item{VoiceInputCard(accounts,categories,onVoiceTransaction)}
         item{SmartCard("💾 Экспорт и резервная копия","Полная локальная копия данных"){
             Button(onClick={exportLauncher.launch("VIP-Finance-backup.json")}){Text("Сохранить резервную копию")}
             Text("Файл можно хранить отдельно и восстановить через настройки.")
@@ -197,46 +182,48 @@ fun SmartCenter(
     }
 }
 @Composable
-fun VoiceInputCard(accounts: List<Account>, onVoiceTransaction: (Transaction) -> Unit) {
+fun VoiceInputCard(accounts: List<Account>, categories: List<Category>, onVoiceTransaction: (Transaction) -> Unit) {
     var voiceText by remember { mutableStateOf("") }
     var voiceMessage by remember { mutableStateOf("") }
     val voiceLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val candidates = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS).orEmpty()
         val text = candidates.maxByOrNull { voiceCandidateScore(it) }.orEmpty().trim()
         voiceText = text
-        val account = accounts.firstOrNull { !it.hidden }
-        if (account == null) {
-            voiceMessage = "Сначала создайте доступный счёт."
-        } else {
-            val parsed = parseVoiceTransaction(text, account, System.currentTimeMillis())
-            if (parsed != null) {
-                onVoiceTransaction(parsed)
-                voiceMessage = if (parsed.income) "Добавлен доход: ${money(parsed.amount, parsed.currency)} • ${parsed.category}." else "Добавлен расход: ${money(parsed.amount, parsed.currency)} • ${parsed.category}."
+        val parsed = parseVoiceTransaction(text, accounts, categories, System.currentTimeMillis())
+        if (parsed != null) {
+            onVoiceTransaction(parsed)
+            voiceMessage = if (parsed.income) {
+                "Добавлен доход: " + money(parsed.amount, parsed.currency) + " • " + parsed.category + " • " + parsed.accountName
             } else {
-                voiceMessage = "Не смог определить операцию. Скажите: «потратил 2800 на продукты» или «получил зарплату 50000»."
+                "Добавлен расход: " + money(parsed.amount, parsed.currency) + " • " + parsed.category + " • " + parsed.accountName
             }
+        } else {
+            voiceMessage = "Не смог определить операцию. Пример: «потратил 2800 на бензин с карты Тинькофф» или «получил зарплату 50000 на счёт Сбер»."
         }
     }
-    SmartCard("🎙️ Голосовой ввод", "Расход или доход: «потратил 2800 на продукты» или «получил зарплату 50000»") {
+    SmartCard(
+        "🎙️ Голосовой ввод",
+        "Расход или доход • счёт/карта • категория: «потратил 2800 на бензин с карты Тинькофф»"
+    ) {
         Button(onClick = {
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU")
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "ru-RU")
-                putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, "ru-RU")
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 8)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "Скажите операцию: потратил 2800 на продукты или получил зарплату 50000")
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "Скажите: потратил 2800 на бензин с карты Тинькофф")
             }
             runCatching { voiceLauncher.launch(intent) }
                 .onFailure { voiceMessage = "Голосовой ввод недоступен на устройстве." }
         }) { Text("🎤 Говорить") }
-        if (voiceText.isNotBlank()) Text("Распознано: $voiceText")
+        if (voiceText.isNotBlank()) Text("Распознано: " + voiceText)
         if (voiceMessage.isNotBlank()) Text(voiceMessage, color = MaterialTheme.colorScheme.primary)
     }
 }
 
-@Composable private fun SmartCard(title:String,subtitle:String,content:@Composable ColumnScope.()->Unit){
+@Composable
+private fun SmartCard(title:String,subtitle:String,content:@Composable ColumnScope.()->Unit){
     Card(shape=MaterialTheme.shapes.large){
         Column(Modifier.padding(17.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
             Text(title,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
@@ -245,50 +232,81 @@ fun VoiceInputCard(accounts: List<Account>, onVoiceTransaction: (Transaction) ->
         }
     }
 }
+
 private fun voiceCandidateScore(text:String):Int{
     val t=text.lowercase(Locale.getDefault())
     var score=0
     if(Regex("""\d""").containsMatchIn(t)) score+=5
-    if(listOf("тысяч","руб","рублей","потрат","купил","оплат","расход","заработ","получил","получила","зарплат","доход","поступил","поступление","начисли").any{t.contains(it)}) score+=3
-    if(listOf("на ","за ","в ","от ","с ").any{t.contains(it)}) score+=1
+    if(listOf("тысяч","руб","рублей","потрат","купил","оплат","расход","заработ","получил","получила","зарплат","доход","поступил","поступление","начисли","карта","счет","счёт").any{t.contains(it)}) score+=4
+    if(listOf("на ","за ","в ","от ","с ","со ").any{t.contains(it)}) score+=1
     if(t.length>4) score+=1
     return score
 }
 
-private fun parseVoiceTransaction(text:String,account:Account,timestamp:Long):Transaction?{
+private fun parseVoiceTransaction(text:String, accounts:List<Account>, categories:List<Category>, timestamp:Long):Transaction?{
     if(text.isBlank()) return null
     val normalized=text.lowercase(Locale.getDefault()).replace('ё','е').replace(Regex("""\s+""")," ").trim()
     val amount=extractVoiceAmount(normalized) ?: return null
     val incomeWords=listOf("получил","получила","получено","заработал","заработала","зарплата","зарплату","доход","поступил","поступила","поступление","начисли","начислили","аванс","премия","кэшбэк","кешбек","вернули","возврат","продал","продала","фриланс")
     val expenseWords=listOf("потратил","потратила","потратить","потрачено","купил","купила","оплатил","оплатила","заплатил","заплатила","расход","покупка")
     val isIncome=incomeWords.any{normalized.contains(it)} && !expenseWords.any{normalized.contains(it)}
-    val category=if(isIncome) extractVoiceIncomeCategory(normalized) else extractVoiceCategory(normalized)
-    val title=if(isIncome){
-        normalized.replace(Regex("""\b(я|сегодня|вчера|мне)\b""")," ")
-            .replace(Regex("""\b(получил|получила|получено|заработал|заработала|получить|заработать|поступил|поступила|поступление|начисли|начислили|получение|доход|зарплата|зарплату|аванс|премия|кэшбэк|кешбек|вернули|возврат|продал|продала|фриланс)\b""")," ")
-            .replace(Regex("""\d[\d\s.,]*""")," ")
-            .replace(Regex("""\s+""")," ").trim().ifBlank { category ?: "Доход" }
-    }else{
-        normalized.replace(Regex("""\b(я|сегодня|вчера)\b""")," ")
-            .replace(Regex("""\b(потратил|потратила|потратить|потрачено|купил|купила|оплатил|оплатила|заплатил|заплатила|расход|покупка)\b""")," ")
-            .replace(Regex("""\b(на|за|в)\s+(продукты|продукт|транспорт|такси|жилье|квартиру|зарплату|зарплата|развлечения|одежду|здоровье|связь|подписки)\b""")," ")
-            .replace(Regex("""\d[\d\s.,]*""")," ")
-            .replace(Regex("""\s+""")," ").trim().ifBlank { category ?: "Расход" }
+    val account=resolveVoiceAccount(normalized,accounts) ?: return null
+    val category=resolveVoiceCategory(normalized,categories,isIncome)
+    val titleWords=normalized
+        .replace(Regex("""\b(я|сегодня|вчера|мне)\b""")," ")
+        .replace(Regex("""\b(получил|получила|получено|заработал|заработала|получить|заработать|поступил|поступила|поступление|начисли|начислили|получение|доход|зарплата|зарплату|аванс|премия|кэшбэк|кешбек|вернули|возврат|продал|продала|фриланс|потратил|потратила|потратить|потрачено|купил|купила|оплатил|оплатила|заплатил|заплатила|расход|покупка)\b""")," ")
+        .replace(Regex("""\d[\d\s.,]*""")," ")
+        .replace(Regex("""\b(на|за|в|от|с|со)\b""")," ")
+        .replace(Regex("""\s+""")," ").trim()
+    val title=titleWords.ifBlank{category ?: if(isIncome)"Доход" else "Расход"}
+    return Transaction(
+        id=timestamp,
+        title=title.replaceFirstChar{it.uppercase()},
+        amount=amount,
+        income=isIncome,
+        accountName=account.name,
+        category=category ?: if(isIncome)"Доход" else "Другое",
+        timestamp=timestamp,
+        currency=account.currency,
+        operationType=if(isIncome)"income" else "expense"
+    )
+}
+
+private fun resolveVoiceAccount(text:String, accounts:List<Account>):Account?{
+    val visible=accounts.filter{!it.hidden}
+    if(visible.isEmpty()) return null
+    val normalized=text.replace('ё','е')
+    val direct=visible.sortedByDescending{it.name.length}.firstOrNull{a->normalized.contains(a.name.lowercase(Locale.getDefault()).replace('ё','е'))}
+    if(direct!=null)return direct
+    val requestedCard=listOf("карта","с карты","на карту","карту").any{text.contains(it)}
+    val requestedAccount=listOf("счет","счёт","со счета","со счёта","с счета","на счет","на счёт").any{text.contains(it)}
+    return when{
+        requestedCard -> visible.firstOrNull{it.type.contains("карт",true)} ?: visible.firstOrNull()
+        requestedAccount -> visible.firstOrNull{it.type.contains("сч",true)} ?: visible.firstOrNull()
+        else -> visible.firstOrNull()
     }
-    return Transaction(id=timestamp,title=title.replaceFirstChar{it.uppercase()},amount=amount,income=isIncome,accountName=account.name,category=category ?: if(isIncome) "Доход" else "Другое",timestamp=timestamp,currency=account.currency,operationType=if(isIncome) "income" else "expense")
 }
 
-private fun parseVoiceExpense(text:String,account:Account,timestamp:Long):Transaction? =
-    parseVoiceTransaction(text,account,timestamp)?.takeIf{!it.income}
-
-private fun extractVoiceIncomeCategory(text:String):String?{
-    val map=linkedMapOf("зарплат" to "Зарплата","аванс" to "Зарплата","преми" to "Зарплата","фриланс" to "Другое","кэшбэк" to "Другое","кешбек" to "Другое","возврат" to "Другое","вернули" to "Другое","продал" to "Другое","продала" to "Другое")
-    return map.entries.firstOrNull{text.contains(it.key)}?.value
-}
-
-private fun extractVoiceCategory(text:String):String?{
-    val map=linkedMapOf("продукты" to "Продукты","продукт" to "Продукты","магазин" to "Продукты","транспорт" to "Транспорт","такси" to "Транспорт","бензин" to "Транспорт","топливо" to "Транспорт","жилье" to "Жильё","квартиру" to "Жильё","квартплата" to "Жильё","развлечения" to "Развлечения","кино" to "Развлечения","игры" to "Развлечения","одежда" to "Одежда","одежду" to "Одежда","здоровье" to "Здоровье","аптека" to "Здоровье","лекарства" to "Здоровье","связь" to "Связь","телефон" to "Связь","интернет" to "Связь","подписка" to "Подписки","подписки" to "Подписки")
-    return map.entries.firstOrNull{text.contains(it.key)}?.value
+private fun resolveVoiceCategory(text:String,categories:List<Category>,income:Boolean):String?{
+    val normalized=text.replace('ё','е')
+    val aliases=linkedMapOf(
+        "бензин" to "авто","топливо" to "авто","заправ" to "авто","масло" to "авто","шиномонтаж" to "авто","ремонт машины" to "авто","ремонт авто" to "авто",
+        "продукт" to "продукты","супермаркет" to "продукты","еда" to "продукты","молоко" to "продукты","хлеб" to "продукты",
+        "одежд" to "одежда","обув" to "одежда","куртк" to "одежда",
+        "такси" to "транспорт","метро" to "транспорт","автобус" to "транспорт","билет" to "транспорт",
+        "квартплат" to "жилье","квартир" to "жилье","аренд" to "жилье",
+        "кино" to "развлечения","игр" to "развлечения","театр" to "развлечения",
+        "аптек" to "здоровье","лекар" to "здоровье","врач" to "здоровье",
+        "интернет" to "связь","телефон" to "связь","мобильн" to "связь",
+        "подписк" to "подписки","зарплат" to "зарплата","аванс" to "зарплата","преми" to "зарплата"
+    )
+    val hit=aliases.entries.firstOrNull{normalized.contains(it.key)}?.value
+    if(hit!=null){
+        categories.firstOrNull{it.name.replace('ё','e').equals(hit,true)}?.let{return it.name}
+        categories.firstOrNull{it.name.replace('ё','e').contains(hit,true)||hit.contains(it.name.replace('ё','e'),true)}?.let{return it.name}
+    }
+    categories.sortedByDescending{it.name.length}.firstOrNull{normalized.contains(it.name.lowercase(Locale.getDefault()).replace('ё','е'))}?.let{return it.name}
+    return if(income) categories.firstOrNull{it.name.equals("Зарплата",true)}?.name else categories.firstOrNull{it.name.equals("Другое",true)}?.name
 }
 
 private fun extractVoiceAmount(text:String):Double?{
