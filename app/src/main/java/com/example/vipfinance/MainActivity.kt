@@ -322,7 +322,7 @@ fun FinanceApp(s: FinanceStore) {
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
                     when (page) {
-                        "Главная" -> Home(total, currency, accounts, auto, rates, selected, inc, exp, goals, debts, reminders) { selected = it }
+                        "Главная" -> Home(total, currency, accounts, auto, rates, selected, inc, exp, goals, debts, reminders, ::add) { selected = it }
                         "Операции" -> Operations(shown, accounts, filter, { filter = it }, { dialog = "expense" }, ::remove, currency, auto, rates, search, { search = it }, tagSearch, { tagSearch = it }, newest, { newest = it }, typeFilter, { typeFilter = it }, categoryFilter, { categoryFilter = it }, fromDate, { fromDate = it }, toDate, { toDate = it }, categories.map { it.name }, { original -> repeatSource = original; dialog = if (original.income) "income" else "expense" })
                         "Счета" -> Accounts(accounts, currency, auto, rates, { dialog = "account" }, { selected = it }) { n -> val updated = accounts.map { if (it.name == n) it.copy(hidden = !it.hidden) else it }; accounts = updated; s.saveAccounts(updated) }
                         "Категории" -> Categories(categories, { editingCategory = null; dialog = "category" }, { editingCategory = it; dialog = "category" }, { c0 -> categories = categories.filterNot { it.id == c0.id }; s.saveCategories(categories) })
@@ -368,7 +368,7 @@ fun FinanceApp(s: FinanceStore) {
 private fun Home(
     total: Double, c: String, accounts: List<Account>, auto: Boolean, r: Map<String,Double>,
     selected: String?, income: Double, expense: Double, goals: List<Goal>, debts: List<Debt>, reminders: List<Reminder>,
-    pick: (String?) -> Unit
+    onVoiceTransaction: (Transaction) -> Unit, pick: (String?) -> Unit
 ) {
     val visible = accounts.filter { !it.hidden }
     val selectedBalance = selected?.let { n -> visible.firstOrNull { it.name == n }?.let { conv(it.balance,it.currency,c,auto,r) } } ?: total
@@ -462,6 +462,7 @@ private fun Home(
                 }
             }
         }
+        item { VoiceInputCard(accounts, onVoiceTransaction) }
         item { Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){MetricCard("Доступно",money(selectedBalance,c),MaterialTheme.colorScheme.primary,Modifier.weight(1f));MetricCard("Чистый поток",money(net,c),if(net>=0)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,Modifier.weight(1f))} }
     }
 }
