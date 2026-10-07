@@ -1,5 +1,10 @@
 package com.example.vipfinance
 
+import android.app.Activity
+import android.content.Intent
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
@@ -15,7 +20,10 @@ import kotlin.math.max
 @Composable
 fun SmartCenter(
     accounts: List<Account>, tx: List<Transaction>, debts: List<Debt>, goals: List<Goal>,
-    budgets: List<Budget>, currency: String, auto: Boolean, rates: Map<String,Double>
+    budgets: List<Budget>, currency: String, auto: Boolean, rates: Map<String,Double>,
+    onVoiceTransaction: (Transaction) -> Unit,
+    onImportTransactions: (List<Transaction>) -> Unit,
+    backupJson: () -> String
 ) {
     val visible=accounts.filter{!it.hidden}
     val balance=visible.sumOf{conv(it.balance,it.currency,currency,auto,rates)}
@@ -48,6 +56,37 @@ fun SmartCenter(
         val spent=expenses.filter{it.category==b.category&&it.timestamp>=month}.sumOf{conv(it.amount,it.currency,b.currency,auto,rates)}
         val limit=conv(b.limit,b.currency,currency,auto,rates)
         if(limit>0&&spent/limit>=.8)b.name to spent/limit*100 else null
+    }
+    val context=androidx.compose.ui.platform.LocalContext.current
+    var voiceText by remember{mutableStateOf("")}
+    var voiceMessage by remember{mutableStateOf("")}
+    val voiceLauncher=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){result->
+        val text=result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
+        voiceText=text
+        val amount=Regex("""(?i)(\\d+(?:[.,]\\d+)?)""").find(text)?.value?.replace(',','.')?.toDoubleOrNull()
+        val account=accounts.firstOrNull{!it.hidden}
+        if(amount!=null&&account!=null){
+            onVoiceTransaction(Transaction(id=System.currentTimeMillis(),title=text,amount=amount,income=false,accountName=account.name,category="Другое",timestamp=System.currentTimeMillis(),currency=account.currency))
+            voiceMessage="Расход на $amount ${account.currency} добавлен."
+        }else voiceMessage="Не удалось определить сумму или доступный счёт."
+    }
+    val importLauncher=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){uri->
+        if(uri!=null) runCatching{
+            val raw=context.contentResolver.openInputStream(uri)?.bufferedReader()?.readText().orEmpty()
+            val result=raw.lines().mapNotNull{line->
+                val p=line.split(';',',','	').map{it.trim().trim('"')}
+                if(p.size<2)null else {
+                    val amount=p.firstNotNullOfOrNull{it.replace(" ","").replace(",",".").toDoubleOrNull()}
+                    val title=p.firstOrNull{it.toDoubleOrNull()==null&&!it.matches(Regex("""\\d{1,2}[./]\\d{1,2}[./]\\d{2,4}"""))}
+                    if(amount!=null&&title!=null) Transaction(id=System.currentTimeMillis()+p.hashCode(),title=title,amount=amount,income=false,accountName=accounts.firstOrNull()?.name.orEmpty(),category="Импорт",timestamp=System.currentTimeMillis(),currency=currency) else null
+                }
+            }
+            onImportTransactions(result)
+            voiceMessage="Импортировано операций: ${result.size}"
+        }.onFailure{voiceMessage="Не удалось прочитать файл."}
+    }
+    val exportLauncher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->
+        if(uri!=null) runCatching{context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use{it.write(backupJson())};voiceMessage="Резервная копия сохранена."}.onFailure{voiceMessage="Ошибка сохранения."}
     }
     LazyColumn(verticalArrangement=Arrangement.spacedBy(12.dp),contentPadding=PaddingValues(bottom=24.dp)){
         item{SmartCard("🤖 Финансовый помощник","Локальный анализ без отправки финансовых данных"){
@@ -115,6 +154,25 @@ fun SmartCenter(
             val runway=if(monthExpenses>0)balance/monthExpenses else Double.POSITIVE_INFINITY
             Text(if(runway.isFinite())"Запас: ${"%.1f".format(runway)} месяца" else "Расходы пока не определены")
             Text(if(runway>=6)"Подушка сильная." else if(runway>=3)"Подушка приемлемая." else "Запас небольшой — резерв стоит увеличить.")
+        }}
+        item{SmartCard("🎙️ Голосовой ввод","Скажите: «потратил 1250 на продукты»"){
+            Button(onClick={
+                val intent=Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply{
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE,Locale.getDefault())
+                }
+                runCatching{voiceLauncher.launch(intent)}.onFailure{voiceMessage="Голосовой ввод недоступен на устройстве."}
+            }){Text("🎤 Говорить")}
+            if(voiceText.isNotBlank())Text("Распознано: $voiceText")
+            if(voiceMessage.isNotBlank())Text(voiceMessage,color=MaterialTheme.colorScheme.primary)
+        }}
+        item{SmartCard("🏦 Импорт выписки","CSV / TXT с операциями"){
+            Button(onClick={importLauncher.launch("text/*")}){Text("Выбрать файл")}
+            Text("Приложение ищет сумму и описание в каждой строке и добавляет найденные операции.")
+        }}
+        item{SmartCard("💾 Экспорт и резервная копия","Полная локальная копия данных"){
+            Button(onClick={exportLauncher.launch("VIP-Finance-backup.json")}){Text("Сохранить резервную копию")}
+            Text("Файл можно хранить отдельно и восстановить через настройки.")
         }}
     }
 }
