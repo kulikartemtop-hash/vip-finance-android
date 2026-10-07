@@ -133,6 +133,31 @@ fun SmartCenter(
             Text("$score / 100",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.ExtraBold)
             Text(when{score>=80->"Отличное состояние";score>=60->"Нормальное состояние";else->"Есть зоны для улучшения"})
         }}
+        item{SmartCard("📉 Оптимизатор долгов","Сравнение ускоренного погашения"){
+            val open=debts.map{d->d to (d.amount+(if(d.interest)d.amount*d.interestRate/100 else 0.0)-d.paid).coerceAtLeast(0.0)}.filter{it.second>0}
+            if(open.isEmpty()) Text("Активных долгов нет.")
+            else {
+                val avalanche=open.sortedByDescending{it.first.interestRate}
+                Text("Сначала выгоднее гасить: ${avalanche.first().first.person}",fontWeight=FontWeight.Bold)
+                Text("Причина: ставка ${"%.1f".format(avalanche.first().first.interestRate)}%")
+                Text("Стратегия: направляйте минимум на остальные долги, а свободные деньги — на самый дорогой по ставке.")
+            }
+        }}
+        item{SmartCard("📈 Инвестиции","Учет инвестиционных счетов внутри общей картины"){
+            val investments=accounts.filter{it.type.contains("инвест",true)||it.type.contains("брок",true)}
+            Text("Инвестиционных счетов: ${investments.size}")
+            investments.forEach{a->Text("${a.name}: ${money(a.balance,a.currency)}")}
+            if(investments.isEmpty())Text("Создайте счёт с типом «Инвестиции» или «Брокер», чтобы он появился здесь.")
+        }}
+        item{SmartCard("👨‍👩‍👧 Семейный режим","Локальный безопасный обзор без облачной передачи"){
+            var family by remember{mutableStateOf(false)}
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){
+                Text(if(family)"Семейный обзор включён" else "Личный режим")
+                Switch(family,{family=it})
+            }
+            Text(if(family)"Показываем только общие финансовые показатели, без списка операций." else "Включите режим для совместного просмотра основных итогов на одном устройстве.")
+            if(family)Text("Баланс семьи: ${money(balance,currency)}",fontWeight=FontWeight.Bold)
+        }}
         item{SmartCard("💎 Чистый капитал","Активы минус обязательства"){
             val netWorth=balance-debtOutstanding
             Text("Активы: ${money(balance,currency)}")
