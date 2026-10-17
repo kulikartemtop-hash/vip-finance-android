@@ -380,7 +380,7 @@ fun FinanceApp(s: FinanceStore) {
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
                     when (page) {
-                        "Главная" -> Home(total, currency, accounts, auto, rates, selected, inc, exp, goals, debts, reminders, categories, ::add) { selected = it }
+                        "Главная" -> Home(total, currency, accounts, auto, rates, selected, inc, exp, goals, debts, reminders, categories, budgets, tx, ::add, { page = "Бюджеты" }) { selected = it }
                         "Операции" -> Operations(shown, accounts, filter, { filter = it }, { dialog = "expense" }, ::remove, { editingTransaction = it; dialog = "editTransaction" }, currency, auto, rates, search, { search = it }, tagSearch, { tagSearch = it }, newest, { newest = it }, typeFilter, { typeFilter = it }, categoryFilter, { categoryFilter = it }, fromDate, { fromDate = it }, toDate, { toDate = it }, categories.map { it.name }, { original -> repeatSource = original; dialog = if (original.income) "income" else "expense" })
                         "Счета" -> Accounts(accounts, currency, auto, rates, { dialog = "account" }, { selected = it }) { n -> val updated = accounts.map { if (it.name == n) it.copy(hidden = !it.hidden) else it }; accounts = updated; s.saveAccounts(updated) }
                         "Категории" -> Categories(categories, { editingCategory = null; dialog = "category" }, { editingCategory = it; dialog = "category" }, { c0 -> categories = categories.filterNot { it.id == c0.id }; s.saveCategories(categories) })
@@ -448,7 +448,8 @@ fun FinanceApp(s: FinanceStore) {
 private fun Home(
     total: Double, c: String, accounts: List<Account>, auto: Boolean, r: Map<String,Double>,
     selected: String?, income: Double, expense: Double, goals: List<Goal>, debts: List<Debt>, reminders: List<Reminder>, categories: List<Category>,
-    onVoiceTransaction: (Transaction) -> Unit, pick: (String?) -> Unit
+    budgets: List<Budget>, transactions: List<Transaction>,
+    onVoiceTransaction: (Transaction) -> Unit, onOpenBudgets: () -> Unit, pick: (String?) -> Unit
 ) {
     val visible = accounts.filter { !it.hidden }
     val selectedBalance = selected?.let { n -> visible.firstOrNull { it.name == n }?.let { conv(it.balance,it.currency,c,auto,r) } } ?: total
@@ -535,10 +536,44 @@ private fun Home(
             }}
         }
         item {
-            Card(shape=RoundedCornerShape(24.dp),elevation=CardDefaults.cardElevation(4.dp)){
-                Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
-                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Column{Text("Бюджеты",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium);Text("Контроль расходов",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)};Text("${(spendRate*100).toInt()}%",style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)}
-                    Text("Добавьте бюджет, чтобы видеть лимит, остаток и предупреждения прямо на главном экране.",style=MaterialTheme.typography.bodyMedium)
+            Card(shape = RoundedCornerShape(24.dp), elevation = CardDefaults.cardElevation(4.dp)) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Бюджеты", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                            Text(if (budgets.isEmpty()) "Контроль расходов" else "${budgets.size} активных лимитов", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        TextButton(onClick = onOpenBudgets) { Text("Все бюджеты") }
+                    }
+                    if (budgets.isEmpty()) {
+                        Text("Пока нет бюджетов. Создайте лимит во вкладке «Бюджеты», и здесь появятся потраченная сумма и остаток.", style = MaterialTheme.typography.bodyMedium)
+                        OutlinedButton(onClick = onOpenBudgets, modifier = Modifier.fillMaxWidth()) { Text("Создать бюджет") }
+                    } else {
+                        budgets.take(3).forEach { budget ->
+                            val spent = budgetSpent(budget, transactions, auto, r)
+                            val limitInDisplayCurrency = conv(budget.limit, budget.currency, c, auto, r)
+                            val spentInDisplayCurrency = conv(spent, budget.currency, c, auto, r)
+                            val remaining = budget.limit - spent
+                            val ratio = if (budget.limit > 0.0) (spent / budget.limit).coerceAtLeast(0.0) else 0.0
+                            val statusColor = when {
+                                ratio >= 1.0 -> MaterialTheme.colorScheme.error
+                                ratio >= 0.8 -> MaterialTheme.colorScheme.tertiary
+                                else -> MaterialTheme.colorScheme.primary
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text(budget.name, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                    Text("${(ratio * 100).toInt()}%", color = statusColor, style = MaterialTheme.typography.labelLarge)
+                                }
+                                LinearProgressIndicator(progress = { ratio.toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(7.dp), color = statusColor)
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Потрачено ${money(spentInDisplayCurrency, c)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(if (remaining >= 0.0) "Остаток ${money(conv(remaining, budget.currency, c, auto, r), c)}" else "Превышение ${money(conv(-remaining, budget.currency, c, auto, r), c)}", style = MaterialTheme.typography.bodySmall, color = if (remaining < 0.0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                        if (budgets.size > 3) Text("И ещё ${budgets.size - 3}…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
         }
