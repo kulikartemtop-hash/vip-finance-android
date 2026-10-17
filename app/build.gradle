@@ -12,8 +12,8 @@ android {
         applicationId "com.example.vipfinance"
         minSdk 24
         targetSdk 36
-        versionCode 615
-        versionName "6.1.5" // Fix Categories screen crash
+        versionCode 616
+        versionName "6.1.6" // Fix duplicate category IDs crash
     }
     buildTypes {
         release {
