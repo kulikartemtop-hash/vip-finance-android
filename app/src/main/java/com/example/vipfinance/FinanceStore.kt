@@ -80,8 +80,24 @@ class FinanceStore(context: Context) {
     fun saveTheme(v:String)=prefs.edit().putString("theme",v).apply()
     fun loadStyle():String=when(prefs.getString("style","platinum") ?: "platinum"){ "classic" -> "platinum"; "ocean" -> "emerald"; "graphite" -> "platinum"; else -> prefs.getString("style","platinum") ?: "platinum" }
     fun saveStyle(v:String)=prefs.edit().putString("style",v).apply()
-    fun loadMenu(): Set<String> =prefs.getStringSet("menu",setOf("Главная","Операции","Счета","Аналитика","Конвертер","Долги","Цели","Напоминания","Чеки","Ещё")) ?: emptySet()
-    fun saveMenu(v:Set<String>)=prefs.edit().putStringSet("menu",v).apply()
+    fun loadMenu(): List<String> = runCatching {
+        val savedOrder = prefs.getString("menu_order", null)
+        if (!savedOrder.isNullOrBlank()) {
+            val a = JSONArray(savedOrder)
+            buildList { for (i in 0 until a.length()) add(a.getString(i)) }
+        } else {
+            val old = prefs.getStringSet("menu", null)
+            val standardOrder = listOf("Главная", "Операции", "Счета", "Категории", "Бюджеты", "Аналитика", "Календарь", "Конвертер", "Долги", "Цели", "Напоминания", "Чеки", "VIP Центр")
+            if (old.isNullOrEmpty()) standardOrder else standardOrder.filter { it in old }
+        }
+    }.getOrDefault(listOf("Главная", "Операции", "Счета", "Категории", "Бюджеты", "Аналитика", "Календарь", "Конвертер", "Долги", "Цели", "Напоминания", "Чеки", "VIP Центр"))
+    fun saveMenu(v: List<String>) {
+        val clean = v.distinct()
+        prefs.edit()
+            .putString("menu_order", JSONArray(clean).toString())
+            .putStringSet("menu", clean.toSet())
+            .apply()
+    }
     fun saveRates(rates:Map<String,Double>){val j=JSONObject();rates.forEach{(k,v)->j.put(k,v)};prefs.edit().putString("rates",j.toString()).putLong("rates_time",System.currentTimeMillis()).apply()}
     fun loadRates(): Map<String, Double> =runCatching{val j=JSONObject(prefs.getString("rates","{}"));buildMap{j.keys().forEach{k->put(k,j.optDouble(k))}}}.getOrDefault(emptyMap())
     fun loadRatesTime():Long=prefs.getLong("rates_time",0L)
@@ -116,7 +132,7 @@ class FinanceStore(context: Context) {
         saveReminders(buildList { for (i in 0 until rr.length()) { val o=rr.getJSONObject(i); add(Reminder(o.optLong("id"),o.optString("title"),o.optDouble("amount"),o.optString("date"),o.optString("repeat","Один раз"),o.optBoolean("done"))) } })
         root.optJSONObject("settings")?.let { q ->
             saveCurrency(q.optString("currency","RUB")); saveAutoConversion(q.optBoolean("autoConversion",true)); saveTheme(q.optString("theme","system")); saveStyle(q.optString("style","platinum"))
-            val menuArr=q.optJSONArray("menu"); if(menuArr!=null){ saveMenu(buildSet { for(i in 0 until menuArr.length()) add(menuArr.getString(i)) }) }
+            val menuArr=q.optJSONArray("menu"); if(menuArr!=null){ saveMenu(buildList { for(i in 0 until menuArr.length()) add(menuArr.getString(i)) }) }
             val ratesObj=q.optJSONObject("rates"); if(ratesObj!=null){ val map=buildMap<String,Double>{ ratesObj.keys().forEach{ k->put(k,ratesObj.optDouble(k)) } }; saveRates(map) }; if(q.has("ratesTime")) prefs.edit().putLong("rates_time",q.optLong("ratesTime")).apply()
         }
         true
