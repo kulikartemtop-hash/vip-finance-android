@@ -12,8 +12,8 @@ android {
         applicationId "com.example.vipfinance"
         minSdk 24
         targetSdk 36
-        versionCode 616
-        versionName "6.1.6" // Fix duplicate category IDs crash
+        versionCode 617
+        versionName "6.1.7" // Customizable menu order
     }
     buildTypes {
         release {
