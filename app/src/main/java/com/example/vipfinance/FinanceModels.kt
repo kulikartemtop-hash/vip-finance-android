@@ -34,7 +34,6 @@ data class Transaction(
     val tags: String = "",
     val transferTargetAmount: Double? = null
 )
-)
 
 data class Budget(
     val id: Long = System.currentTimeMillis(),
