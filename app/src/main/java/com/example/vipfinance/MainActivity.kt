@@ -1884,7 +1884,7 @@ private fun SettingsDialog(
     menu: List<String>,
     time: Long,
     currentPin: String,
-    save: (String, Boolean, String, String, Set<String>) -> Unit,
+    save: (String, Boolean, String, String, List<String>) -> Unit,
     savePin: (String) -> Unit,
     backup: () -> String,
     importBackup: (String) -> Boolean,
