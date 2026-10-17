@@ -87,6 +87,20 @@ private val defaultCategories=listOf(
     Category(name="Продажа вещей",kind="income",icon="shopping_bag",color="#6D4C41"),
     Category(name="Прочие доходы",kind="income",icon="category",color="#757575")
 )
+private fun normalizeCategoryIds(items: List<Category>): List<Category> {
+    val used = mutableSetOf<Long>()
+    var nextId = maxOf(System.currentTimeMillis(), (items.maxOfOrNull { it.id } ?: 0L) + 1L)
+    return items.map { category ->
+        if (used.add(category.id)) category
+        else {
+            while (nextId in used) nextId++
+            val replacement = category.copy(id = nextId++)
+            used.add(replacement.id)
+            replacement
+        }
+    }
+}
+
 private val iconChoices=listOf("account_balance","credit_card","wallet","savings","shopping_cart","home","directions_car","payments","favorite","phone","school","flight","movie","subscriptions","category")
 private val colorChoices=listOf("#5B35F5","#00A7B5","#007A5A","#E53935","#FB8C00","#1E88E5","#8E24AA","#D81B60","#6D4C41","#757575")
 private fun iconText(icon:String)=when(icon){"account_balance"->"▥";"credit_card"->"▣";"wallet"->"◫";"savings"->"◉";"shopping_cart"->"🛒";"home"->"⌂";"directions_car"->"🚗";"payments"->"₽";"favorite"->"♥";"phone"->"☎";"school"->"◆";"flight"->"✈";"movie"->"▶";"subscriptions"->"◉";"shopping_bag"->"▱";else->"•"}
@@ -117,8 +131,8 @@ fun FinanceApp(s: FinanceStore) {
     var categories by remember {
         mutableStateOf(
             s.loadCategories().let { loaded ->
-                if (loaded.isEmpty()) defaultCategories
-                else loaded.map { category ->
+                if (loaded.isEmpty()) normalizeCategoryIds(defaultCategories)
+                else normalizeCategoryIds(loaded.map { category ->
                     val legacyBrokenIcon = category.icon.startsWith("#")
                     val normalizedKind = when (category.kind) {
                         "income", "expense" -> category.kind
@@ -129,7 +143,7 @@ fun FinanceApp(s: FinanceStore) {
                         icon = if (legacyBrokenIcon) "category" else category.icon,
                         color = if (legacyBrokenIcon) category.icon else category.color
                     )
-                }
+                })
             }
         )
     }
@@ -757,7 +771,7 @@ private fun Categories(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(visibleItems, key = { it.id }) { c0 ->
+                itemsIndexed(visibleItems, key = { index, c0 -> "${c0.kind}:${c0.id}:$index" }) { _, c0 ->
                     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
                         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(uiColor(c0.color)), contentAlignment = Alignment.Center) {
