@@ -158,7 +158,7 @@ fun FinanceApp(s: FinanceStore) {
     var auto by remember { mutableStateOf(s.loadAutoConversion()) }
     var theme by remember { mutableStateOf(s.loadTheme()) }
     var style by remember { mutableStateOf(s.loadStyle()) }
-    var menu by remember { mutableStateOf(s.loadMenu().filter { it in pages }.toSet().ifEmpty { pages.toSet() }) }
+    var menu by remember { mutableStateOf(s.loadMenu().filter { it in pages }.distinct().ifEmpty { pages }) }
     var rates by remember { mutableStateOf(s.loadRates()) }
     var rateTime by remember { mutableStateOf(s.loadRatesTime()) }
     var loading by remember { mutableStateOf(false) }
@@ -270,9 +270,10 @@ fun FinanceApp(s: FinanceStore) {
         }
     }
 
-    fun saveSettings(c: String, a: Boolean, t: String, st: String, m: Set<String>) {
-        currency = c; auto = a; theme = t; style = st; menu = m.filter { it in pages }.toSet()
-        s.saveCurrency(c); s.saveAutoConversion(a); s.saveTheme(t); s.saveStyle(st); s.saveMenu(menu.toSet())
+    fun saveSettings(c: String, a: Boolean, t: String, st: String, m: List<String>) {
+        currency = c; auto = a; theme = t; style = st
+        menu = m.filter { it in pages }.distinct()
+        s.saveCurrency(c); s.saveAutoConversion(a); s.saveTheme(t); s.saveStyle(st); s.saveMenu(menu)
     }
 
     VIPFinanceTheme(theme = theme, style = style) {
@@ -499,7 +500,7 @@ fun FinanceApp(s: FinanceStore) {
             "reminder" -> ReminderDialog({ dialog = "" }) { reminders = reminders + it; s.saveReminders(reminders); dialog = "" }
             "budget" -> BudgetDialog(accounts, categories, currency, editingBudget, { dialog = ""; editingBudget = null }) { value -> budgets = if (editingBudget == null) budgets + value else budgets.map { if (it.id == value.id) value else it }; s.saveBudgets(budgets); dialog = ""; editingBudget = null }
             "receiptExpense" -> TransactionDialog(accounts, categories, false, receiptDraft, { dialog = ""; receiptDraft = null }) { add(it); dialog = ""; receiptDraft = null }
-            "settings" -> SettingsDialog(currency, auto, theme, style, menu, rateTime, s.loadPin(), { c: String, a: Boolean, t: String, st: String, m: Set<String> -> saveSettings(c, a, t, st, m) }, { s.savePin(it) }, { s.exportBackupJson() }, { json -> s.importBackupJson(json) }) { dialog = "" }
+            "settings" -> SettingsDialog(currency, auto, theme, style, menu, rateTime, s.loadPin(), { c: String, a: Boolean, t: String, st: String, m: List<String> -> saveSettings(c, a, t, st, m) }, { s.savePin(it) }, { s.exportBackupJson() }, { json -> s.importBackupJson(json) }) { dialog = "" }
         }
     }
 }
@@ -1880,7 +1881,7 @@ private fun SettingsDialog(
     auto: Boolean,
     theme: String,
     style: String,
-    menu: Set<String>,
+    menu: List<String>,
     time: Long,
     currentPin: String,
     save: (String, Boolean, String, String, Set<String>) -> Unit,
@@ -2086,17 +2087,61 @@ private fun SettingsDialog(
                         }
 
                         if (menuExpanded) {
-                            pages.forEach { pageName ->
-                                SettingsToggleRow(
-                                    title = pageName,
-                                    subtitle = if (pageName in menu) "Раздел отображается в меню" else "Раздел скрыт из меню",
-                                    checked = pageName in menu,
-                                    onCheckedChange = { enabled ->
-                                        val updated = menu.toMutableSet()
-                                        if (enabled) updated.add(pageName) else updated.remove(pageName)
-                                        save(c, auto, theme, style, updated)
+                            (menu + pages.filter { it !in menu }).forEach { pageName ->
+                                val visibleInMenu = pageName in menu
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(pageName, fontWeight = FontWeight.SemiBold)
+                                        Text(
+                                            if (visibleInMenu) "Пункт меню • позиция ${menu.indexOf(pageName) + 1}"
+                                            else "Скрыт из меню",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
-                                )
+                                    if (visibleInMenu) {
+                                        IconButton(
+                                            enabled = menu.indexOf(pageName) > 0,
+                                            onClick = {
+                                                val updated = menu.toMutableList()
+                                                val i = updated.indexOf(pageName)
+                                                if (i > 0) {
+                                                    val previous = updated[i - 1]
+                                                    updated[i - 1] = updated[i]
+                                                    updated[i] = previous
+                                                    save(c, auto, theme, style, updated)
+                                                }
+                                            }
+                                        ) { Text("↑", fontWeight = FontWeight.Bold) }
+                                        IconButton(
+                                            enabled = menu.indexOf(pageName) < menu.lastIndex,
+                                            onClick = {
+                                                val updated = menu.toMutableList()
+                                                val i = updated.indexOf(pageName)
+                                                if (i >= 0 && i < updated.lastIndex) {
+                                                    val next = updated[i + 1]
+                                                    updated[i + 1] = updated[i]
+                                                    updated[i] = next
+                                                    save(c, auto, theme, style, updated)
+                                                }
+                                            }
+                                        ) { Text("↓", fontWeight = FontWeight.Bold) }
+                                    }
+                                    Switch(
+                                        checked = visibleInMenu,
+                                        onCheckedChange = { enabled ->
+                                            val updated = menu.toMutableList()
+                                            if (enabled && pageName !in updated) updated.add(pageName)
+                                            if (!enabled) updated.remove(pageName)
+                                            save(c, auto, theme, style, updated)
+                                        }
+                                    )
+                                }
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
                             }
                         }
                     }
