@@ -1297,6 +1297,7 @@ private fun BudgetDialog(accounts: List<Account>, categories: List<Category>, c:
     var acc by remember(editing?.id) { mutableStateOf(editing?.accountName ?: "") }
     var per by remember(editing?.id) { mutableStateOf(editing?.period ?: "Месяц") }
     var budgetCurrency by remember(editing?.id) { mutableStateOf(editing?.currency ?: c) }
+    val expenseCategories = categories.filter { it.kind == "expense" }
     val parsedLimit = lim.replace(" ", "").replace(",", ".").toDoubleOrNull() ?: 0.0
     val title = if (editing == null) "Новый бюджет" else "Редактирование бюджета"
     AlertDialog(
@@ -1313,7 +1314,7 @@ private fun BudgetDialog(accounts: List<Account>, categories: List<Category>, c:
                 Text("Категория", fontWeight = FontWeight.Bold)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     item { FilterChip(cat.isBlank(), { cat = "" }, label = { Text("Все") }) }
-                    items(categories) { z -> FilterChip(cat == z.name, { cat = z.name }, label = { Text(iconText(z.icon) + " " + z.name) }) }
+                    items(expenseCategories) { z -> FilterChip(cat == z.name, { cat = z.name }, label = { Text(iconText(z.icon) + " " + z.name) }) }
                 }
                 Text("Счёт / карта", fontWeight = FontWeight.Bold)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
