@@ -2381,7 +2381,8 @@ private fun TransactionDialog(
                                         toAccountName = if (type == "transfer") toAcc else "",
                                         note = note.trim(),
                                         repeat = rep,
-                                        tags = tags.split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct().joinToString(", ")
+                                        tags = tags.split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct().joinToString(", "),
+                                        transferTargetAmount = if (source?.operationType == "transfer" && type == "transfer" && source.amount == (v ?: 0.0) && source.accountName == acc && source.toAccountName == toAcc) source.transferTargetAmount else null
                                     )
                                 )
                             },
