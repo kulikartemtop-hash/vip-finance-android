@@ -551,7 +551,6 @@ private fun Home(
                     } else {
                         budgets.take(3).forEach { budget ->
                             val spent = budgetSpent(budget, transactions, auto, r)
-                            val limitInDisplayCurrency = conv(budget.limit, budget.currency, c, auto, r)
                             val spentInDisplayCurrency = conv(spent, budget.currency, c, auto, r)
                             val remaining = budget.limit - spent
                             val ratio = if (budget.limit > 0.0) (spent / budget.limit).coerceAtLeast(0.0) else 0.0
