@@ -31,7 +31,9 @@ data class Transaction(
     val toAccountName: String = "",
     val note: String = "",
     val repeat: String = "Не повторять",
-    val tags: String = ""
+    val tags: String = "",
+    val transferTargetAmount: Double? = null
+)
 )
 
 data class Budget(

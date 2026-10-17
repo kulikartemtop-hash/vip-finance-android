@@ -133,15 +133,16 @@ fun FinanceApp(s: FinanceStore) {
     }
 
     fun add(t: Transaction) {
-        tx = tx + t
-        s.saveTransactions(tx)
         val source = accounts.firstOrNull { it.name == t.accountName }
-        if (t.operationType == "transfer") {
-            val target = accounts.firstOrNull { it.name == t.toAccountName }
+        val target = if (t.operationType == "transfer") accounts.firstOrNull { it.name == t.toAccountName } else null
+        val stored = if (t.operationType == "transfer" && source != null && target != null) t.copy(transferTargetAmount = t.transferTargetAmount ?: ExchangeRates.convert(t.amount, source.currency, target.currency, rates)) else t
+        tx = tx + stored
+        s.saveTransactions(tx)
+        if (stored.operationType == "transfer") {
             if (source != null && target != null) {
-                val converted = ExchangeRates.convert(t.amount, source.currency, target.currency, rates)
+                val converted = stored.transferTargetAmount ?: ExchangeRates.convert(stored.amount, source.currency, target.currency, rates)
                 accounts = accounts.map { when (it.name) {
-                    source.name -> it.copy(balance = it.balance - t.amount)
+                    source.name -> it.copy(balance = it.balance - stored.amount)
                     target.name -> it.copy(balance = it.balance + converted)
                     else -> it
                 }}
@@ -161,7 +162,7 @@ fun FinanceApp(s: FinanceStore) {
         if (t.operationType == "transfer") {
             val target = accounts.firstOrNull { it.name == t.toAccountName }
             if (source != null && target != null) {
-                val converted = ExchangeRates.convert(t.amount, source.currency, target.currency, rates)
+                val converted = t.transferTargetAmount ?: ExchangeRates.convert(t.amount, source.currency, target.currency, rates)
                 accounts = accounts.map { when (it.name) {
                     source.name -> it.copy(balance = it.balance + t.amount)
                     target.name -> it.copy(balance = it.balance - converted)
@@ -388,7 +389,7 @@ fun FinanceApp(s: FinanceStore) {
                         "Календарь" -> SmartCalendar(tx, reminders, goals, currency, auto, rates, { dialog = "expense" }, { dialog = "income" }, { dialog = "reminder" })
                         "Конвертер" -> Converter(currency, rates, loading, rateTime)
                         "Долги" -> Debts(debts, { dialog = "debt" }, { d -> editingDebt = d; dialog = "debtProgress" }) { d -> debts = debts.filterNot { it.id == d.id }; s.saveDebts(debts) }
-                        "Цели" -> Goals(goals, { editingGoalDetails = null; dialog = "goal" }, { g -> editingGoal = g; dialog = "goalProgress" }, { g -> editingGoalDetails = g; dialog = "goal" }) { g -> goals = goals.filterNot { it.id == g.id }; s.saveGoals(goals) }
+                        "Цели" -> Goals(goals, currency, auto, rates, { editingGoalDetails = null; dialog = "goal" }, { g -> editingGoal = g; dialog = "goalProgress" }, { g -> editingGoalDetails = g; dialog = "goal" }) { g -> goals = goals.filterNot { it.id == g.id }; s.saveGoals(goals) }
                         "Напоминания" -> Reminders(reminders, { dialog = "reminder" }, { r -> reminders = reminders.map { if (it.id == r.id) it.copy(done = !it.done) else it }; s.saveReminders(reminders) }, { r -> reminders = reminders.filterNot { it.id == r.id }; s.saveReminders(reminders) })
                         "Чеки" -> Receipt(receiptUri, receiptText, { u -> receiptUri = u; receiptText = "" }, { t -> receiptText = t }, accounts.firstOrNull(), categories, { draft -> receiptDraft = draft; dialog = "receiptExpense" }) { imported -> imported.forEach { add(it) } }
                         "VIP Центр" -> SmartCenter(accounts, tx, debts, goals, budgets, categories, currency, auto, rates, { add(it) }, { imported -> imported.forEach { add(it) } }, { s.exportBackupJson() })
@@ -761,7 +762,10 @@ private fun Analytics(tx: List<Transaction>, c: String, auto: Boolean, r: Map<St
     val previousIncome = previousTx.filter { it.income }.sumOf { conv(it.amount, it.currency, c, auto, r) }
     val previousExpense = previousTx.filter { !it.income }.sumOf { conv(it.amount, it.currency, c, auto, r) }
     val savingsRate = if (income > 0) ((income - expense) / income * 100.0).coerceIn(-100.0, 100.0) else 0.0
-    val healthScore = (50.0 + savingsRate * 0.5 + if (expense <= previousExpense || previousExpense == 0.0) 10 else -10 + if (income >= previousIncome || previousIncome == 0.0) 10 else -10).toInt().coerceIn(0, 100)
+    val healthScore = (50.0 + savingsRate * 0.5 +
+        (if (expense <= previousExpense || previousExpense == 0.0) 10 else -10) +
+        (if (income >= previousIncome || previousIncome == 0.0) 10 else -10)
+    ).toInt().coerceIn(0, 100)
     val canSpend = (income - expense).coerceAtLeast(0.0)
     val largestExpense = periodTx.filter { !it.income }.maxByOrNull { conv(it.amount, it.currency, c, auto, r) }
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -785,7 +789,7 @@ private fun Analytics(tx: List<Transaction>, c: String, auto: Boolean, r: Map<St
                     Text("Финансовое здоровье", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         MetricCard("Оценка", "$healthScore/100", if (healthScore >= 70) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error, Modifier.weight(1f))
-                        MetricCard("Можно потратить", money(canSpend, c), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+                        MetricCard("Остаток периода", money(canSpend, c), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
                     }
                     Text("Норма накоплений: %.1f%%".format(savingsRate), style = MaterialTheme.typography.bodySmall)
                     if (largestExpense != null) Text("Самая крупная трата: " + largestExpense.title + " • " + money(conv(largestExpense.amount, largestExpense.currency, c, auto, r), c), style = MaterialTheme.typography.bodySmall)
@@ -1273,7 +1277,7 @@ private fun BudgetDialog(accounts: List<Account>, categories: List<Category>, c:
     }
 }
 @Composable
-private fun Goals(items: List<Goal>, add: () -> Unit, progress: (Goal) -> Unit, edit: (Goal) -> Unit, remove: (Goal) -> Unit) {
+private fun Goals(items: List<Goal>, currency: String, auto: Boolean, rates: Map<String, Double>, add: () -> Unit, progress: (Goal) -> Unit, edit: (Goal) -> Unit, remove: (Goal) -> Unit) {
     var filter by remember { mutableStateOf("Все") }
     var search by remember { mutableStateOf("") }
     var sort by remember { mutableStateOf("Срок") }
@@ -1293,11 +1297,11 @@ private fun Goals(items: List<Goal>, add: () -> Unit, progress: (Goal) -> Unit, 
         "Сумма" -> compareByDescending { it.target - it.saved }
         else -> compareBy { days(it) ?: Long.MAX_VALUE }
     })
-    val target = items.sumOf { it.target }
-    val saved = items.sumOf { it.saved }
-    val remaining = items.sumOf { (it.target - it.saved).coerceAtLeast(0.0) }
+    val target = items.sumOf { conv(it.target, it.currency, currency, auto, rates) }
+    val saved = items.sumOf { conv(it.saved, it.currency, currency, auto, rates) }
+    val remaining = items.sumOf { conv((it.target - it.saved).coerceAtLeast(0.0), it.currency, currency, auto, rates) }
     val percent = if (target > 0) (saved / target).coerceIn(0.0, 1.0) else 0.0
-    val cur = items.firstOrNull()?.currency ?: "RUB"
+    val cur = currency
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {

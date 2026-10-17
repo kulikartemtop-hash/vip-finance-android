@@ -26,13 +26,13 @@ class FinanceStore(context: Context) {
     fun loadTransactions(): List<Transaction> = runCatching {
         val a=JSONArray(prefs.getString("transactions","[]"))
         buildList {
-            for(i in 0 until a.length()) { val o=a.getJSONObject(i); add(Transaction(o.optLong("id"),o.optString("title"),o.optDouble("amount"),o.optBoolean("income"),o.optString("accountName"),o.optString("category","Без категории"),o.optLong("timestamp",System.currentTimeMillis()),o.optString("currency","RUB"),o.optString("operationType",if(o.optBoolean("income"))"income" else "expense"),o.optString("toAccountName",""),o.optString("note",""),o.optString("repeat","Не повторять"),o.optString("tags",""))) }
+            for(i in 0 until a.length()) { val o=a.getJSONObject(i); add(Transaction(o.optLong("id"),o.optString("title"),o.optDouble("amount"),o.optBoolean("income"),o.optString("accountName"),o.optString("category","Без категории"),o.optLong("timestamp",System.currentTimeMillis()),o.optString("currency","RUB"),o.optString("operationType",if(o.optBoolean("income"))"income" else "expense"),o.optString("toAccountName",""),o.optString("note",""),o.optString("repeat","Не повторять"),o.optString("tags",""),if(o.has("transferTargetAmount")&&!o.isNull("transferTargetAmount"))o.optDouble("transferTargetAmount") else null)) }
         }
     }.getOrDefault(emptyList())
 
     fun saveTransactions(items: List<Transaction>) {
         val a=JSONArray()
-        items.forEach { x -> a.put(JSONObject().apply { put("id",x.id);put("title",x.title);put("amount",x.amount);put("income",x.income);put("accountName",x.accountName);put("category",x.category);put("timestamp",x.timestamp);put("currency",x.currency);put("operationType",x.operationType);put("toAccountName",x.toAccountName);put("note",x.note);put("repeat",x.repeat);put("tags",x.tags) }) }
+        items.forEach { x -> a.put(JSONObject().apply { put("id",x.id);put("title",x.title);put("amount",x.amount);put("income",x.income);put("accountName",x.accountName);put("category",x.category);put("timestamp",x.timestamp);put("currency",x.currency);put("operationType",x.operationType);put("toAccountName",x.toAccountName);put("note",x.note);put("repeat",x.repeat);put("tags",x.tags);if(x.transferTargetAmount!=null)put("transferTargetAmount",x.transferTargetAmount) }) }
         prefs.edit().putString("transactions",a.toString()).apply()
     }
 
@@ -117,7 +117,7 @@ class FinanceStore(context: Context) {
         root.optJSONObject("settings")?.let { q ->
             saveCurrency(q.optString("currency","RUB")); saveAutoConversion(q.optBoolean("autoConversion",true)); saveTheme(q.optString("theme","system")); saveStyle(q.optString("style","platinum"))
             val menuArr=q.optJSONArray("menu"); if(menuArr!=null){ saveMenu(buildSet { for(i in 0 until menuArr.length()) add(menuArr.getString(i)) }) }
-            val ratesObj=q.optJSONObject("rates"); if(ratesObj!=null){ val map=buildMap<String,Double>{ ratesObj.keys().forEach{ k->put(k,ratesObj.optDouble(k)) } }; saveRates(map) }
+            val ratesObj=q.optJSONObject("rates"); if(ratesObj!=null){ val map=buildMap<String,Double>{ ratesObj.keys().forEach{ k->put(k,ratesObj.optDouble(k)) } }; saveRates(map) }; if(q.has("ratesTime")) prefs.edit().putLong("rates_time",q.optLong("ratesTime")).apply()
         }
         true
     }.getOrDefault(false)
@@ -132,7 +132,7 @@ class FinanceStore(context: Context) {
             a.put(JSONObject().apply { put("name",x.name);put("balance",x.balance);put("hidden",x.hidden);put("type",x.type);put("currency",x.currency);put("icon",x.icon);put("iconColor",x.iconColor) })
         }})
         root.put("transactions", arr { a -> loadTransactions().forEach { x ->
-            a.put(JSONObject().apply { put("id",x.id);put("title",x.title);put("amount",x.amount);put("income",x.income);put("accountName",x.accountName);put("category",x.category);put("timestamp",x.timestamp);put("currency",x.currency);put("operationType",x.operationType);put("toAccountName",x.toAccountName);put("note",x.note);put("repeat",x.repeat);put("tags",x.tags) })
+            a.put(JSONObject().apply { put("id",x.id);put("title",x.title);put("amount",x.amount);put("income",x.income);put("accountName",x.accountName);put("category",x.category);put("timestamp",x.timestamp);put("currency",x.currency);put("operationType",x.operationType);put("toAccountName",x.toAccountName);put("note",x.note);put("repeat",x.repeat);put("tags",x.tags);if(x.transferTargetAmount!=null)put("transferTargetAmount",x.transferTargetAmount) })
         }})
         root.put("categories", arr { a -> loadCategories().forEach { x ->
             a.put(JSONObject().apply { put("id",x.id);put("name",x.name);put("kind",x.kind);put("icon",x.icon);put("color",x.color) })
@@ -141,7 +141,7 @@ class FinanceStore(context: Context) {
             a.put(JSONObject().apply { put("id",x.id);put("name",x.name);put("category",x.category);put("accountName",x.accountName);put("limit",x.limit);put("currency",x.currency);put("period",x.period) })
         }})
         root.put("debts", arr { a -> loadDebts().forEach { x ->
-            a.put(JSONObject().apply { put("id",x.id);put("person",x.person);put("amount",x.amount);put("mine",x.mine);put("interest",x.interest);put("interestRate",x.interestRate);put("note",x.note) })
+            a.put(JSONObject().apply { put("id",x.id);put("person",x.person);put("amount",x.amount);put("mine",x.mine);put("interest",x.interest);put("interestRate",x.interestRate);put("dueDate",x.dueDate);put("note",x.note);put("paid",x.paid) })
         }})
         root.put("goals", arr { a -> loadGoals().forEach { x ->
             a.put(JSONObject().apply { put("id",x.id);put("name",x.name);put("target",x.target);put("saved",x.saved);put("currency",x.currency);put("deadline",x.deadline) })

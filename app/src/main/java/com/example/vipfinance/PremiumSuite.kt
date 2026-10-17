@@ -21,7 +21,8 @@ fun PremiumSuite(context: Context, accounts: List<Account>, tx: List<Transaction
     val monthExpenses=expenses.filter{it.timestamp>=start}.sumOf{conv(it.amount,it.currency,currency,auto,rates)}
     val monthIncome=incomes.filter{it.timestamp>=start}.sumOf{conv(it.amount,it.currency,currency,auto,rates)}
     val net=monthIncome-monthExpenses
-    val debt=debts.sumOf{(it.amount+(if(it.interest)it.amount*it.interestRate/100 else 0.0)-it.paid).coerceAtLeast(0.0)}
+    val debtRub=debts.sumOf{(it.amount+(if(it.interest)it.amount*it.interestRate/100 else 0.0)-it.paid).coerceAtLeast(0.0)}
+    val debt=conv(debtRub,"RUB",currency,auto,rates)
     val netWorth=balance-debt
     val largest=expenses.filter{it.timestamp>=start}.groupBy{it.category}.mapValues{(_,v)->v.sumOf{conv(it.amount,it.currency,currency,auto,rates)}}.maxByOrNull{it.value}
     val recurring=expenses.groupBy{it.title.ifBlank{it.category}.trim().lowercase(Locale.getDefault())}.mapNotNull{(name,list)->

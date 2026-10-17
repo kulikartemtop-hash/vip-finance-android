@@ -23,7 +23,6 @@ object AppUpdater {
         val now = System.currentTimeMillis()
         val last = prefs.getLong("last_check", 0L)
         if (now - last < CHECK_INTERVAL_MS) return
-        prefs.edit().putLong("last_check", now).apply()
         checkForUpdate(activity, manual = false)
     }
 
@@ -48,6 +47,7 @@ object AppUpdater {
                     return@Thread
                 }
                 val json = connection.inputStream.bufferedReader().use { it.readText() }
+                activity.getSharedPreferences("vip_updater", Activity.MODE_PRIVATE).edit().putLong("last_check", System.currentTimeMillis()).apply()
                 val releases = org.json.JSONArray(json)
                 var release: JSONObject? = null
                 var remoteVersion = ""

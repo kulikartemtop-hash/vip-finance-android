@@ -18,6 +18,14 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.pow
 
+private fun smartBudgetPeriodBounds(period:String, now:Long=System.currentTimeMillis()):Pair<Long,Long>{
+    val start=Calendar.getInstance().apply{timeInMillis=now;set(Calendar.HOUR_OF_DAY,0);set(Calendar.MINUTE,0);set(Calendar.SECOND,0);set(Calendar.MILLISECOND,0)}
+    when(period){ "Неделя"->start.add(Calendar.DAY_OF_MONTH,-6); "3 месяца"->{start.set(Calendar.DAY_OF_MONTH,1);start.add(Calendar.MONTH,-2)}; "6 месяцев"->{start.set(Calendar.DAY_OF_MONTH,1);start.add(Calendar.MONTH,-5)}; "Год"->start.set(Calendar.DAY_OF_YEAR,1); else->start.set(Calendar.DAY_OF_MONTH,1) }
+    val end=Calendar.getInstance().apply{timeInMillis=start.timeInMillis}
+    when(period){ "Неделя"->end.add(Calendar.DAY_OF_MONTH,7); "3 месяца"->end.add(Calendar.MONTH,3); "6 месяцев"->end.add(Calendar.MONTH,6); "Год"->end.add(Calendar.YEAR,1); else->end.add(Calendar.MONTH,1) }
+    return start.timeInMillis to end.timeInMillis
+}
+
 @Composable
 fun SmartCenter(
     accounts: List<Account>, tx: List<Transaction>, debts: List<Debt>, goals: List<Goal>,
@@ -52,11 +60,15 @@ fun SmartCenter(
         }
     }.sortedByDescending{it.second}
     val overspend=expenses.filter{it.timestamp>=month}.groupBy{it.category}.mapValues{(_,v)->v.sumOf{conv(it.amount,it.currency,currency,auto,rates)}}.maxByOrNull{it.value}
-    val debtOutstanding=debts.sumOf{d->(d.amount+(if(d.interest)d.amount*d.interestRate/100 else 0.0)-d.paid).coerceAtLeast(0.0)}
+    val debtOutstandingRub=debts.sumOf{d->(d.amount+(if(d.interest)d.amount*d.interestRate/100 else 0.0)-d.paid).coerceAtLeast(0.0)}
+    val debtOutstanding=conv(debtOutstandingRub,"RUB",currency,auto,rates)
     val warnings=budgets.mapNotNull{b->
-        val spent=expenses.filter{it.category==b.category&&it.timestamp>=month}.sumOf{conv(it.amount,it.currency,b.currency,auto,rates)}
-        val limit=conv(b.limit,b.currency,currency,auto,rates)
-        if(limit>0&&spent/limit>=.8)b.name to spent/limit*100 else null
+        val bounds=smartBudgetPeriodBounds(b.period)
+        val spent=expenses.asSequence().filter{it.timestamp>=bounds.first&&it.timestamp<bounds.second}
+            .filter{b.category.isBlank()||it.category==b.category}
+            .filter{b.accountName.isBlank()||it.accountName==b.accountName}
+            .sumOf{conv(it.amount,it.currency,b.currency,auto,rates)}
+        if(b.limit>0&&spent/b.limit>=.8)b.name to spent/b.limit*100 else null
     }
     val context=androidx.compose.ui.platform.LocalContext.current
     val exportLauncher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->
@@ -100,7 +112,7 @@ fun SmartCenter(
             if(goals.none{it.saved<it.target})Text("Все текущие цели выполнены или отсутствуют.")
         }}
         item{SmartCard("💳 Долги","Контроль долговой нагрузки"){
-            Text("Осталось по долгам: ${money(debtOutstanding,"RUB")}",fontWeight=FontWeight.Bold)
+            Text("Осталось по долгам: ${money(debtOutstanding,currency)}",fontWeight=FontWeight.Bold)
             Text(if(debtOutstanding>balance)"⚠️ Долговая нагрузка выше доступного баланса." else "Нагрузка по долгам в пределах текущего баланса.")
         }}
         item{SmartCard("🧠 Финансовое здоровье","Оценка по текущему поведению"){
@@ -136,7 +148,7 @@ fun SmartCenter(
         item{SmartCard("💎 Чистый капитал","Активы минус обязательства"){
             val netWorth=balance-debtOutstanding
             Text("Активы: ${money(balance,currency)}")
-            Text("Обязательства: ${money(debtOutstanding,"RUB")}")
+            Text("Обязательства: ${money(debtOutstanding,currency)}")
             Text("Чистый капитал: ${money(netWorth,currency)}",fontWeight=FontWeight.ExtraBold)
         }}
         item{SmartCard("📊 История капитала","Оценка динамики по денежному потоку"){
@@ -262,8 +274,8 @@ private fun resolveVoiceAccount(text:String, accounts:List<Account>):Account?{
     val requestedCard=listOf("карта","с карты","на карту","карту").any{text.contains(it)}
     val requestedAccount=listOf("счет","счёт","со счета","со счёта","с счета","на счет","на счёт").any{text.contains(it)}
     return when{
-        requestedCard -> visible.firstOrNull{it.type.contains("карт",true)} ?: visible.firstOrNull()
-        requestedAccount -> visible.firstOrNull{it.type.contains("сч",true)} ?: visible.firstOrNull()
+        requestedCard -> visible.firstOrNull{it.type.contains("карт",true)}
+        requestedAccount -> visible.firstOrNull{it.type.contains("сч",true)}
         else -> visible.firstOrNull()
     }
 }
@@ -271,9 +283,9 @@ private fun resolveVoiceAccount(text:String, accounts:List<Account>):Account?{
 private fun resolveVoiceCategory(text:String,categories:List<Category>,income:Boolean):String?{
     val normalized=text.replace('ё','е')
     val aliases=linkedMapOf(
-        "бензин" to "авто","топливо" to "авто","заправ" to "авто","масло" to "авто","шиномонтаж" to "авто","ремонт машины" to "авто","ремонт авто" to "авто",
+        "бензин" to "транспорт","топливо" to "транспорт","заправ" to "транспорт","масло" to "транспорт","шиномонтаж" to "транспорт","ремонт машины" to "транспорт","ремонт авто" to "транспорт",
         "продукт" to "продукты","супермаркет" to "продукты","еда" to "продукты","молоко" to "продукты","хлеб" to "продукты",
-        "одежд" to "одежда","обув" to "одежда","куртк" to "одежда",
+        "одежд" to "покупки","обув" to "покупки","куртк" to "покупки",
         "такси" to "транспорт","метро" to "транспорт","автобус" to "транспорт","билет" to "транспорт",
         "квартплат" to "жилье","квартир" to "жилье","аренд" to "жилье",
         "кино" to "развлечения","игр" to "развлечения","театр" to "развлечения",
@@ -283,8 +295,8 @@ private fun resolveVoiceCategory(text:String,categories:List<Category>,income:Bo
     )
     val hit=aliases.entries.firstOrNull{normalized.contains(it.key)}?.value
     if(hit!=null){
-        categories.firstOrNull{it.name.replace('ё','e').equals(hit,true)}?.let{return it.name}
-        categories.firstOrNull{it.name.replace('ё','e').contains(hit,true)||hit.contains(it.name.replace('ё','e'),true)}?.let{return it.name}
+        categories.firstOrNull{it.name.replace('ё','е').equals(hit,true)}?.let{return it.name}
+        categories.firstOrNull{it.name.replace('ё','е').contains(hit,true)||hit.contains(it.name.replace('ё','е'),true)}?.let{return it.name}
     }
     categories.sortedByDescending{it.name.length}.firstOrNull{normalized.contains(it.name.lowercase(Locale.getDefault()).replace('ё','е'))}?.let{return it.name}
     return if(income) categories.firstOrNull{it.name.equals("Зарплата",true)}?.name else categories.firstOrNull{it.name.equals("Другое",true)}?.name
