@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
@@ -37,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -505,28 +507,32 @@ fun FinanceApp(s: FinanceStore) {
                 bottomBar = {
                     BottomAppBar(
                         containerColor = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 10.dp
+                        tonalElevation = 4.dp
                     ) {
                         Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 7.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Button(
                                 onClick = { page = "Расходы" },
                                 modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(18.dp),
+                                contentPadding = PaddingValues(vertical = 14.dp, horizontal = 12.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.errorContainer,
                                     contentColor = MaterialTheme.colorScheme.onErrorContainer
                                 )
-                            ) { Text("− Расход") }
+                            ) { Text("−  Расход", fontWeight = FontWeight.Bold) }
                             Button(
                                 onClick = { page = "Доходы" },
                                 modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(18.dp),
+                                contentPadding = PaddingValues(vertical = 14.dp, horizontal = 12.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
-                            ) { Text("+ Доход") }
+                            ) { Text("+  Доход", fontWeight = FontWeight.Bold) }
                         }
                     }
                 }
@@ -650,18 +656,22 @@ private fun Home(
         item {
             Card(modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(28.dp),elevation=CardDefaults.cardElevation(10.dp),colors=CardDefaults.cardColors(containerColor=Color.Transparent)) {
                 Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary,MaterialTheme.colorScheme.tertiary,MaterialTheme.colorScheme.secondary))).padding(22.dp)) {
-                    Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                    Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                        Row(verticalAlignment=Alignment.CenterVertically, horizontalArrangement=Arrangement.spacedBy(7.dp)) {
+                            Box(Modifier.size(7.dp).clip(CircleShape).background(Color.White.copy(.92f)))
+                            Text("VIP FINANCE  •  ОБЗОР", color=Color.White.copy(.82f), style=MaterialTheme.typography.labelSmall, fontWeight=FontWeight.Bold, letterSpacing=1.2.sp)
+                        }
                         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
-                            Column {
-                                Text(if(selected==null)"Общий баланс" else "Баланс • $selected",color=Color.White.copy(.78f),style=MaterialTheme.typography.labelLarge)
-                                Text(money(selectedBalance,c),color=Color.White,style=MaterialTheme.typography.headlineLarge,fontWeight=FontWeight.ExtraBold)
+                            Column(Modifier.weight(1f), verticalArrangement=Arrangement.spacedBy(3.dp)) {
+                                Text(if(selected==null)"ОБЩИЙ БАЛАНС" else "БАЛАНС • ${selected.uppercase(Locale.getDefault())}",color=Color.White.copy(.78f),style=MaterialTheme.typography.labelLarge, letterSpacing=0.6.sp)
+                                Text(money(selectedBalance,c),color=Color.White,style=MaterialTheme.typography.headlineLarge,fontWeight=FontWeight.ExtraBold, maxLines=1)
                             }
-                            Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(Color.White.copy(.16f)),contentAlignment=Alignment.Center){Text("₽",color=Color.White,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleLarge)}
+                            Box(Modifier.size(52.dp).clip(RoundedCornerShape(18.dp)).background(Color.White.copy(.16f)).border(1.dp, Color.White.copy(.22f), RoundedCornerShape(18.dp)),contentAlignment=Alignment.Center){Text(sym(c),color=Color.White,fontWeight=FontWeight.ExtraBold,style=MaterialTheme.typography.titleLarge)}
                         }
                         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                            Surface(shape=RoundedCornerShape(14.dp),color=Color.White.copy(.12f),modifier=Modifier.weight(1f)){Column(Modifier.padding(12.dp)){Text("Доходы",color=Color.White.copy(.72f),style=MaterialTheme.typography.labelSmall);Text(money(income,c),color=Color.White,fontWeight=FontWeight.Bold)}}
-                            Surface(shape=RoundedCornerShape(14.dp),color=Color.White.copy(.12f),modifier=Modifier.weight(1f)){Column(Modifier.padding(12.dp)){Text("Расходы",color=Color.White.copy(.72f),style=MaterialTheme.typography.labelSmall);Text(money(expense,c),color=Color.White,fontWeight=FontWeight.Bold)}}
-                            Surface(shape=RoundedCornerShape(14.dp),color=Color.White.copy(.12f),modifier=Modifier.weight(1f)){Column(Modifier.padding(12.dp)){Text("Остаток",color=Color.White.copy(.72f),style=MaterialTheme.typography.labelSmall);Text(money(net,c),color=Color.White,fontWeight=FontWeight.Bold)}}
+                            Surface(shape=RoundedCornerShape(16.dp),color=Color.White.copy(.13f),modifier=Modifier.weight(1f)){Column(Modifier.padding(horizontal=10.dp, vertical=12.dp), verticalArrangement=Arrangement.spacedBy(4.dp)){Text("↑ ДОХОДЫ",color=Color.White.copy(.74f),style=MaterialTheme.typography.labelSmall, maxLines=1);Text(money(income,c),color=Color.White,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.bodyMedium,maxLines=1)}}
+                            Surface(shape=RoundedCornerShape(16.dp),color=Color.White.copy(.13f),modifier=Modifier.weight(1f)){Column(Modifier.padding(horizontal=10.dp, vertical=12.dp), verticalArrangement=Arrangement.spacedBy(4.dp)){Text("↓ РАСХОДЫ",color=Color.White.copy(.74f),style=MaterialTheme.typography.labelSmall, maxLines=1);Text(money(expense,c),color=Color.White,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.bodyMedium,maxLines=1)}}
+                            Surface(shape=RoundedCornerShape(16.dp),color=Color.White.copy(.13f),modifier=Modifier.weight(1f)){Column(Modifier.padding(horizontal=10.dp, vertical=12.dp), verticalArrangement=Arrangement.spacedBy(4.dp)){Text("↗ ОСТАТОК",color=Color.White.copy(.74f),style=MaterialTheme.typography.labelSmall, maxLines=1);Text(money(net,c),color=Color.White,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.bodyMedium,maxLines=1)}}
                         }
                     }
                 }
@@ -799,10 +809,9 @@ private fun Home(
 @Composable
 private fun MetricCard(title: String, value: String, accent: Color, modifier: Modifier = Modifier) {
     Card(modifier = modifier, shape = RoundedCornerShape(18.dp), elevation = CardDefaults.cardElevation(3.dp)) {
-        Column(Modifier.padding(15.dp)) {
-            Text(title, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(5.dp))
-            Text(value, fontWeight = FontWeight.Bold, color = accent)
+        Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            Text(value, fontWeight = FontWeight.ExtraBold, color = accent, style = MaterialTheme.typography.titleMedium, maxLines = 1)
         }
     }
 }
@@ -819,8 +828,8 @@ private fun Operations(
     var filtersOpen by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Card(shape = RoundedCornerShape(22.dp), elevation = CardDefaults.cardElevation(4.dp)) {
-            Row(Modifier.fillMaxWidth().padding(15.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Card(shape = RoundedCornerShape(24.dp), elevation = CardDefaults.cardElevation(2.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 MetricCard("Доходы", money(ts.filter { it.income && it.operationType != "transfer" }.sumOf { conv(it.amount, it.currency, c, auto, r) }, c), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
                 MetricCard("Расходы", money(ts.filter { !it.income && it.operationType != "transfer" }.sumOf { conv(it.amount, it.currency, c, auto, r) }, c), MaterialTheme.colorScheme.error, Modifier.weight(1f))
                 MetricCard("Операций", ts.size.toString(), MaterialTheme.colorScheme.secondary, Modifier.weight(1f))
@@ -1136,9 +1145,17 @@ private fun Analytics(tx: List<Transaction>, c: String, auto: Boolean, r: Map<St
     val largestExpense = periodTx.filter { !it.income }.maxByOrNull { conv(it.amount, it.currency, c, auto, r) }
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            Column {
-                Text("Аналитика", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text("Финансовый отчёт за выбранный период", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(26.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+            ) {
+                Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("VIP FINANCE  •  INSIGHTS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.1.sp)
+                    Text("Аналитика", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
+                    Text("Финансовая картина за выбранный период", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
         item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) { listOf("Сегодня", "7 дней", "14 дней", "Месяц", "Свои даты").forEach { p -> FilterChip(preset == p, { preset = p }, label = { Text(p) }) } } }
