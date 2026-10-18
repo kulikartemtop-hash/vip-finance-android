@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
@@ -1337,9 +1338,27 @@ private fun SmartCalendar(
     fun dayLabel(day:Int):String = SimpleDateFormat("EEEE, d MMMM",Locale.getDefault()).format(Calendar.getInstance().apply{set(year,monthIndex,day)}.time).replaceFirstChar{it.uppercase()}
     LazyColumn(verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item {
-            Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)){ Text("Календарь денег",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold); Text(monthName,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
-                Row { IconButton({monthOffset--;selectedDay=null}){Text("‹",style=MaterialTheme.typography.headlineMedium)}; IconButton({monthOffset++;selectedDay=null}){Text("›",style=MaterialTheme.typography.headlineMedium)} }
+            Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(26.dp),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.primaryContainer),elevation=CardDefaults.cardElevation(2.dp)) {
+                Column(Modifier.fillMaxWidth().padding(horizontal=16.dp, vertical=14.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
+                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(3.dp)) {
+                            Text("ОТКРЫТЫЙ МЕСЯЦ",style=MaterialTheme.typography.labelMedium,fontWeight=FontWeight.Bold,color=MaterialTheme.colorScheme.onPrimaryContainer)
+                            Text(monthName,style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.ExtraBold,color=MaterialTheme.colorScheme.onPrimaryContainer,maxLines=1)
+                            Text("Проведите по календарю влево или вправо",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha=0.78f))
+                        }
+                        Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(5.dp)) {
+                            FilledTonalIconButton(onClick={monthOffset--;selectedDay=null},modifier=Modifier.size(44.dp)){Text("‹",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold)}
+                            FilledTonalIconButton(onClick={monthOffset++;selectedDay=null},modifier=Modifier.size(44.dp)){Text("›",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold)}
+                        }
+                    }
+                    if(monthOffset!=0) {
+                        OutlinedButton(onClick={monthOffset=0;selectedDay=Calendar.getInstance().get(Calendar.DAY_OF_MONTH)},modifier=Modifier.fillMaxWidth()) {
+                            Text("Вернуться к текущему месяцу")
+                        }
+                    } else {
+                        Text("Сейчас открыт текущий месяц",style=MaterialTheme.typography.labelMedium,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
+                }
             }
         }
         item {
@@ -1349,7 +1368,7 @@ private fun SmartCalendar(
             item{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(7.dp)){MetricCard("Доходы",money(income,c),MaterialTheme.colorScheme.primary,Modifier.weight(1f));MetricCard("Расходы",money(expense,c),MaterialTheme.colorScheme.error,Modifier.weight(1f));MetricCard("Итог",money(net,c),if(net>=0)MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error,Modifier.weight(1f))}}
             item{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp)){listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс").forEach{Text(it,Modifier.weight(1f),textAlign=TextAlign.Center,style=MaterialTheme.typography.labelSmall)}}}
             item{
-                Column(verticalArrangement=Arrangement.spacedBy(4.dp)){for(row in 0 until cells/7){Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp)){for(col in 0 until 7){val index=row*7+col;val day=index-firstWeekDay+1;if(day in 1..daysInMonth){val items=dayTx[day].orEmpty();val di=items.filter{it.income}.sumOf{conv(it.amount,it.currency,c,auto,rates)};val de=items.filter{!it.income}.sumOf{conv(it.amount,it.currency,c,auto,rates)};val rc=dayRem[day]?.size?:0;val gc=goalDeadlines[day]?.size?:0;val dc=debtDeadlines[day]?.size?:0;Card(onClick={selectedDay=day},modifier=Modifier.weight(1f).height(82.dp),shape=RoundedCornerShape(12.dp),colors=CardDefaults.cardColors(containerColor=if(selectedDay==day)MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)){Column(Modifier.fillMaxSize().padding(4.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(1.dp)){Text(day.toString(),fontWeight=FontWeight.Bold);Row(horizontalArrangement=Arrangement.spacedBy(3.dp),verticalAlignment=Alignment.CenterVertically){if(di>0)Box(Modifier.size(6.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary));if(de>0)Box(Modifier.size(6.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error));if(rc>0)Box(Modifier.size(6.dp).clip(CircleShape).background(MaterialTheme.colorScheme.tertiary));if(gc>0)Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF8E24AA)));if(dc>0)Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFFB8C00)))};if(di>0)Text("+"+money(di,c),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary,maxLines=1);if(de>0)Text("-"+money(de,c),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.error,maxLines=1)}}}else Spacer(Modifier.weight(1f).height(78.dp))}}}}
+                Column(Modifier.fillMaxWidth().pointerInput(monthOffset){var dragTotal=0f;detectHorizontalDragGestures(onHorizontalDrag={_,amount->dragTotal+=amount},onDragEnd={if(dragTotal < -60f){monthOffset++;selectedDay=null}else if(dragTotal > 60f){monthOffset--;selectedDay=null};dragTotal=0f},onDragCancel={dragTotal=0f})},verticalArrangement=Arrangement.spacedBy(4.dp)){for(row in 0 until cells/7){Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp)){for(col in 0 until 7){val index=row*7+col;val day=index-firstWeekDay+1;if(day in 1..daysInMonth){val items=dayTx[day].orEmpty();val di=items.filter{it.income}.sumOf{conv(it.amount,it.currency,c,auto,rates)};val de=items.filter{!it.income}.sumOf{conv(it.amount,it.currency,c,auto,rates)};val rc=dayRem[day]?.size?:0;val gc=goalDeadlines[day]?.size?:0;val dc=debtDeadlines[day]?.size?:0;Card(onClick={selectedDay=day},modifier=Modifier.weight(1f).height(82.dp),shape=RoundedCornerShape(12.dp),colors=CardDefaults.cardColors(containerColor=if(selectedDay==day)MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)){Column(Modifier.fillMaxSize().padding(4.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(1.dp)){Text(day.toString(),fontWeight=FontWeight.Bold);Row(horizontalArrangement=Arrangement.spacedBy(3.dp),verticalAlignment=Alignment.CenterVertically){if(di>0)Box(Modifier.size(6.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary));if(de>0)Box(Modifier.size(6.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error));if(rc>0)Box(Modifier.size(6.dp).clip(CircleShape).background(MaterialTheme.colorScheme.tertiary));if(gc>0)Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF8E24AA)));if(dc>0)Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFFB8C00)))};if(di>0)Text("+"+money(di,c),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary,maxLines=1);if(de>0)Text("-"+money(de,c),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.error,maxLines=1)}}}else Spacer(Modifier.weight(1f).height(78.dp))}}}}
             }
             if(selectedDay!=null)item{
                 Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(24.dp),elevation=CardDefaults.cardElevation(4.dp)){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
