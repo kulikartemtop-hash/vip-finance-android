@@ -14,6 +14,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
@@ -500,7 +502,7 @@ fun FinanceApp(s: FinanceStore) {
             "reminder" -> ReminderDialog({ dialog = "" }) { reminders = reminders + it; s.saveReminders(reminders); dialog = "" }
             "budget" -> BudgetDialog(accounts, categories, currency, editingBudget, { dialog = ""; editingBudget = null }) { value -> budgets = if (editingBudget == null) budgets + value else budgets.map { if (it.id == value.id) value else it }; s.saveBudgets(budgets); dialog = ""; editingBudget = null }
             "receiptExpense" -> TransactionDialog(accounts, categories, false, receiptDraft, { dialog = ""; receiptDraft = null }) { add(it); dialog = ""; receiptDraft = null }
-            "settings" -> SettingsDialog(currency, auto, theme, style, menu, rateTime, s.loadPin(), { c: String, a: Boolean, t: String, st: String, m: List<String> -> saveSettings(c, a, t, st, m) }, { s.savePin(it) }, { s.exportBackupJson() }, { json -> s.importBackupJson(json) }) { dialog = "" }
+            "settings" -> SettingsDialog(currency, auto, theme, style, menu, rateTime, s.loadPin(), { c: String, a: Boolean, t: String, st: String, m: List<String> -> saveSettings(c, a, t, st, m) }, { s.savePin(it) }, { s.exportBackupJson() }, { json -> s.importBackupJson(json) }, { s.resetAllData(); dialog = ""; activity?.recreate() }) { dialog = "" }
         }
     }
 }
@@ -1888,10 +1890,12 @@ private fun SettingsDialog(
     savePin: (String) -> Unit,
     backup: () -> String,
     importBackup: (String) -> Boolean,
+    resetData: () -> Unit,
     close: () -> Unit
 ) {
     val context = LocalContext.current
     var menuExpanded by remember { mutableStateOf(false) }
+    var confirmReset by remember { mutableStateOf(false) }
     var pinText by remember { mutableStateOf(currentPin) }
     var pinVisible by remember { mutableStateOf(false) }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -2074,6 +2078,22 @@ private fun SettingsDialog(
 
                 item {
                     SettingsSection(
+                        "Сброс данных",
+                        "Удалит финансовые записи и настройки приложения без возможности отмены"
+                    ) {
+                        OutlinedButton(
+                            onClick = { confirmReset = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text("Сбросить все данные", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                item {
+                    SettingsSection(
                         "Функции в меню",
                         if (menuExpanded) "Нажмите ещё раз, чтобы свернуть список"
                         else "Нажмите, чтобы показать разделы"
@@ -2089,15 +2109,39 @@ private fun SettingsDialog(
                         if (menuExpanded) {
                             (menu + pages.filter { it !in menu }).forEach { pageName ->
                                 val visibleInMenu = pageName in menu
+                                var dragDistance by remember(pageName) { mutableFloatStateOf(0f) }
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .then(
+                                            if (visibleInMenu) Modifier.pointerInput(menu, pageName) {
+                                                detectDragGesturesAfterLongPress(
+                                                    onDragEnd = { dragDistance = 0f },
+                                                    onDragCancel = { dragDistance = 0f }
+                                                ) { change, dragAmount ->
+                                                    change.consume()
+                                                    dragDistance += dragAmount.y
+                                                    if (dragDistance > 48f || dragDistance < -48f) {
+                                                        val updated = menu.toMutableList()
+                                                        val index = updated.indexOf(pageName)
+                                                        val target = if (dragDistance < 0f) index - 1 else index + 1
+                                                        if (index >= 0 && target in updated.indices) {
+                                                            val moving = updated.removeAt(index)
+                                                            updated.add(target, moving)
+                                                            save(c, auto, theme, style, updated)
+                                                        }
+                                                        dragDistance = 0f
+                                                    }
+                                                }
+                                            } else Modifier
+                                        ),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Column(Modifier.weight(1f)) {
                                         Text(pageName, fontWeight = FontWeight.SemiBold)
                                         Text(
-                                            if (visibleInMenu) "Пункт меню • позиция ${menu.indexOf(pageName) + 1}"
+                                            if (visibleInMenu) "Пункт меню • позиция ${menu.indexOf(pageName) + 1} • удерживайте и перетащите"
                                             else "Скрыт из меню",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -2135,7 +2179,11 @@ private fun SettingsDialog(
                                         checked = visibleInMenu,
                                         onCheckedChange = { enabled ->
                                             val updated = menu.toMutableList()
-                                            if (enabled && pageName !in updated) updated.add(pageName)
+                                            if (enabled && pageName !in updated) {
+                                                val defaultIndex = pages.indexOf(pageName)
+                                                val insertAt = (defaultIndex.coerceAtMost(updated.size))
+                                                updated.add(insertAt, pageName)
+                                            }
                                             if (!enabled) updated.remove(pageName)
                                             save(c, auto, theme, style, updated)
                                         }
@@ -2171,6 +2219,25 @@ private fun SettingsDialog(
                 }
             }
         }
+    }
+
+    if (confirmReset) {
+        AlertDialog(
+            onDismissRequest = { confirmReset = false },
+            title = { Text("Сбросить все данные?") },
+            text = {
+                Text("Будут удалены счета, операции, категории, бюджеты, долги, цели, напоминания, PIN-код и настройки. Это действие нельзя отменить. Перед сбросом сохраните резервную копию, если данные нужны.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmReset = false
+                    resetData()
+                }) { Text("Сбросить", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmReset = false }) { Text("Отмена") }
+            }
+        )
     }
 }
 
