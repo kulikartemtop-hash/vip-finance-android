@@ -1953,11 +1953,16 @@ private fun Budgets(budgets: List<Budget>, transactions: List<Transaction>, c: S
 private fun BudgetDialog(accounts: List<Account>, categories: List<Category>, c: String, editing: Budget?, close: () -> Unit, save: (Budget) -> Unit) {
     var n by remember(editing?.id) { mutableStateOf(editing?.name ?: "") }
     var lim by remember(editing?.id) { mutableStateOf(editing?.limit?.toString() ?: "") }
-    var cat by remember(editing?.id) { mutableStateOf(editing?.category ?: "") }
+    val expenseCategories = categories.filter { it.kind == "expense" }
+    var cat by remember(editing?.id, expenseCategories) {
+        mutableStateOf(
+            editing?.category?.takeIf { saved -> expenseCategories.any { it.name == saved } }
+                ?: if (editing == null) expenseCategories.firstOrNull()?.name.orEmpty() else ""
+        )
+    }
     var acc by remember(editing?.id) { mutableStateOf(editing?.accountName ?: "") }
     var per by remember(editing?.id) { mutableStateOf(editing?.period ?: "Месяц") }
     var budgetCurrency by remember(editing?.id) { mutableStateOf(editing?.currency ?: c) }
-    val expenseCategories = categories.filter { it.kind == "expense" }
     val parsedLimit = lim.replace(" ", "").replace(",", ".").toDoubleOrNull() ?: 0.0
     val title = if (editing == null) "Новый бюджет" else "Редактирование бюджета"
     AlertDialog(
@@ -1971,10 +1976,31 @@ private fun BudgetDialog(accounts: List<Account>, categories: List<Category>, c:
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) { items(currencies) { code -> FilterChip(budgetCurrency == code, { budgetCurrency = code }, label = { Text(code) }) } }
                 Text("Период", fontWeight = FontWeight.Bold)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) { items(listOf("Неделя", "Месяц", "3 месяца", "6 месяцев", "Год")) { value -> FilterChip(per == value, { per = value }, label = { Text(value) }) } }
-                Text("Категория", fontWeight = FontWeight.Bold)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    item { FilterChip(cat.isBlank(), { cat = "" }, label = { Text("Все") }) }
-                    items(expenseCategories) { z -> FilterChip(cat == z.name, { cat = z.name }, label = { Text(iconText(z.icon) + " " + z.name) }) }
+                Text("Категория расхода", fontWeight = FontWeight.Bold)
+                Text(
+                    "Бюджет создаётся для одной из существующих категорий расходов. Категория «Все» не используется.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (expenseCategories.isEmpty()) {
+                    Text(
+                        "Пока нет категорий расходов. Сначала добавьте категорию в меню «Категории».",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                } else {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        items(expenseCategories) { z ->
+                            FilterChip(cat == z.name, { cat = z.name }, label = { Text(iconText(z.icon) + " " + z.name) })
+                        }
+                    }
+                }
+                if (editing != null && cat.isBlank()) {
+                    Text(
+                        "У этого бюджета нет действующей категории. Выберите существующую категорию, чтобы сохранить изменения.",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
                 Text("Счёт / карта", fontWeight = FontWeight.Bold)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -1985,14 +2011,14 @@ private fun BudgetDialog(accounts: List<Account>, categories: List<Category>, c:
                     Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text("Предпросмотр", fontWeight = FontWeight.Bold)
-                            Text(n + " • " + per + " • " + cat.ifBlank { "все категории" } + " • " + acc.ifBlank { "все счета" })
+                            Text(n + " • " + per + " • " + cat.ifBlank { "категория не выбрана" } + " • " + acc.ifBlank { "все счета" })
                             Text("Лимит: " + money(parsedLimit, budgetCurrency))
                         }
                     }
                 }
             }
         },
-        confirmButton = { Button(onClick = { save(Budget(id = editing?.id ?: System.currentTimeMillis(), name = n.trim(), category = cat, accountName = acc, limit = parsedLimit, currency = budgetCurrency, period = per)) }, enabled = n.isNotBlank() && parsedLimit > 0) { Text(if (editing == null) "Создать" else "Сохранить изменения") } },
+        confirmButton = { Button(onClick = { save(Budget(id = editing?.id ?: System.currentTimeMillis(), name = n.trim(), category = cat, accountName = acc, limit = parsedLimit, currency = budgetCurrency, period = per)) }, enabled = n.isNotBlank() && parsedLimit > 0 && expenseCategories.any { it.name == cat }) { Text(if (editing == null) "Создать" else "Сохранить изменения") } },
         dismissButton = { TextButton(close) { Text("Отмена") } }
     )
 }
