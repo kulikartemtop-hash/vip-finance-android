@@ -1778,7 +1778,7 @@ private fun budgetHistoricalAverage(budget: Budget, transactions: List<Transacti
 }
 
 @Composable
-private fun BudgetAiCard(budgets: List<Budget>, transactions: List<Transaction>, c: String, auto: Boolean, rates: Map<String, Double>, edit: (Budget) -> Unit) {
+private fun BudgetAiCard(budgets: List<Budget>, transactions: List<Transaction>, c: String, auto: Boolean, rates: Map<String, Double>, edit: (Budget) -> Unit, collapsed: Boolean, toggle: () -> Unit) {
     val now = System.currentTimeMillis()
     val insights = budgets.mapNotNull { budget ->
         val bounds = budgetPeriodBounds(budget.period, now)
@@ -1814,13 +1814,27 @@ private fun BudgetAiCard(budgets: List<Budget>, transactions: List<Transaction>,
                     Text("🤖 AI-помощник бюджета", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
                     Text("Локальный анализ расходов без отправки финансовых данных в облако.", style = MaterialTheme.typography.bodySmall)
                 }
-                Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)) {
-                    Text(insights.size.toString() + " бюджетов", Modifier.padding(horizontal = 10.dp, vertical = 7.dp), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)) {
+                        Text(insights.size.toString() + " бюджетов", Modifier.padding(horizontal = 10.dp, vertical = 7.dp), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    }
+                    TextButton(onClick = toggle, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)) {
+                        Text(if (collapsed) "Развернуть ↓" else "Свернуть ↑", style = MaterialTheme.typography.labelMedium)
+                    }
                 }
             }
-            if (budgets.isEmpty()) {
+            if (collapsed) {
+                val urgent = insights.count { it.third >= 3 }
+                val warnings = insights.count { it.third == 2 }
+                Text(
+                    if (budgets.isEmpty()) "Создайте бюджет, чтобы получить прогноз расходов."
+                    else "Кратко: " + urgent + " превышений прогноза • " + warnings + " предупреждений. Нажмите «Развернуть», чтобы увидеть советы.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else if (budgets.isEmpty()) {
                 Text("Создайте бюджет — AI начнёт сравнивать фактические расходы, историю и прогноз.")
-            } else {
+            } else if (!collapsed) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     MetricCard("В риске", over.toString(), MaterialTheme.colorScheme.error, Modifier.weight(1f))
                     MetricCard("Внимание", warning.toString(), MaterialTheme.colorScheme.tertiary, Modifier.weight(1f))
@@ -1876,7 +1890,7 @@ private fun Budgets(budgets: List<Budget>, transactions: List<Transaction>, c: S
                 }
             }
         }
-        BudgetAiCard(budgets, transactions, c, auto, rates, edit)
+        var aiCollapsed by remember { mutableStateOf(false) }
         if (budgets.isEmpty()) {
             PremiumEmptyState(
                 title = "Бюджетов пока нет",
@@ -1918,6 +1932,18 @@ private fun Budgets(budgets: List<Budget>, transactions: List<Transaction>, c: S
                         }
                     }
                 }
+            }
+            item {
+                BudgetAiCard(
+                    budgets = budgets,
+                    transactions = transactions,
+                    c = c,
+                    auto = auto,
+                    rates = rates,
+                    edit = edit,
+                    collapsed = aiCollapsed,
+                    toggle = { aiCollapsed = !aiCollapsed }
+                )
             }
         }
     }
