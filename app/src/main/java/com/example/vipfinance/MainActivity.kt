@@ -521,6 +521,22 @@ fun FinanceApp(s: FinanceStore) {
             "receiptExpense" -> TransactionDialog(accounts, categories, false, receiptDraft, { dialog = ""; receiptDraft = null }) { add(it); dialog = ""; receiptDraft = null }
             "settings" -> SettingsDialog(currency, auto, theme, style, menu, rateTime, s.loadPin(), { c: String, a: Boolean, t: String, st: String, m: List<String> -> saveSettings(c, a, t, st, m) }, { s.savePin(it) }, { s.exportBackupJson() }, { json -> s.importBackupJson(json) }, { s.resetAllData(); dialog = ""; activity?.recreate() }) { dialog = "" }
         }
+        deletingAccount?.let { account ->
+            AlertDialog(
+                onDismissRequest = { deletingAccount = null },
+                title = { Text("Удалить «${account.name}»?") },
+                text = { Text("Удаление необратимо. Удалить можно только счёт без связанных операций. Если хотите временно убрать его из расчётов, используйте «Скрыть».") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        accounts = accounts.filterNot { it.name == account.name }
+                        s.saveAccounts(accounts)
+                        if (selected == account.name) selected = null
+                        deletingAccount = null
+                    }) { Text("Удалить") }
+                },
+                dismissButton = { TextButton(onClick = { deletingAccount = null }) { Text("Отмена") } }
+            )
+        }
     }
 }
 
@@ -2495,7 +2511,7 @@ private fun AccountDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { save(Account(n.trim(), balance ?: 0.0, existing?.hidden ?: false, t, c, icon, iconColor)) }, enabled = n.isNotBlank() && balance != null && (existing == null || n.trim() == existing.name || true)) { Text("Сохранить") }
+            Button(onClick = { save(Account(n.trim(), balance ?: 0.0, existing?.hidden ?: false, t, c, icon, iconColor)) }, enabled = n.isNotBlank() && balance != null) { Text("Сохранить") }
         },
         dismissButton = { TextButton(close) { Text("Отмена") } }
     )
