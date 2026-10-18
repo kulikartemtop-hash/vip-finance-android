@@ -323,3 +323,22 @@ Current verified release asset: **VIP-Finance.apk**.
 - [x] Keep the picker separated by income/expense mode and include historical categories still used by transactions.
 - [ ] Build and verify APK through GitHub Actions; inspect failures and rebuild if needed.
 - [ ] Manual device check: open Expenses and Income, search categories, select a result, clear filter with “Все”.
+
+
+# VIP Finance 7.0 — Visual Evolution
+Status: [~] IN PROGRESS — Phase 1 committed; release validation pending.
+
+## Phase 1 — Dashboard and navigation
+- [x] Add a dedicated premium quick-access card on the dashboard for Operations, Analytics, Budgets and Goals.
+- [x] Show the current month in the dashboard quick-access section.
+- [x] Preserve existing account/transaction models, saved preferences, bottom quick-add actions and menu customization.
+- [ ] Verify successful signed 7.0.0 release and APK asset.
+- [ ] Inspect GitHub Actions build logs if any step fails and rebuild after fixes.
+- [ ] Device regression remains unverified in CI; manually check narrow/large screens, dashboard shortcuts and saved data.
+
+## Next phases (do not start until Phase 1 build succeeds)
+- [ ] Phase 2: improve analytics hierarchy and operations navigation/filter clarity.
+- [ ] Phase 3: unify screen surfaces, empty/loading states and personalization affordances.
+- [ ] Phase 4: final regression pass and release notes.
+
+Version target: versionCode 700, versionName 7.0.0.
