@@ -170,6 +170,8 @@ fun FinanceApp(s: FinanceStore) {
     var dialog by remember { mutableStateOf("") }
     var repeatSource by remember { mutableStateOf<Transaction?>(null) }
     var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
+    var editingAccount by remember { mutableStateOf<Account?>(null) }
+    var deletingAccount by remember { mutableStateOf<Account?>(null) }
     var filter by remember { mutableStateOf<String?>(null) }
     var newest by remember { mutableStateOf(true) }
     var search by remember { mutableStateOf("") }
@@ -448,7 +450,7 @@ fun FinanceApp(s: FinanceStore) {
                     when (page) {
                         "Главная" -> Home(total, currency, accounts, auto, rates, selected, inc, exp, goals, debts, reminders, categories, budgets, tx, ::add, { page = "Бюджеты" }, { dialog = "account" }) { selected = it }
                         "Операции" -> Operations(shown, accounts, filter, { filter = it }, { dialog = "expense" }, ::remove, { editingTransaction = it; dialog = "editTransaction" }, currency, auto, rates, search, { search = it }, tagSearch, { tagSearch = it }, newest, { newest = it }, typeFilter, { typeFilter = it }, categoryFilter, { categoryFilter = it }, fromDate, { fromDate = it }, toDate, { toDate = it }, categories.map { it.name }, { original -> repeatSource = original; dialog = if (original.income) "income" else "expense" })
-                        "Счета" -> Accounts(accounts, currency, auto, rates, { dialog = "account" }, { selected = it }) { n -> val updated = accounts.map { if (it.name == n) it.copy(hidden = !it.hidden) else it }; accounts = updated; s.saveAccounts(updated) }
+                        "Счета" -> Accounts(accounts, tx, currency, auto, rates, { editingAccount = null; dialog = "account" }, { editingAccount = it; dialog = "account" }, { deletingAccount = it }, { selected = it }, { n -> val updated = accounts.map { if (it.name == n) it.copy(hidden = !it.hidden) else it }; accounts = updated; s.saveAccounts(updated) }, { account -> repeatSource = Transaction(title = "Перевод между счетами", amount = 0.0, income = false, accountName = account.name, currency = account.currency, operationType = "transfer", toAccountName = accounts.firstOrNull { it.name != account.name }?.name.orEmpty()); dialog = "expense" })
                         "Категории" -> Categories(categories, { kind -> newCategoryKind = kind; editingCategory = null; dialog = "category" }, { editingCategory = it; dialog = "category" }, { c0 -> categories = categories.filterNot { it.id == c0.id }; s.saveCategories(categories) })
                         "Бюджеты" -> Budgets(budgets, tx, currency, auto, rates, accounts, categories, { editingBudget = null; dialog = "budget" }, { editingBudget = it; dialog = "budget" }) { b0 -> budgets = budgets.filterNot { it.id == b0.id }; s.saveBudgets(budgets) }
                         "Аналитика" -> Analytics(tx, currency, auto, rates)
@@ -470,8 +472,20 @@ fun FinanceApp(s: FinanceStore) {
 
     VIPFinanceTheme(theme = theme, style = style) {
         when (dialog) {
-            "account" -> AccountDialog({ dialog = "" }) { n, b, t, c, icon, iconColor ->
-                accounts = accounts + Account(n, b, false, t, c, icon, iconColor); s.saveAccounts(accounts); dialog = ""
+            "account" -> AccountDialog(editingAccount, { dialog = ""; editingAccount = null }) { updatedAccount ->
+                val original = editingAccount
+                if (original == null) {
+                    accounts = accounts + updatedAccount
+                } else {
+                    accounts = accounts.map { if (it.name == original.name) updatedAccount else it }
+                    if (original.name != updatedAccount.name) {
+                        tx = tx.map { item -> item.copy(accountName = if (item.accountName == original.name) updatedAccount.name else item.accountName, toAccountName = if (item.toAccountName == original.name) updatedAccount.name else item.toAccountName) }
+                        budgets = budgets.map { if (it.accountName == original.name) it.copy(accountName = updatedAccount.name) else it }
+                        s.saveTransactions(tx); s.saveBudgets(budgets)
+                        if (selected == original.name) selected = updatedAccount.name
+                    }
+                }
+                s.saveAccounts(accounts); dialog = ""; editingAccount = null
             }
             "category" -> CategoryDialog(editingCategory, newCategoryKind, { dialog = ""; editingCategory = null }) { category ->
                 categories = if (categories.any { it.id == category.id }) categories.map { if (it.id == category.id) category else it } else categories + category
@@ -825,52 +839,129 @@ private fun Categories(
 }
 
 @Composable
-private fun Accounts(items: List<Account>, c: String, auto: Boolean, r: Map<String, Double>, add: () -> Unit, select: (String) -> Unit, toggle: (String) -> Unit) {
+private fun Accounts(
+    items: List<Account>, transactions: List<Transaction>, c: String, auto: Boolean, r: Map<String, Double>,
+    add: () -> Unit, edit: (Account) -> Unit, remove: (Account) -> Unit, select: (String) -> Unit,
+    toggle: (String) -> Unit, transfer: (Account) -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    var typeFilter by remember { mutableStateOf("Все") }
+    var sortBy by remember { mutableStateOf("Название") }
     val visible = items.filter { !it.hidden }
     val total = visible.sumOf { conv(it.balance, it.currency, c, auto, r) }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-            Column { Text("Счета и карты", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold); Text(items.size.toString() + " финансовых объектов", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            FilledTonalButton(onClick = add) { Text("+ Добавить") }
+    val accountCount = visible.count { it.type != "Карта" }
+    val cardCount = visible.count { it.type == "Карта" }
+    val shown = items.filter { account ->
+        val matchesQuery = query.isBlank() || account.name.contains(query, true) || account.type.contains(query, true) || account.currency.contains(query, true)
+        val matchesType = when (typeFilter) {
+            "Счета" -> account.type == "Счёт" && !account.hidden
+            "Карты" -> account.type == "Карта" && !account.hidden
+            "Наличные" -> account.type == "Наличные" && !account.hidden
+            "Скрытые" -> account.hidden
+            else -> !account.hidden
         }
-        Card(shape = RoundedCornerShape(26.dp), elevation = CardDefaults.cardElevation(5.dp)) {
-            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text("Общий баланс", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(money(total, c), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                Text("Учитываются только открытые счета", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        matchesQuery && matchesType
+    }.let { list -> when (sortBy) {
+        "Баланс ↓" -> list.sortedByDescending { conv(it.balance, it.currency, c, auto, r) }
+        "Баланс ↑" -> list.sortedBy { conv(it.balance, it.currency, c, auto, r) }
+        else -> list.sortedBy { it.name.lowercase(Locale.getDefault()) }
+    } }
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item {
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Счета и карты", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text("${visible.size} активных • ${items.count { it.hidden }} скрытых", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                FilledTonalButton(onClick = add) { Text("+ Добавить") }
             }
         }
-        if (items.isEmpty()) {
-            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
-                Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Счетов пока нет", fontWeight = FontWeight.SemiBold)
-                    Text("Добавьте банковский счёт, карту или наличные.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        item {
+            Card(shape = RoundedCornerShape(26.dp), elevation = CardDefaults.cardElevation(5.dp)) {
+                Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Общий доступный баланс", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(money(total, c), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Surface(Modifier.weight(1f), shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                            Column(Modifier.padding(11.dp)) { Text("Счета", style = MaterialTheme.typography.labelMedium); Text(accountCount.toString(), fontWeight = FontWeight.Bold) }
+                        }
+                        Surface(Modifier.weight(1f), shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                            Column(Modifier.padding(11.dp)) { Text("Карты", style = MaterialTheme.typography.labelMedium); Text(cardCount.toString(), fontWeight = FontWeight.Bold) }
+                        }
+                    }
+                    Text("Скрытые объекты не входят в общий баланс. Нажмите «Изменить», чтобы поправить баланс, валюту или оформление.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(items, key = { it.name }) { account ->
-                val converted = conv(account.balance, account.currency, c, auto, r)
-                ElevatedCard(onClick = { select(account.name) }, modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.elevatedCardElevation(4.dp)) {
-                    Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
-                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.Top) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(52.dp).clip(RoundedCornerShape(17.dp)).background(uiColor(account.iconColor)), contentAlignment = Alignment.Center) { Text(iconText(account.icon), color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium) }
-                                Spacer(Modifier.width(12.dp))
-                                Column { Text(account.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium); Text(account.type + " • " + account.currency, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                            }
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(money(converted, c), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = if (converted >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-                                if (account.currency != c) Text("≈ " + money(converted, c), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                            Text(if (account.hidden) "Скрыт из общего баланса" else "В общем балансе", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            TextButton(onClick = { toggle(account.name) }) { Text(if (account.hidden) "Показать" else "Скрыть") }
+        item {
+            OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Поиск счёта или карты") }, leadingIcon = { Text("⌕") }, trailingIcon = { if (query.isNotEmpty()) TextButton(onClick = { query = "" }) { Text("Очистить") } })
+        }
+        item {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("Все", "Счета", "Карты", "Наличные", "Скрытые").forEach { type ->
+                    FilterChip(selected = typeFilter == type, onClick = { typeFilter = type }, label = { Text(type) })
+                }
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Text("${shown.size} объектов", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf("Название", "Баланс ↓", "Баланс ↑").forEach { sort ->
+                        if (sortBy == sort) {
+                            Text(sort, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(6.dp))
+                        } else {
+                            TextButton(onClick = { sortBy = sort }, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)) { Text(sort, style = MaterialTheme.typography.labelSmall) }
                         }
                     }
                 }
+            }
+        }
+        if (shown.isEmpty()) item {
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
+                Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(if (items.isEmpty()) "Счетов пока нет" else "Ничего не найдено", fontWeight = FontWeight.SemiBold)
+                    Text(if (items.isEmpty()) "Добавьте счёт, банковскую карту или наличные." else "Измените поиск или фильтр.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (items.isEmpty()) Button(onClick = add) { Text("Добавить первый счёт") }
+                }
+            }
+        }
+        items(shown, key = { it.name }) { account ->
+            val converted = conv(account.balance, account.currency, c, auto, r)
+            val usedByTransactions = transactions.any { it.accountName == account.name || it.toAccountName == account.name }
+            ElevatedCard(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.elevatedCardElevation(3.dp), shape = RoundedCornerShape(22.dp)) {
+                Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(Modifier.fillMaxWidth().clickable { select(account.name) }, horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(50.dp).clip(RoundedCornerShape(16.dp)).background(uiColor(account.iconColor)), contentAlignment = Alignment.Center) {
+                                Text(iconText(account.icon), color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(account.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                Text(account.type + " • " + account.currency + if (account.hidden) " • Скрыт" else "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(money(account.balance, account.currency), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = if (account.balance >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                            if (account.currency != c && auto) Text("≈ " + money(converted, c), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { edit(account) }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("Изменить") }
+                        TextButton(onClick = { transfer(account) }, enabled = items.count { it.name != account.name } > 0, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("Перевод") }
+                        TextButton(onClick = { toggle(account.name) }, contentPadding = PaddingValues(horizontal = 7.dp)) { Text(if (account.hidden) "Показать" else "Скрыть") }
+                        Spacer(Modifier.weight(1f))
+                        TextButton(onClick = { remove(account) }, enabled = !usedByTransactions, contentPadding = PaddingValues(horizontal = 7.dp)) { Text("Удалить") }
+                    }
+                    if (usedByTransactions) Text("Есть связанные операции — удалить нельзя, но можно скрыть.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        item {
+            OutlinedButton(onClick = add, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+                Text("+ Создать ещё один счёт или карту")
             }
         }
     }
@@ -2370,59 +2461,45 @@ private fun SettingsToggleRow(
 
 @Composable
 private fun AccountDialog(
+    existing: Account? = null,
     close: () -> Unit,
-    save: (String, Double, String, String, String, String) -> Unit
+    save: (Account) -> Unit
 ) {
-    var n by remember { mutableStateOf("") }
-    var b by remember { mutableStateOf("") }
-    var t by remember { mutableStateOf("Счёт") }
-    var c by remember { mutableStateOf("RUB") }
-    var icon by remember { mutableStateOf(if (t == "Карта") "credit_card" else "account_balance") }
-    var iconColor by remember { mutableStateOf(colorChoices.first()) }
+    var n by remember(existing?.name) { mutableStateOf(existing?.name ?: "") }
+    var b by remember(existing?.balance) { mutableStateOf(existing?.balance?.toString() ?: "") }
+    var t by remember(existing?.type) { mutableStateOf(existing?.type ?: "Счёт") }
+    var c by remember(existing?.currency) { mutableStateOf(existing?.currency ?: "RUB") }
+    var icon by remember(existing?.icon) { mutableStateOf(existing?.icon ?: if (t == "Карта") "credit_card" else "account_balance") }
+    var iconColor by remember(existing?.iconColor) { mutableStateOf(existing?.iconColor ?: colorChoices.first()) }
     val balance = b.replace(',', '.').toDoubleOrNull()
     AlertDialog(
         onDismissRequest = close,
-        title = { Text(if (t == "Карта") "Новая карта" else "Новый счёт") },
+        title = { Text(if (existing != null) "Настроить счёт" else if (t == "Карта") "Новая карта" else "Новый счёт") },
         text = {
-            Column(
-                Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
+            Column(Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(n, { n = it }, label = { Text("Название") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                OutlinedTextField(b, { b = it }, label = { Text("Начальный баланс $c") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(b, { b = it }, label = { Text(if (existing == null) "Начальный баланс $c" else "Текущий баланс $c") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 Text("Тип", fontWeight = FontWeight.Bold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(t == "Счёт", { t = "Счёт"; if (icon == "credit_card") icon = "account_balance" }, label = { Text("Счёт") })
                     FilterChip(t == "Карта", { t = "Карта"; if (icon == "account_balance") icon = "credit_card" }, label = { Text("Карта") })
+                    FilterChip(t == "Наличные", { t = "Наличные"; if (icon == "account_balance") icon = "wallet" }, label = { Text("Наличные") })
+                    FilterChip(t == "Накопления", { t = "Накопления"; icon = "savings" }, label = { Text("Накопления") })
                 }
                 Text("Валюта", fontWeight = FontWeight.Bold)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) { items(currencies) { x -> FilterChip(c == x, { c = x }, label = { Text(x) }) } }
                 Text("Значок", fontWeight = FontWeight.Bold)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(iconChoices) { x ->
-                        FilterChip(icon == x, { icon = x }, label = { Text(iconText(x)) })
-                    }
-                }
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { items(iconChoices) { x -> FilterChip(icon == x, { icon = x }, label = { Text(iconText(x)) }) } }
                 Text("Цвет значка", fontWeight = FontWeight.Bold)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(colorChoices) { x ->
-                        FilterChip(iconColor == x, { iconColor = x }, label = {
-                            Box(Modifier.size(18.dp).clip(RoundedCornerShape(6.dp)).background(uiColor(x)))
-                        })
-                    }
-                }
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { items(colorChoices) { x -> FilterChip(iconColor == x, { iconColor = x }, label = { Box(Modifier.size(18.dp).clip(RoundedCornerShape(6.dp)).background(uiColor(x))) }) } }
             }
         },
         confirmButton = {
-            Button(
-                onClick = { save(n.trim(), balance ?: 0.0, t, c, icon, iconColor) },
-                enabled = n.isNotBlank() && balance != null
-            ) { Text("Сохранить") }
+            Button(onClick = { save(Account(n.trim(), balance ?: 0.0, existing?.hidden ?: false, t, c, icon, iconColor)) }, enabled = n.isNotBlank() && balance != null && (existing == null || n.trim() == existing.name || true)) { Text("Сохранить") }
         },
         dismissButton = { TextButton(close) { Text("Отмена") } }
     )
 }
-
 @Composable
 private fun TransactionDialog(
     accounts: List<Account>,
