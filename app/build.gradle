@@ -12,8 +12,8 @@ android {
         applicationId "com.example.vipfinance"
         minSdk 24
         targetSdk 36
-        versionCode 730
-        versionName "7.3.0" // Budget tab: clearer existing budgets and collapsible AI assistant
+        versionCode 740
+        versionName "7.4.0" // Budgets must use an existing expense category
     }
     buildTypes {
         release {
