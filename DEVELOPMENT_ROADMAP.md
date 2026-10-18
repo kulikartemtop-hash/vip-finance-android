@@ -350,3 +350,20 @@ Status: [~] IN PROGRESS — Phase 1 committed; release validation pending.
 - [ ] Phase 4: final regression pass and release notes.
 
 Version target: versionCode 700, versionName 7.0.0.
+
+
+# VIP Finance 7.1 — Visual Evolution: Analytics & Activity
+Status: [~] IN PROGRESS — source changes committed; release validation pending.
+
+## Phase 2 — Analytics and operations
+- [x] Add a year-to-date analytics period preset.
+- [x] Refine the operations heading into a compact premium activity card.
+- [x] Keep search, category/account/date filters, editing, repeat and transaction history behavior intact.
+- [ ] Verify signed 7.1.0 release and APK asset.
+- [ ] Check build logs and repair/re-run if any step fails.
+
+## Phase 3 — Visual consistency
+- [x] Reuse theme-aware surfaces, outlines and existing theme colors in the updated screens.
+- [ ] Continue responsive/device testing; physical-device testing is not available in CI.
+
+Version target: versionCode 710, versionName 7.1.0.
