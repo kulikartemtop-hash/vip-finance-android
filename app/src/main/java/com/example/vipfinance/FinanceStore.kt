@@ -26,13 +26,13 @@ class FinanceStore(context: Context) {
     fun loadTransactions(): List<Transaction> = runCatching {
         val a=JSONArray(prefs.getString("transactions","[]"))
         buildList {
-            for(i in 0 until a.length()) { val o=a.getJSONObject(i); add(Transaction(o.optLong("id"),o.optString("title"),o.optDouble("amount"),o.optBoolean("income"),o.optString("accountName"),o.optString("category","Без категории"),o.optLong("timestamp",System.currentTimeMillis()),o.optString("currency","RUB"),o.optString("operationType",if(o.optBoolean("income"))"income" else "expense"),o.optString("toAccountName",""),o.optString("note",""),o.optString("repeat","Не повторять"),o.optString("tags",""),if(o.has("transferTargetAmount")&&!o.isNull("transferTargetAmount"))o.optDouble("transferTargetAmount") else null)) }
+            for(i in 0 until a.length()) { val o=a.getJSONObject(i); add(Transaction(o.optLong("id"),o.optString("title"),o.optDouble("amount"),o.optBoolean("income"),o.optString("accountName"),o.optString("category","Без категории"),o.optLong("timestamp",System.currentTimeMillis()),o.optString("currency","RUB"),o.optString("operationType",if(o.optBoolean("income"))"income" else "expense"),o.optString("toAccountName",""),o.optString("note",""),o.optString("repeat","Не повторять"),o.optString("tags",""),if(o.has("transferTargetAmount")&&!o.isNull("transferTargetAmount"))o.optDouble("transferTargetAmount") else null,if(o.has("recurringId")&&!o.isNull("recurringId"))o.optLong("recurringId") else null)) }
         }
     }.getOrDefault(emptyList())
 
     fun saveTransactions(items: List<Transaction>) {
         val a=JSONArray()
-        items.forEach { x -> a.put(JSONObject().apply { put("id",x.id);put("title",x.title);put("amount",x.amount);put("income",x.income);put("accountName",x.accountName);put("category",x.category);put("timestamp",x.timestamp);put("currency",x.currency);put("operationType",x.operationType);put("toAccountName",x.toAccountName);put("note",x.note);put("repeat",x.repeat);put("tags",x.tags);if(x.transferTargetAmount!=null)put("transferTargetAmount",x.transferTargetAmount) }) }
+        items.forEach { x -> a.put(JSONObject().apply { put("id",x.id);put("title",x.title);put("amount",x.amount);put("income",x.income);put("accountName",x.accountName);put("category",x.category);put("timestamp",x.timestamp);put("currency",x.currency);put("operationType",x.operationType);put("toAccountName",x.toAccountName);put("note",x.note);put("repeat",x.repeat);put("tags",x.tags);if(x.transferTargetAmount!=null)put("transferTargetAmount",x.transferTargetAmount);if(x.recurringId!=null)put("recurringId",x.recurringId) }) }
         prefs.edit().putString("transactions",a.toString()).apply()
     }
 
@@ -121,7 +121,7 @@ class FinanceStore(context: Context) {
         val a = root.optJSONArray("accounts") ?: JSONArray()
         saveAccounts(buildList { for (i in 0 until a.length()) { val o=a.getJSONObject(i); add(Account(o.optString("name"),o.optDouble("balance"),o.optBoolean("hidden"),o.optString("type","Счёт"),o.optString("currency","RUB"),o.optString("icon","account_balance"),o.optString("iconColor","#5B35F5"))) } })
         val t = root.optJSONArray("transactions") ?: JSONArray()
-        saveTransactions(buildList { for (i in 0 until t.length()) { val o=t.getJSONObject(i); add(Transaction(o.optLong("id"),o.optString("title"),o.optDouble("amount"),o.optBoolean("income"),o.optString("accountName"),o.optString("category","Без категории"),o.optLong("timestamp",System.currentTimeMillis()),o.optString("currency","RUB"),o.optString("operationType",if(o.optBoolean("income"))"income" else "expense"),o.optString("toAccountName",""),o.optString("note",""),o.optString("repeat","Не повторять"),o.optString("tags",""),if(o.has("transferTargetAmount")&&!o.isNull("transferTargetAmount"))o.optDouble("transferTargetAmount") else null)) } })
+        saveTransactions(buildList { for (i in 0 until t.length()) { val o=t.getJSONObject(i); add(Transaction(o.optLong("id"),o.optString("title"),o.optDouble("amount"),o.optBoolean("income"),o.optString("accountName"),o.optString("category","Без категории"),o.optLong("timestamp",System.currentTimeMillis()),o.optString("currency","RUB"),o.optString("operationType",if(o.optBoolean("income"))"income" else "expense"),o.optString("toAccountName",""),o.optString("note",""),o.optString("repeat","Не повторять"),o.optString("tags",""),if(o.has("transferTargetAmount")&&!o.isNull("transferTargetAmount"))o.optDouble("transferTargetAmount") else null,if(o.has("recurringId")&&!o.isNull("recurringId"))o.optLong("recurringId") else null)) } })
         val c = root.optJSONArray("categories") ?: JSONArray()
         saveCategories(buildList { for (i in 0 until c.length()) { val o=c.getJSONObject(i); add(Category(o.optLong("id"),o.optString("name"),o.optString("kind","expense"),o.optString("icon","category"),o.optString("color","#5B35F5"))) } })
         val b = root.optJSONArray("budgets") ?: JSONArray()
@@ -150,7 +150,7 @@ class FinanceStore(context: Context) {
             a.put(JSONObject().apply { put("name",x.name);put("balance",x.balance);put("hidden",x.hidden);put("type",x.type);put("currency",x.currency);put("icon",x.icon);put("iconColor",x.iconColor) })
         }})
         root.put("transactions", arr { a -> loadTransactions().forEach { x ->
-            a.put(JSONObject().apply { put("id",x.id);put("title",x.title);put("amount",x.amount);put("income",x.income);put("accountName",x.accountName);put("category",x.category);put("timestamp",x.timestamp);put("currency",x.currency);put("operationType",x.operationType);put("toAccountName",x.toAccountName);put("note",x.note);put("repeat",x.repeat);put("tags",x.tags);if(x.transferTargetAmount!=null)put("transferTargetAmount",x.transferTargetAmount) })
+            a.put(JSONObject().apply { put("id",x.id);put("title",x.title);put("amount",x.amount);put("income",x.income);put("accountName",x.accountName);put("category",x.category);put("timestamp",x.timestamp);put("currency",x.currency);put("operationType",x.operationType);put("toAccountName",x.toAccountName);put("note",x.note);put("repeat",x.repeat);put("tags",x.tags);if(x.transferTargetAmount!=null)put("transferTargetAmount",x.transferTargetAmount);if(x.recurringId!=null)put("recurringId",x.recurringId) })
         }})
         root.put("categories", arr { a -> loadCategories().forEach { x ->
             a.put(JSONObject().apply { put("id",x.id);put("name",x.name);put("kind",x.kind);put("icon",x.icon);put("color",x.color) })
