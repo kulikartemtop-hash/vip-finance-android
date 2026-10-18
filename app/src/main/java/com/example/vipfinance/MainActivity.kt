@@ -918,6 +918,18 @@ private fun Operations(
                 FilledTonalButton(onClick=add){Text("+ Добавить")}
             }
         }
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            listOf("Все", "Доход", "Расход", "Перевод").forEach { kind ->
+                FilterChip(
+                    selected = typeFilter == kind,
+                    onClick = { setTypeFilter(kind) },
+                    label = { Text(kind) }
+                )
+            }
+        }
         if (filtersOpen) {
             Card(Modifier.fillMaxWidth(), shape=RoundedCornerShape(20.dp), elevation=CardDefaults.cardElevation(2.dp)) {
                 Column(
@@ -926,8 +938,6 @@ private fun Operations(
                 ) {
         OutlinedTextField(search,setSearch,label={Text("Поиск операций")},singleLine=true,modifier=Modifier.fillMaxWidth())
         OutlinedTextField(tagSearch,setTagSearch,label={Text("Поиск по тегу")},placeholder={Text("например: Авто")},singleLine=true,modifier=Modifier.fillMaxWidth())
-        Text("Тип операции",fontWeight=FontWeight.SemiBold)
-        Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(5.dp)){listOf("Все","Доход","Расход","Перевод").forEach{v->FilterChip(typeFilter==v,{setTypeFilter(v)},label={Text(v)})}}
         Text("Счёт",fontWeight=FontWeight.SemiBold)
         Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(5.dp)){FilterChip(filter==null,{setFilter(null)},label={Text("Все")});accounts.forEach{a->FilterChip(filter==a.name,{setFilter(a.name)},label={Text(a.name)})}}
         Text("Категория",fontWeight=FontWeight.SemiBold)
@@ -1190,7 +1200,14 @@ private fun Analytics(tx: List<Transaction>, c: String, auto: Boolean, r: Map<St
         "Сегодня" -> startOfDay(now).timeInMillis
         "7 дней" -> daysAgoStart(6).timeInMillis
         "14 дней" -> daysAgoStart(13).timeInMillis
-        "Месяц" -> daysAgoStart(29).timeInMillis
+        "Месяц" -> Calendar.getInstance().apply {
+            timeInMillis = now.timeInMillis
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
         else -> parseDateStart(fromText) ?: startOfDay(now).timeInMillis
     }
     val to = if (preset == "Свои даты") parseDateEnd(toText) ?: endOfDay(now).timeInMillis else endOfDay(now).timeInMillis
@@ -1243,6 +1260,44 @@ private fun Analytics(tx: List<Transaction>, c: String, auto: Boolean, r: Map<St
         }
         item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { MetricCard("Доходы", money(income, c), MaterialTheme.colorScheme.primary, Modifier.weight(1f)); MetricCard("Расходы", money(expense, c), MaterialTheme.colorScheme.error, Modifier.weight(1f)) } }
         item {
+            val netFlow = income - expense
+            val expenseShare = if (income > 0.0) (expense / income).coerceIn(0.0, 1.0) else if (expense > 0.0) 1.0 else 0.0
+            val flowAccent = if (netFlow >= 0.0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, flowAccent.copy(alpha = 0.22f)),
+                elevation = CardDefaults.cardElevation(3.dp)
+            ) {
+                Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("ЧИСТЫЙ ДЕНЕЖНЫЙ ПОТОК", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.8.sp)
+                            Text(money(netFlow, c), style = MaterialTheme.typography.headlineMedium, color = flowAccent, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                        }
+                        Surface(shape = RoundedCornerShape(14.dp), color = flowAccent.copy(alpha = 0.12f)) {
+                            Text(if (netFlow >= 0.0) "Плюс" else "Минус", modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = flowAccent, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                    LinearProgressIndicator(
+                        progress = { expenseShare.toFloat() },
+                        modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(8.dp)),
+                        color = flowAccent,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            if (income > 0.0) "Расходы — ${(expense / income * 100.0).toInt()}% доходов" else if (expense > 0.0) "Расходы без учтённых доходов" else "Пока нет движения денег",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text("${periodTx.size} оп.", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+        item {
             Card(shape = RoundedCornerShape(24.dp), elevation = CardDefaults.cardElevation(4.dp)) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Финансовое здоровье", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -1259,10 +1314,32 @@ private fun Analytics(tx: List<Transaction>, c: String, auto: Boolean, r: Map<St
             Card(shape = RoundedCornerShape(24.dp), elevation = CardDefaults.cardElevation(4.dp)) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Сравнение с предыдущим периодом", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Доходы: " + money(income, c) + "  •  было " + money(previousIncome, c))
-                    Text("Расходы: " + money(expense, c) + "  •  было " + money(previousExpense, c))
-                    val delta = if (previousExpense > 0) (expense - previousExpense) / previousExpense * 100 else 0.0
-                    Text(if (previousExpense > 0) "Расходы изменились на %.1f%%".format(delta) else "Недостаточно данных для сравнения", color = if (delta <= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                    val incomeDelta = if (previousIncome > 0.0) (income - previousIncome) / previousIncome * 100.0 else null
+                    val expenseDelta = if (previousExpense > 0.0) (expense - previousExpense) / previousExpense * 100.0 else null
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("Доходы", fontWeight = FontWeight.SemiBold)
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(money(income, c), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                    Text(if (incomeDelta == null) "Нет базы для сравнения" else (if (incomeDelta >= 0) "↑ " else "↓ ") + "%.1f%%".format(incomeDelta), style = MaterialTheme.typography.labelSmall, color = if (incomeDelta == null || incomeDelta >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                                }
+                            }
+                            LinearProgressIndicator(progress = { if (income + previousIncome > 0.0) (income / (income + previousIncome)).toFloat() else 0f }, modifier = Modifier.fillMaxWidth().height(6.dp), color = MaterialTheme.colorScheme.primary)
+                            Text("Предыдущий период: " + money(previousIncome, c), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("Расходы", fontWeight = FontWeight.SemiBold)
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(money(expense, c), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                                    Text(if (expenseDelta == null) "Нет базы для сравнения" else (if (expenseDelta > 0) "↑ " else if (expenseDelta < 0) "↓ " else "• ") + "%.1f%%".format(expenseDelta), style = MaterialTheme.typography.labelSmall, color = if (expenseDelta == null || expenseDelta <= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                                }
+                            }
+                            LinearProgressIndicator(progress = { if (expense + previousExpense > 0.0) (expense / (expense + previousExpense)).toFloat() else 0f }, modifier = Modifier.fillMaxWidth().height(6.dp), color = MaterialTheme.colorScheme.error)
+                            Text("Предыдущий период: " + money(previousExpense, c), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                 }
             }
         }
@@ -1270,7 +1347,7 @@ private fun Analytics(tx: List<Transaction>, c: String, auto: Boolean, r: Map<St
             Card(shape = RoundedCornerShape(24.dp), elevation = CardDefaults.cardElevation(4.dp)) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Финансовый поток", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Доходы и расходы по дням", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Динамика за последние 7 дней", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(Modifier.fillMaxWidth().height(145.dp), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.Bottom) {
                         days.forEach { (label, inc, exp) ->
                             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
