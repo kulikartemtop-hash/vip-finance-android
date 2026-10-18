@@ -24,6 +24,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -114,18 +115,22 @@ fun FlowCenter(
     ) {
         item {
             Card(shape = RoundedCornerShape(26.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(accent))
+                        Text(if (incomeMode) "VIP FINANCE  •  INFLOW" else "VIP FINANCE  •  OUTFLOW", style = MaterialTheme.typography.labelSmall, color = accent, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.1.sp)
+                    }
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                            Text("Управление и аналитика ${if (incomeMode) "поступлений" else "трат"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
+                            Text("Управление и аналитика ${if (incomeMode) "поступлений" else "трат"}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Surface(shape = RoundedCornerShape(15.dp), color = accent.copy(alpha = 0.13f)) {
-                            Text(if (incomeMode) "↗" else "↘", modifier = Modifier.padding(horizontal = 15.dp, vertical = 8.dp), color = accent, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                        Surface(shape = RoundedCornerShape(18.dp), color = accent.copy(alpha = 0.13f), border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.18f))) {
+                            Text(if (incomeMode) "↗" else "↘", modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp), color = accent, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
                         }
                     }
-                    Text(money(total, currency), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold, color = accent)
-                    Text("За выбранный период • сегодня: ${money(todayTotal, currency)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(money(total, currency), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold, color = accent, maxLines = 1)
+                    Text("За выбранный период  •  сегодня: ${money(todayTotal, currency)}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = onAdd, modifier = Modifier.weight(1f)) { Text(if (incomeMode) "+ Добавить доход" else "− Добавить расход") }
                         OutlinedButton(onClick = {
