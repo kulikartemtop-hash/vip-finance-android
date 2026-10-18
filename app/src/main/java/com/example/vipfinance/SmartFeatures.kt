@@ -236,7 +236,7 @@ private fun voiceCandidateScore(text:String):Int{
     return score
 }
 
-private fun parseVoiceTransaction(text:String, accounts:List<Account>, categories:List<Category>, timestamp:Long):Transaction?{
+fun parseVoiceTransaction(text:String, accounts:List<Account>, categories:List<Category>, timestamp:Long):Transaction?{
     if(text.isBlank()) return null
     val normalized=text.lowercase(Locale.getDefault()).replace('ё','е').replace(Regex("""\s+""")," ").trim()
     val amount=extractVoiceAmount(normalized) ?: return null
