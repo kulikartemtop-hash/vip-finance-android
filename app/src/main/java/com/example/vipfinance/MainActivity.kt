@@ -957,7 +957,7 @@ private fun Categories(
                                 Text(if (c0.kind == "income") "Источник дохода" else "Статья расхода", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             TextButton(onClick = { edit(c0) }, contentPadding = PaddingValues(horizontal = 8.dp)) { Text("Изменить") }
-                            TextButton(onClick = { remove(c0) }, contentPadding = PaddingValues(horizontal = 6.dp)) { Text("⋮") }
+                            TextButton(onClick = { remove(c0) }, contentPadding = PaddingValues(horizontal = 6.dp)) { Text("Удалить") }
                         }
                     }
                 }

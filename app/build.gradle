@@ -12,8 +12,8 @@ android {
         applicationId "com.example.vipfinance"
         minSdk 24
         targetSdk 36
-        versionCode 640
-        versionName "6.4.0" // Premium income and expense centers
+        versionCode 641
+        versionName "6.4.1" // Premium income and expense centers
     }
     buildTypes {
         release {
