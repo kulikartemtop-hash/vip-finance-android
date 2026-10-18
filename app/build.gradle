@@ -12,8 +12,8 @@ android {
         applicationId "com.example.vipfinance"
         minSdk 24
         targetSdk 36
-        versionCode 643
-        versionName "6.4.3" // Fix reset for all-category filter
+        versionCode 644
+        versionName "6.4.4" // Show all categories directly in the filter
     }
     buildTypes {
         release {
