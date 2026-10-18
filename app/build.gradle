@@ -12,8 +12,8 @@ android {
         applicationId "com.example.vipfinance"
         minSdk 24
         targetSdk 36
-        versionCode 660
-        versionName "6.6.0" // Premium UI redesign across the app
+        versionCode 700
+        versionName "7.0.0" // Visual Evolution: dashboard and navigation
     }
     buildTypes {
         release {
