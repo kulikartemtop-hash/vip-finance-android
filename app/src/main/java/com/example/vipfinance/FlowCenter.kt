@@ -215,22 +215,41 @@ fun FlowCenter(
         item {
             val categoryOptions = (categories.filter { it.kind == if (incomeMode) "income" else "expense" }.map { it.name } + typed.map { it.category })
                 .filter { it.isNotBlank() }.distinct()
-            val topCategoryNames = categoryTotals.take(3).map { it.first }.filter { it in categoryOptions }
+            val categoryNames = categoryOptions.sortedWith(
+                compareByDescending<String> { categoryTotals.firstOrNull { total -> total.first == it }?.second ?: 0.0 }
+                    .thenBy { it.lowercase(Locale.getDefault()) }
+            )
             Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text("Фильтр по категории", fontWeight = FontWeight.Bold)
-                            Text(if (categoryFilter == "Все") "Показываются все категории" else "Выбрано: $categoryFilter", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                if (categoryFilter == "Все") "Все категории доступны ниже" else "Выбрано: $categoryFilter",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                         OutlinedButton(onClick = { showCategoryPicker = true }, shape = RoundedCornerShape(14.dp)) {
                             Text("⌕ Найти")
                         }
                     }
-                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        FilterChip(selected = categoryFilter == "Все", onClick = { categoryFilter = "Все"; search = ""; showRecurring = false }, label = { Text("Все") })
-                        topCategoryNames.forEach { name ->
-                            FilterChip(selected = categoryFilter == name, onClick = { categoryFilter = name }, label = { Text(name) })
+                    androidx.compose.foundation.layout.FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        FilterChip(
+                            selected = categoryFilter == "Все",
+                            onClick = { categoryFilter = "Все"; search = ""; showRecurring = false },
+                            label = { Text("Все") }
+                        )
+                        categoryNames.forEach { name ->
+                            FilterChip(
+                                selected = categoryFilter == name,
+                                onClick = { categoryFilter = name; showRecurring = false },
+                                label = { Text(name) }
+                            )
                         }
                     }
                 }
