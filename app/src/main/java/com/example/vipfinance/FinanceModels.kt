@@ -32,7 +32,8 @@ data class Transaction(
     val note: String = "",
     val repeat: String = "Не повторять",
     val tags: String = "",
-    val transferTargetAmount: Double? = null
+    val transferTargetAmount: Double? = null,
+    val recurringId: Long? = null
 )
 
 data class Budget(
