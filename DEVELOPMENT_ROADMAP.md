@@ -45,6 +45,7 @@ Completed in 6.6.0 source changes:
 - [x] Refined shared shape and typography system for consistent premium hierarchy.
 - [x] Redesigned dashboard balance card with VIP Finance eyebrow, improved currency emblem and compact high-contrast financial metrics.
 - [x] Refined operations summary and analytics header cards.
+- [x] Refined the dedicated income/expense overview cards and primary actions.
 - [x] Refined bottom quick-action buttons.
 - [ ] Verify successful signed release, APK artifact and regression checks.
 - [ ] Confirm visual behavior on narrow and large Android screens.
