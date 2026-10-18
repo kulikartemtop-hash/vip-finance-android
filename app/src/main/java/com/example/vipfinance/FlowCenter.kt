@@ -111,7 +111,7 @@ fun FlowCenter(
                     Text(money(total, currency), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold, color = accent)
                     Text("За выбранный период • сегодня: ${money(todayTotal, currency)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilledButton(onClick = onAdd, modifier = Modifier.weight(1f)) { Text(if (incomeMode) "+ Добавить доход" else "− Добавить расход") }
+                        Button(onClick = onAdd, modifier = Modifier.weight(1f)) { Text(if (incomeMode) "+ Добавить доход" else "− Добавить расход") }
                         OutlinedButton(onClick = {
                             val rows = filtered
                             exportText = buildString {
@@ -137,8 +137,8 @@ fun FlowCenter(
         }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MetricCard("Операций", if (showRecurring) recurring.size.toString() else period.size.toString(), accent, Modifier.weight(1f))
-                MetricCard("Средняя сумма", money(if (period.isEmpty()) 0.0 else total / period.size, currency), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+                FlowMetricCard("Операций", if (showRecurring) recurring.size.toString() else period.size.toString(), accent, Modifier.weight(1f))
+                FlowMetricCard("Средняя сумма", money(if (period.isEmpty()) 0.0 else total / period.size, currency), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
             }
         }
         item {
@@ -234,6 +234,17 @@ fun FlowCenter(
                     }
                 }
             }
+        }
+    }
+}
+
+
+@Composable
+private fun FlowMetricCard(title: String, value: String, accent: Color, modifier: Modifier = Modifier) {
+    Card(modifier = modifier, shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+        Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = accent)
         }
     }
 }
