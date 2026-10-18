@@ -946,11 +946,25 @@ private fun Operations(
                 MetricCard("Операций", ts.size.toString(), MaterialTheme.colorScheme.secondary, Modifier.weight(1f))
             }
         }
-        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-            Column { Text("Операции", style=MaterialTheme.typography.headlineMedium, fontWeight=FontWeight.Bold); Text("${ts.size} операций", style=MaterialTheme.typography.bodySmall) }
-            Row(horizontalArrangement=Arrangement.spacedBy(7.dp)) {
-                FilterChip(filtersOpen, { filtersOpen = !filtersOpen }, label = { Text(if (filtersOpen) "Скрыть фильтры" else "Фильтры") })
-                FilledTonalButton(onClick=add){Text("+ Добавить")}
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)),
+            elevation = CardDefaults.cardElevation(1.dp)
+        ) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("VIP FINANCE  •  ACTIVITY", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.0.sp)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Операции", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                        Text("${ts.size} операций в выборке", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
+                        FilterChip(filtersOpen, { filtersOpen = !filtersOpen }, label = { Text(if (filtersOpen) "Скрыть" else "Фильтры") })
+                        FilledTonalButton(onClick = add, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) { Text("+ Добавить") }
+                    }
+                }
             }
         }
         Row(
@@ -1290,6 +1304,14 @@ private fun Analytics(tx: List<Transaction>, c: String, auto: Boolean, r: Map<St
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
+        "Год" -> Calendar.getInstance().apply {
+            timeInMillis = now.timeInMillis
+            set(Calendar.DAY_OF_YEAR, 1)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
         else -> parseDateStart(fromText) ?: startOfDay(now).timeInMillis
     }
     val to = if (preset == "Свои даты") parseDateEnd(toText) ?: endOfDay(now).timeInMillis else endOfDay(now).timeInMillis
@@ -1333,7 +1355,7 @@ private fun Analytics(tx: List<Transaction>, c: String, auto: Boolean, r: Map<St
                 }
             }
         }
-        item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) { listOf("Сегодня", "7 дней", "14 дней", "Месяц", "Свои даты").forEach { p -> FilterChip(preset == p, { preset = p }, label = { Text(p) }) } } }
+        item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) { listOf("Сегодня", "7 дней", "14 дней", "Месяц", "Год", "Свои даты").forEach { p -> FilterChip(preset == p, { preset = p }, label = { Text(p) }) } } }
         if (preset == "Свои даты") item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(fromText, { fromText = it }, label = { Text("С даты") }, placeholder = { Text("дд.мм.гггг") }, modifier = Modifier.weight(1f), singleLine = true)
