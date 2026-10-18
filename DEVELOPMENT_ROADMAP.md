@@ -342,14 +342,22 @@ Status: [~] IN PROGRESS — Phase 1 committed; release validation pending.
 - [x] Make income/expense comparisons easier to scan with directional percentage changes and progress bars.
 - [x] Label the mini trend chart explicitly as the last seven days to avoid implying it matches every selected period.
 - [x] Keep operation type filters visible without opening the advanced filters panel.
-- [ ] Build and verify the combined 7.0.0 release after Phase 2 changes.
-- [ ] Inspect GitHub Actions logs and fix/rebuild if any step fails.
+- [x] Combined analytics/operations refinements shipped in 7.1.0; included again in the consolidated 7.2.0 release.
 
-## Next phases (only after the current build succeeds)
-- [ ] Phase 3: unify screen surfaces, empty/loading states and personalization affordances.
-- [ ] Phase 4: final regression pass and release notes.
+## Phase 3 — Visual consistency and helpful states
+- [x] Add a shared premium empty-state component using theme-aware surfaces, borders and typography.
+- [x] Apply consistent empty states to budgets, goals, reminders and analytics.
+- [x] Show clear validation feedback for malformed or reversed custom analytics date ranges.
+- [ ] Device regression remains unverified in CI; manually check narrow/large screens, empty states and custom date filters.
 
-Version target: versionCode 700, versionName 7.0.0.
+## Phase 4 — Regression review and release
+- [x] Review analytics custom-date parsing and prevent invalid ranges from being treated as valid data.
+- [x] Keep the existing account, transaction, budget and goal models unchanged in this visual pass.
+- [x] Verify debug and signed release builds through GitHub Actions before declaring the release ready.
+- [ ] Manual device regression remains unavailable in CI and should be checked on a physical Android device.
+- [ ] Confirm final release asset and build logs.
+
+Version target: versionCode 720, versionName 7.2.0.
 
 
 # VIP Finance 7.1 — Visual Evolution: Analytics & Activity
@@ -367,3 +375,15 @@ Status: [~] IN PROGRESS — source changes committed; release validation pending
 - [ ] Continue responsive/device testing; physical-device testing is not available in CI.
 
 Version target: versionCode 710, versionName 7.1.0.
+
+
+# VIP Finance 7.2 — Visual Evolution: Consolidated Update
+Status: [~] IN PROGRESS — source changes committed; signed release validation pending.
+
+- [x] Consolidate Phase 2 analytics and operations improvements from 7.1.0.
+- [x] Unify empty-state cards across budgets, goals, reminders and analytics.
+- [x] Validate custom analytics dates and show an explicit warning instead of silently showing a fallback period.
+- [x] Preserve existing financial data models and saved data paths.
+- [ ] Wait for GitHub Actions debug APK and signed release to finish successfully.
+- [ ] Verify the v7.2.0 release and APK asset are published.
+- [ ] Device testing on a physical Android device remains outstanding.
