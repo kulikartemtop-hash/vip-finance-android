@@ -228,7 +228,7 @@ fun FlowCenter(
                         }
                     }
                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        FilterChip(selected = categoryFilter == "Все", onClick = { categoryFilter = "Все" }, label = { Text("Все") })
+                        FilterChip(selected = categoryFilter == "Все", onClick = { categoryFilter = "Все"; search = ""; showRecurring = false }, label = { Text("Все") })
                         topCategoryNames.forEach { name ->
                             FilterChip(selected = categoryFilter == name, onClick = { categoryFilter = name }, label = { Text(name) })
                         }
@@ -292,7 +292,16 @@ fun FlowCenter(
             amounts = counts,
             currency = currency,
             onClose = { showCategoryPicker = false },
-            onSelect = { categoryFilter = it; showCategoryPicker = false }
+            onSelect = { selected ->
+                if (selected == "Все") {
+                    categoryFilter = "Все"
+                    search = ""
+                    showRecurring = false
+                } else {
+                    categoryFilter = selected
+                }
+                showCategoryPicker = false
+            }
         )
     }
 }
