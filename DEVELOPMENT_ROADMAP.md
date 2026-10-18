@@ -332,12 +332,20 @@ Status: [~] IN PROGRESS — Phase 1 committed; release validation pending.
 - [x] Add a dedicated premium quick-access card on the dashboard for Operations, Analytics, Budgets and Goals.
 - [x] Show the current month in the dashboard quick-access section.
 - [x] Preserve existing account/transaction models, saved preferences, bottom quick-add actions and menu customization.
-- [ ] Verify successful signed 7.0.0 release and APK asset.
-- [ ] Inspect GitHub Actions build logs if any step fails and rebuild after fixes.
+- [x] Verify successful signed 7.0.0 release and APK asset (initial Phase 1 checkpoint; workflow 39136290271). 
+- [x] Debug APK build and signed release both succeeded for the initial Phase 1 checkpoint.
 - [ ] Device regression remains unverified in CI; manually check narrow/large screens, dashboard shortcuts and saved data.
 
-## Next phases (do not start until Phase 1 build succeeds)
-- [ ] Phase 2: improve analytics hierarchy and operations navigation/filter clarity.
+## Phase 2 — Analytics and operations clarity
+- [x] Make the analytics month preset use the actual calendar month rather than a rolling 30-day window.
+- [x] Add a prominent net cash-flow card with positive/negative state and expense-to-income ratio.
+- [x] Make income/expense comparisons easier to scan with directional percentage changes and progress bars.
+- [x] Label the mini trend chart explicitly as the last seven days to avoid implying it matches every selected period.
+- [x] Keep operation type filters visible without opening the advanced filters panel.
+- [ ] Build and verify the combined 7.0.0 release after Phase 2 changes.
+- [ ] Inspect GitHub Actions logs and fix/rebuild if any step fails.
+
+## Next phases (only after the current build succeeds)
 - [ ] Phase 3: unify screen surfaces, empty/loading states and personalization affordances.
 - [ ] Phase 4: final regression pass and release notes.
 
