@@ -12,8 +12,8 @@ android {
         applicationId "com.example.vipfinance"
         minSdk 24
         targetSdk 36
-        versionCode 633
-        versionName "6.3.3" // Fix drag and drop menu reordering
+        versionCode 640
+        versionName "6.4.0" // Premium income and expense centers
     }
     buildTypes {
         release {
