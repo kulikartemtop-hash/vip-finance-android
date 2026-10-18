@@ -12,8 +12,8 @@ android {
         applicationId "com.example.vipfinance"
         minSdk 24
         targetSdk 36
-        versionCode 642
-        versionName "6.4.2" // Searchable category filters in income and expense centers
+        versionCode 643
+        versionName "6.4.3" // Fix reset for all-category filter
     }
     buildTypes {
         release {
