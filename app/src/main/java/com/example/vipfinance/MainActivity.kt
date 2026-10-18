@@ -115,6 +115,18 @@ private fun sym(c:String)=when(c){"GBP"->"£";"USD"->"$";"EUR"->"€";"RUB"->"�
 fun money(v:Double,c:String)=sym(c)+"%.2f".format(Locale.getDefault(),v)
 fun conv(v:Double,from:String,to:String,auto:Boolean,r:Map<String,Double>)=if(auto)ExchangeRates.convert(v,from,to,r) else v
 
+private fun nextRecurringTimestamp(timestamp: Long, repeat: String): Long {
+    val calendar = Calendar.getInstance().apply { timeInMillis = timestamp }
+    when (repeat) {
+        "Ежедневно" -> calendar.add(Calendar.DAY_OF_YEAR, 1)
+        "Еженедельно" -> calendar.add(Calendar.WEEK_OF_YEAR, 1)
+        "Ежемесячно" -> calendar.add(Calendar.MONTH, 1)
+        "Ежегодно" -> calendar.add(Calendar.YEAR, 1)
+        else -> return Long.MAX_VALUE
+    }
+    return calendar.timeInMillis
+}
+
 class MainActivity:ComponentActivity(){
  override fun onCreate(b:Bundle?){super.onCreate(b);enableEdgeToEdge();val s=FinanceStore(this);setContent{VIPFinanceTheme(s.loadTheme(),s.loadStyle()){FinanceApp(s)}}; AppUpdater.checkAndOffer(this)}
 }
@@ -202,7 +214,8 @@ fun FinanceApp(s: FinanceStore) {
     fun add(t: Transaction) {
         val source = accounts.firstOrNull { it.name == t.accountName }
         val target = if (t.operationType == "transfer") accounts.firstOrNull { it.name == t.toAccountName } else null
-        val stored = if (t.operationType == "transfer" && source != null && target != null) t.copy(transferTargetAmount = t.transferTargetAmount ?: ExchangeRates.convert(t.amount, source.currency, target.currency, rates)) else t
+        val recurring = if (t.repeat != "Не повторять" && t.recurringId == null) t.copy(recurringId = t.id) else t
+        val stored = if (recurring.operationType == "transfer" && source != null && target != null) recurring.copy(transferTargetAmount = recurring.transferTargetAmount ?: ExchangeRates.convert(recurring.amount, source.currency, target.currency, rates)) else recurring
         tx = tx + stored
         s.saveTransactions(tx)
         if (stored.operationType == "transfer") {
@@ -246,7 +259,47 @@ fun FinanceApp(s: FinanceStore) {
 
     fun replaceTransaction(old: Transaction, updated: Transaction) {
         remove(old)
-        add(updated.copy(id = old.id))
+        val seriesId = if (updated.repeat == "Не повторять") null else (old.recurringId ?: old.id)
+        add(updated.copy(id = old.id, recurringId = seriesId))
+    }
+
+    LaunchedEffect(tx) {
+        val recurring = tx.filter { it.operationType != "transfer" && it.repeat != "Не повторять" }
+        val legacy = recurring.filter { it.recurringId == null }
+        if (legacy.isNotEmpty()) {
+            val migrated = tx.map { item ->
+                if (item.operationType != "transfer" && item.repeat != "Не повторять" && item.recurringId == null) item.copy(recurringId = item.id) else item
+            }
+            tx = migrated
+            s.saveTransactions(migrated)
+        } else {
+            var updatedTransactions = tx
+            var updatedAccounts = accounts
+            var generatedAny = false
+            val now = System.currentTimeMillis()
+            recurring.groupBy { it.recurringId!! }.forEach { (seriesId, entries) ->
+                var latest = entries.maxByOrNull { it.timestamp } ?: return@forEach
+                var next = nextRecurringTimestamp(latest.timestamp, latest.repeat)
+                var count = 0
+                while (next <= now && count < 12) {
+                    val occurrence = latest.copy(id = System.currentTimeMillis() + count, timestamp = next, recurringId = seriesId)
+                    updatedTransactions = updatedTransactions + occurrence
+                    updatedAccounts = updatedAccounts.map { account ->
+                        if (account.name == occurrence.accountName) account.copy(balance = account.balance + if (occurrence.income) occurrence.amount else -occurrence.amount) else account
+                    }
+                    latest = occurrence
+                    next = nextRecurringTimestamp(latest.timestamp, latest.repeat)
+                    count++
+                    generatedAny = true
+                }
+            }
+            if (generatedAny) {
+                tx = updatedTransactions
+                s.saveTransactions(updatedTransactions)
+                accounts = updatedAccounts
+                s.saveAccounts(updatedAccounts)
+            }
+        }
     }
 
     val visible = accounts.filter { !it.hidden }
