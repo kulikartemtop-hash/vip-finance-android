@@ -2339,6 +2339,8 @@ private fun SettingsDialog(
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
                             }
                         }
+                    }
+                }
 
                 if (time > 0) {
                     item {
