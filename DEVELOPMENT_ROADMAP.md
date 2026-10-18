@@ -40,19 +40,14 @@ Avoid common complaints: overloaded navigation, unclear budgets, excessive paid 
 # MAJOR STAGES
 
 ## 1. UI / Premium Design
-Status: [x] COMPLETE
-Completed:
-- [x] Premium dashboard hierarchy.
-- [x] Layered/hero balance card.
-- [x] Large balance and income/expense/net presentation.
-- [x] Account cards with icons and visual surfaces.
-- [x] Theme-aware colors and existing light/dark support preserved.
-- [x] Existing theme styles preserved.
-Validation:
-- [x] GitHub Actions build succeeded.
-- [x] APK artifact produced.
-Notes:
-- Do not replace the existing theme architecture just for visual experimentation.
+Status: [~] IN PROGRESS — 6.6.0 visual refresh submitted; completion depends on successful release and regression checks.
+Completed in 6.6.0 source changes:
+- [x] Refined shared shape and typography system for consistent premium hierarchy.
+- [x] Redesigned dashboard balance card with VIP Finance eyebrow, improved currency emblem and compact high-contrast financial metrics.
+- [x] Refined operations summary and analytics header cards.
+- [x] Refined bottom quick-action buttons.
+- [ ] Verify successful signed release, APK artifact and regression checks.
+- [ ] Confirm visual behavior on narrow and large Android screens.
 
 ## 2. Dashboard
 Status: [x] COMPLETE
