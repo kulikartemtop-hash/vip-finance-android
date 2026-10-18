@@ -387,3 +387,12 @@ Status: [~] IN PROGRESS — source changes committed; signed release validation 
 - [ ] Wait for GitHub Actions debug APK and signed release to finish successfully.
 - [ ] Verify the v7.2.0 release and APK asset are published.
 - [ ] Device testing on a physical Android device remains outstanding.
+
+
+## Budget tab usability refresh — 7.3.0
+- [x] Put the existing budget cards first in the scrollable budget area so they are not pushed below the AI assistant.
+- [x] Keep each budget's limit, spent amount, remaining amount, progress, status, and edit/delete actions visible together.
+- [x] Move the AI assistant below the budget list.
+- [x] Add a collapse/expand control to the AI assistant; collapsed mode retains a compact count of forecast overruns and warnings.
+- [ ] Verify successful signed release and inspect build logs.
+- [ ] Manually test scrolling, collapsing/expanding, and editing on an Android device.
