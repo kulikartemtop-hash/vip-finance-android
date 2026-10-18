@@ -918,6 +918,44 @@ private fun Home(
 }
 
 @Composable
+private fun PremiumEmptyState(
+    title: String,
+    description: String,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+    symbol: String = "✦"
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f)),
+        elevation = CardDefaults.cardElevation(1.dp)
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(22.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+                Text(
+                    symbol,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+            if (actionLabel != null && onAction != null) {
+                FilledTonalButton(onClick = onAction) { Text(actionLabel) }
+            }
+        }
+    }
+}
+
+@Composable
 private fun MetricCard(title: String, value: String, accent: Color, modifier: Modifier = Modifier) {
     Card(modifier = modifier, shape = RoundedCornerShape(18.dp), elevation = CardDefaults.cardElevation(3.dp)) {
         Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1315,7 +1353,14 @@ private fun Analytics(tx: List<Transaction>, c: String, auto: Boolean, r: Map<St
         else -> parseDateStart(fromText) ?: startOfDay(now).timeInMillis
     }
     val to = if (preset == "Свои даты") parseDateEnd(toText) ?: endOfDay(now).timeInMillis else endOfDay(now).timeInMillis
-    val periodTx = tx.filter { it.timestamp in from..to && it.operationType != "transfer" }
+    val parsedCustomFrom = if (preset == "Свои даты") parseDateStart(fromText) else null
+    val parsedCustomTo = if (preset == "Свои даты") parseDateEnd(toText) else null
+    val invalidCustomRange = preset == "Свои даты" && (
+        fromText.isBlank() || toText.isBlank() ||
+        parsedCustomFrom == null || parsedCustomTo == null ||
+        parsedCustomFrom > parsedCustomTo
+    )
+    val periodTx = if (invalidCustomRange) emptyList() else tx.filter { it.timestamp in from..to && it.operationType != "transfer" }
     val income = periodTx.filter { it.income }.sumOf { conv(it.amount, it.currency, c, auto, r) }
     val expense = periodTx.filter { !it.income }.sumOf { conv(it.amount, it.currency, c, auto, r) }
     val cats = periodTx.filter { !it.income }.groupBy { it.category }.mapValues { (_, values) -> values.sumOf { conv(it.amount, it.currency, c, auto, r) } }.toList().sortedByDescending { it.second }
@@ -1357,9 +1402,18 @@ private fun Analytics(tx: List<Transaction>, c: String, auto: Boolean, r: Map<St
         }
         item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) { listOf("Сегодня", "7 дней", "14 дней", "Месяц", "Год", "Свои даты").forEach { p -> FilterChip(preset == p, { preset = p }, label = { Text(p) }) } } }
         if (preset == "Свои даты") item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(fromText, { fromText = it }, label = { Text("С даты") }, placeholder = { Text("дд.мм.гггг") }, modifier = Modifier.weight(1f), singleLine = true)
-                OutlinedTextField(toText, { toText = it }, label = { Text("По дату") }, placeholder = { Text("дд.мм.гггг") }, modifier = Modifier.weight(1f), singleLine = true)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(fromText, { fromText = it }, label = { Text("С даты") }, placeholder = { Text("дд.мм.гггг") }, modifier = Modifier.weight(1f), singleLine = true, isError = fromText.isNotBlank() && parsedCustomFrom == null)
+                    OutlinedTextField(toText, { toText = it }, label = { Text("По дату") }, placeholder = { Text("дд.мм.гггг") }, modifier = Modifier.weight(1f), singleLine = true, isError = toText.isNotBlank() && parsedCustomTo == null)
+                }
+                if (invalidCustomRange) {
+                    Text(
+                        "Укажите обе корректные даты в формате дд.мм.гггг. Начало периода не должно быть позже окончания.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
             }
         }
         item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { MetricCard("Доходы", money(income, c), MaterialTheme.colorScheme.primary, Modifier.weight(1f)); MetricCard("Расходы", money(expense, c), MaterialTheme.colorScheme.error, Modifier.weight(1f)) } }
@@ -1510,12 +1564,11 @@ private fun Analytics(tx: List<Transaction>, c: String, auto: Boolean, r: Map<St
             }
         }
         if (periodTx.isEmpty()) item {
-            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
-                Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Нет операций за выбранный период", fontWeight = FontWeight.SemiBold)
-                    Text("Добавьте доход или расход, чтобы увидеть аналитику.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
+            PremiumEmptyState(
+                title = if (invalidCustomRange) "Проверьте даты периода" else "Нет операций за выбранный период",
+                description = if (invalidCustomRange) "Исправьте даты выше — аналитика пересчитается автоматически." else "Добавьте доход или расход, чтобы увидеть аналитику.",
+                symbol = if (invalidCustomRange) "!" else "◔"
+            )
         }
     }
 }
@@ -1825,13 +1878,13 @@ private fun Budgets(budgets: List<Budget>, transactions: List<Transaction>, c: S
         }
         BudgetAiCard(budgets, transactions, c, auto, rates, edit)
         if (budgets.isEmpty()) {
-            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
-                Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Бюджетов пока нет", fontWeight = FontWeight.SemiBold)
-                    Text("Создайте первый лимит — затем его можно будет в любой момент изменить.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    FilledTonalButton(onClick = add) { Text("Создать бюджет") }
-                }
-            }
+            PremiumEmptyState(
+                title = "Бюджетов пока нет",
+                description = "Создайте первый лимит — затем его можно будет в любой момент изменить.",
+                actionLabel = "Создать бюджет",
+                onAction = add,
+                symbol = "▥"
+            )
         }
         LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
             items(current, key = { it.first.id }) { pair ->
@@ -2015,13 +2068,13 @@ private fun Goals(items: List<Goal>, currency: String, auto: Boolean, rates: Map
             listOf("Срок", "Прогресс", "Сумма").forEach { x -> FilterChip(sort == x, { sort = x }, label = { Text(x) }) }
         }
         if (list.isEmpty()) {
-            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
-                Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(if (items.isEmpty()) "Целей пока нет" else "Ничего не найдено", fontWeight = FontWeight.SemiBold)
-                    Text(if (items.isEmpty()) "Создайте первую цель и начните копить." else "Попробуйте изменить фильтр или поиск.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (items.isEmpty()) FilledTonalButton(onClick = add) { Text("Создать цель") }
-                }
-            }
+            PremiumEmptyState(
+                title = if (items.isEmpty()) "Целей пока нет" else "Ничего не найдено",
+                description = if (items.isEmpty()) "Создайте первую цель и начните копить." else "Попробуйте изменить фильтр или поиск.",
+                actionLabel = if (items.isEmpty()) "Создать цель" else null,
+                onAction = if (items.isEmpty()) add else null,
+                symbol = "◎"
+            )
         }
         list.forEach { g ->
             val p = if (g.target > 0) (g.saved / g.target).coerceIn(0.0, 1.0) else 0.0
@@ -2068,12 +2121,13 @@ private fun Goals(items: List<Goal>, currency: String, auto: Boolean, rates: Map
             Column { Text("Напоминания", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold); Text("Платежи и финансовые задачи", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             FilledTonalButton(onClick = add) { Text("+ Напоминание") }
         }
-        if (items.isEmpty()) Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp)) {
-            Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Напоминаний пока нет", fontWeight = FontWeight.SemiBold)
-                Text("Добавьте дату, чтобы не забыть важный платёж.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
+        if (items.isEmpty()) PremiumEmptyState(
+            title = "Напоминаний пока нет",
+            description = "Добавьте дату, чтобы не забыть важный платёж.",
+            actionLabel = "Добавить напоминание",
+            onAction = add,
+            symbol = "◷"
+        )
         items.forEach { item ->
             Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), elevation = CardDefaults.cardElevation(3.dp)) {
                 Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
