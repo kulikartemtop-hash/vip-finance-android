@@ -56,7 +56,7 @@ private val currencyCountries=mapOf(
     "AUD" to "Австралия", "PLN" to "Польша", "BYN" to "Беларусь"
 )
 private fun currencyLabel(code:String)=code+" ("+(currencyCountries[code] ?: "—")+")"
-private val pages=listOf("Главная","Операции","Счета","Категории","Бюджеты","Аналитика","Календарь","Конвертер","Долги","Цели","Напоминания","Чеки","VIP Центр")
+private val pages=listOf("Главная","Операции","Расходы","Доходы","Счета","Категории","Бюджеты","Аналитика","Календарь","Конвертер","Долги","Цели","Напоминания","Чеки","VIP Центр")
 private val incomeCategoryNames = setOf("Зарплата", "Премия", "Подработка", "Бизнес", "Инвестиции", "Проценты по вкладам", "Кэшбэк", "Подарки", "Пенсия и пособия", "Возврат средств", "Продажа вещей", "Прочие доходы")
 private val defaultCategories=listOf(
     Category(name="Продукты",kind="expense",icon="shopping_cart",color="#43A047"),
@@ -187,7 +187,7 @@ fun FinanceApp(s: FinanceStore) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val drawerScope = rememberCoroutineScope()
     val activity = LocalContext.current as? Activity
-    LaunchedEffect(menu) { if (page !in menu && menu.isNotEmpty()) page = menu.first() }
+    LaunchedEffect(menu) { if (page !in menu && page !in setOf("Расходы", "Доходы") && menu.isNotEmpty()) page = menu.first() }
     LaunchedEffect(Unit) {
         if (s.loadCategories() != categories) s.saveCategories(categories)
         loading = true
@@ -421,7 +421,7 @@ fun FinanceApp(s: FinanceStore) {
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Button(
-                                onClick = { dialog = "expense" },
+                                onClick = { page = "Расходы" },
                                 modifier = Modifier.weight(1f),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.errorContainer,
@@ -429,7 +429,7 @@ fun FinanceApp(s: FinanceStore) {
                                 )
                             ) { Text("− Расход") }
                             Button(
-                                onClick = { dialog = "income" },
+                                onClick = { page = "Доходы" },
                                 modifier = Modifier.weight(1f),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -449,6 +449,8 @@ fun FinanceApp(s: FinanceStore) {
                 ) {
                     when (page) {
                         "Главная" -> Home(total, currency, accounts, auto, rates, selected, inc, exp, goals, debts, reminders, categories, budgets, tx, ::add, { page = "Бюджеты" }, { dialog = "account" }) { selected = it }
+                        "Расходы" -> FlowCenter(false, tx, accounts, categories, currency, auto, rates, { repeatSource = null; dialog = "expense" }, { editingTransaction = it; dialog = "editTransaction" }, ::remove, { old, updated -> replaceTransaction(old, updated) })
+                        "Доходы" -> FlowCenter(true, tx, accounts, categories, currency, auto, rates, { repeatSource = null; dialog = "income" }, { editingTransaction = it; dialog = "editTransaction" }, ::remove, { old, updated -> replaceTransaction(old, updated) })
                         "Операции" -> Operations(shown, accounts, filter, { filter = it }, { dialog = "expense" }, ::remove, { editingTransaction = it; dialog = "editTransaction" }, currency, auto, rates, search, { search = it }, tagSearch, { tagSearch = it }, newest, { newest = it }, typeFilter, { typeFilter = it }, categoryFilter, { categoryFilter = it }, fromDate, { fromDate = it }, toDate, { toDate = it }, categories.map { it.name }, { original -> repeatSource = original; dialog = if (original.income) "income" else "expense" })
                         "Счета" -> Accounts(accounts, tx, currency, auto, rates, { editingAccount = null; dialog = "account" }, { editingAccount = it; dialog = "account" }, { deletingAccount = it }, { selected = it }, { n -> val updated = accounts.map { if (it.name == n) it.copy(hidden = !it.hidden) else it }; accounts = updated; s.saveAccounts(updated) }, { account -> repeatSource = Transaction(title = "Перевод между счетами", amount = 0.0, income = false, accountName = account.name, currency = account.currency, operationType = "transfer", toAccountName = accounts.firstOrNull { it.name != account.name }?.name.orEmpty()); dialog = "expense" })
                         "Категории" -> Categories(categories, { kind -> newCategoryKind = kind; editingCategory = null; dialog = "category" }, { editingCategory = it; dialog = "category" }, { c0 -> categories = categories.filterNot { it.id == c0.id }; s.saveCategories(categories) })
