@@ -1,0 +1,239 @@
+package com.example.vipfinance
+
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+
+@Composable
+fun FlowCenter(
+    incomeMode: Boolean,
+    transactions: List<Transaction>,
+    accounts: List<Account>,
+    categories: List<Category>,
+    currency: String,
+    auto: Boolean,
+    rates: Map<String, Double>,
+    onAdd: () -> Unit,
+    onEdit: (Transaction) -> Unit,
+    onRemove: (Transaction) -> Unit,
+    onUpdate: (Transaction, Transaction) -> Unit
+) {
+    val context = LocalContext.current
+    var search by remember { mutableStateOf("") }
+    var range by remember { mutableStateOf("Месяц") }
+    var categoryFilter by remember { mutableStateOf("Все") }
+    var showRecurring by remember { mutableStateOf(false) }
+    var attachTarget by remember { mutableStateOf<Transaction?>(null) }
+    var exportText by remember { mutableStateOf("") }
+    val receiptPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val original = attachTarget
+        if (uri != null && original != null) {
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            val newNote = listOf(original.note.trim(), "Чек: ${uri}").filter { it.isNotBlank() }.joinToString("\n")
+            onUpdate(original, original.copy(note = newNote))
+        }
+        attachTarget = null
+    }
+    val exportPicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        if (uri != null) runCatching {
+            context.contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use { it.write(exportText) }
+        }
+    }
+    val now = Calendar.getInstance()
+    val monthStart = Calendar.getInstance().apply { set(Calendar.DAY_OF_MONTH, 1); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
+    val rangeStart = when (range) {
+        "7 дней" -> Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -6); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
+        "30 дней" -> Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -29); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
+        else -> monthStart
+    }
+    val typed = transactions.filter { it.operationType != "transfer" && it.income == incomeMode }
+    val recurring = typed.filter { it.repeat.isNotBlank() && it.repeat != "Не повторять" }
+    val period = typed.filter { it.timestamp >= rangeStart && it.timestamp <= now.timeInMillis }
+    val filtered = (if (showRecurring) recurring else period).filter {
+        (search.isBlank() || it.title.contains(search, true) || it.category.contains(search, true) || it.accountName.contains(search, true) || it.note.contains(search, true)) &&
+        (categoryFilter == "Все" || it.category == categoryFilter)
+    }.sortedByDescending { it.timestamp }
+    val total = period.sumOf { conv(it.amount, it.currency, currency, auto, rates) }
+    val todayStart = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
+    val todayTotal = typed.filter { it.timestamp >= todayStart && it.timestamp <= now.timeInMillis }.sumOf { conv(it.amount, it.currency, currency, auto, rates) }
+    val categoryTotals = period.groupBy { it.category }.mapValues { (_, list) -> list.sumOf { conv(it.amount, it.currency, currency, auto, rates) } }.toList().sortedByDescending { it.second }
+    val peak = categoryTotals.maxOfOrNull { it.second }?.coerceAtLeast(1.0) ?: 1.0
+    val elapsedDays = now.get(Calendar.DAY_OF_MONTH).coerceAtLeast(1)
+    val daysInMonth = now.getActualMaximum(Calendar.DAY_OF_MONTH)
+    val daysRemaining = (daysInMonth - elapsedDays).coerceAtLeast(0)
+    val projectedTotal = if (total > 0) total / elapsedDays * daysInMonth else 0.0
+    val projectedDaily = if (elapsedDays > 0) total / elapsedDays else 0.0
+    val balance = accounts.filter { !it.hidden }.sumOf { conv(it.balance, it.currency, currency, auto, rates) }
+    val projectedBalance = if (incomeMode) balance + projectedDaily * daysRemaining else balance - projectedDaily * daysRemaining
+    val kindLabel = if (incomeMode) "дохода" else "расхода"
+    val accent = if (incomeMode) Color(0xFF16845B) else MaterialTheme.colorScheme.error
+    val title = if (incomeMode) "Центр доходов" else "Центр расходов"
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(bottom = 14.dp)
+    ) {
+        item {
+            Card(shape = RoundedCornerShape(26.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                            Text("Управление и аналитика ${if (incomeMode) "поступлений" else "трат"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Surface(shape = RoundedCornerShape(15.dp), color = accent.copy(alpha = 0.13f)) {
+                            Text(if (incomeMode) "↗" else "↘", modifier = Modifier.padding(horizontal = 15.dp, vertical = 8.dp), color = accent, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Text(money(total, currency), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold, color = accent)
+                    Text("За выбранный период • сегодня: ${money(todayTotal, currency)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilledButton(onClick = onAdd, modifier = Modifier.weight(1f)) { Text(if (incomeMode) "+ Добавить доход" else "− Добавить расход") }
+                        OutlinedButton(onClick = {
+                            val rows = filtered
+                            exportText = buildString {
+                                appendLine("Дата;Название;Сумма;Валюта;Категория;Счёт/карта;Комментарий;Повтор")
+                                rows.forEach { t ->
+                                    val date = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(t.timestamp))
+                                    appendLine(listOf(date, t.title, t.amount.toString(), t.currency, t.category, t.accountName, t.note.replace("\n", " "), t.repeat).joinToString(";") { it.replace(";", ",") })
+                                }
+                            }
+                            exportPicker.launch(if (incomeMode) "VIP-Finance-income.csv" else "VIP-Finance-expenses.csv")
+                        }, modifier = Modifier.weight(1f)) { Text("Экспорт CSV") }
+                    }
+                }
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("Месяц", "7 дней", "30 дней").forEach { preset ->
+                    FilterChip(selected = range == preset && !showRecurring, onClick = { range = preset; showRecurring = false }, label = { Text(preset) })
+                }
+                FilterChip(selected = showRecurring, onClick = { showRecurring = !showRecurring }, label = { Text("Регулярные") })
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MetricCard("Операций", if (showRecurring) recurring.size.toString() else period.size.toString(), accent, Modifier.weight(1f))
+                MetricCard("Средняя сумма", money(if (period.isEmpty()) 0.0 else total / period.size, currency), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+            }
+        }
+        item {
+            Card(shape = RoundedCornerShape(22.dp), elevation = CardDefaults.cardElevation(2.dp)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Прогноз до конца месяца", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(money(projectedTotal, currency), style = MaterialTheme.typography.headlineSmall, color = accent, fontWeight = FontWeight.Bold)
+                    Text("Оценка по среднему ${kindLabel} в день за текущий месяц. Это прогноз, а не гарантированное поступление или списание.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (!incomeMode) Text("Примерный баланс после расходов по текущему темпу: ${money(projectedBalance, currency)}", fontWeight = FontWeight.SemiBold, color = if (projectedBalance >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                    else Text("До конца месяца осталось дней: $daysRemaining", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+        if (!showRecurring && categoryTotals.isNotEmpty()) {
+            item {
+                Card(shape = RoundedCornerShape(22.dp), elevation = CardDefaults.cardElevation(2.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(if (incomeMode) "Источники дохода" else "Куда уходят деньги", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        categoryTotals.take(6).forEach { (name, amount) ->
+                            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text(name, fontWeight = FontWeight.SemiBold)
+                                    Text(money(amount, currency), fontWeight = FontWeight.Bold)
+                                }
+                                LinearProgressIndicator(progress = { (amount / peak).toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(6.dp), color = accent)
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                Card(shape = RoundedCornerShape(22.dp), elevation = CardDefaults.cardElevation(2.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Умные подсказки", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        val top = categoryTotals.firstOrNull()
+                        if (top != null) Text((if (incomeMode) "Главный источник" else "Самая затратная категория") + ": ${top.first} • ${money(top.second, currency)}")
+                        if (!incomeMode && total > 0 && projectedTotal > total * 1.2) Text("При сохранении темпа расходы могут превысить текущую сумму ещё на ${money(projectedTotal - total, currency)}.", color = MaterialTheme.colorScheme.error)
+                        if (incomeMode && total > 0) Text("Планируйте бюджет на основе уже полученных сумм; прогноз не меняет баланс счёта.")
+                        if (categoryTotals.size <= 1) Text("Добавляйте операции с разными категориями, чтобы получить более точную аналитику.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+        item {
+            OutlinedTextField(search, { search = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Поиск по операциям") }, placeholder = { Text("Название, категория, счёт или комментарий") })
+        }
+        item {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                val options = listOf("Все") + categories.filter { it.kind == if (incomeMode) "income" else "expense" }.map { it.name }.distinct()
+                options.forEach { name -> FilterChip(selected = categoryFilter == name, onClick = { categoryFilter = name }, label = { Text(name) }) }
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(if (showRecurring) "Регулярные операции" else "История операций", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("${filtered.size}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        if (filtered.isEmpty()) item {
+            Card(shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text(if (showRecurring) "Регулярных операций пока нет" else "Операций пока нет", fontWeight = FontWeight.SemiBold)
+                    Text(if (showRecurring) "При добавлении операции выберите периодичность, чтобы она появилась здесь." else "Добавьте первую операцию — здесь появятся история, категории и прогноз.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Button(onClick = onAdd) { Text(if (incomeMode) "Добавить доход" else "Добавить расход") }
+                }
+            }
+        }
+        items(filtered, key = { "${it.id}-${it.timestamp}" }) { t ->
+            ElevatedCard(shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(t.title.ifBlank { t.category }, fontWeight = FontWeight.Bold)
+                            Text("${t.category} • ${t.accountName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date(t.timestamp)) + if (t.repeat != "Не повторять") " • ${t.repeat}" else "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Text(money(conv(t.amount, t.currency, currency, auto, rates), currency), color = accent, fontWeight = FontWeight.Bold)
+                    }
+                    if (t.note.isNotBlank()) Text(t.note.substringBefore("\nЧек:"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    val receiptUri = Regex("Чек:\\s*(content://[^\\s]+|file://[^\\s]+)").find(t.note)?.groupValues?.getOrNull(1)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { onEdit(t) }) { Text("Изменить") }
+                        TextButton(onClick = { attachTarget = t; receiptPicker.launch(arrayOf("image/*", "application/pdf")) }) { Text(if (receiptUri != null) "Заменить чек" else "Прикрепить чек") }
+                        if (receiptUri != null) TextButton(onClick = {
+                            runCatching {
+                                val uri = Uri.parse(receiptUri)
+                                val mime = context.contentResolver.getType(uri) ?: "*/*"
+                                context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                            }
+                        }) { Text("Открыть чек") }
+                        Spacer(Modifier.weight(1f))
+                        TextButton(onClick = { onRemove(t) }) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
+                    }
+                }
+            }
+        }
+    }
+}
