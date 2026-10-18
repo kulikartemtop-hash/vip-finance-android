@@ -396,3 +396,13 @@ Status: [~] IN PROGRESS — source changes committed; signed release validation 
 - [x] Add a collapse/expand control to the AI assistant; collapsed mode retains a compact count of forecast overruns and warnings.
 - [ ] Verify successful signed release and inspect build logs.
 - [ ] Manually test scrolling, collapsing/expanding, and editing on an Android device.
+
+
+## Budget category validation — 7.4.0
+- [x] Remove the “All categories” option from budget creation and editing.
+- [x] Allow selecting only currently existing expense categories.
+- [x] Preselect an existing expense category for new budgets when available.
+- [x] If an old budget refers to a deleted/missing category, require selecting a current category before saving.
+- [x] Disable saving when no valid expense category is selected or no expense categories exist.
+- [ ] Verify successful signed release and inspect build logs.
+- [ ] Manually test category creation/deletion and budget editing on an Android device.
