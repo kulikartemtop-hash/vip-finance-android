@@ -545,7 +545,7 @@ fun FinanceApp(s: FinanceStore) {
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
                     when (page) {
-                        "Главная" -> Home(total, currency, accounts, auto, rates, selected, inc, exp, goals, debts, reminders, categories, budgets, tx, ::add, { page = "Бюджеты" }, { dialog = "account" }) { selected = it }
+                        "Главная" -> Home(total, currency, accounts, auto, rates, selected, inc, exp, goals, debts, reminders, categories, budgets, tx, ::add, { page = "Бюджеты" }, { dialog = "account" }, { page = it }) { selected = it }
                         "Расходы" -> FlowCenter(false, tx, accounts, categories, currency, auto, rates, { repeatSource = null; dialog = "expense" }, { add(it) }, { editingTransaction = it; dialog = "editTransaction" }, ::remove, { old, updated -> replaceTransaction(old, updated) })
                         "Доходы" -> FlowCenter(true, tx, accounts, categories, currency, auto, rates, { repeatSource = null; dialog = "income" }, { add(it) }, { editingTransaction = it; dialog = "editTransaction" }, ::remove, { old, updated -> replaceTransaction(old, updated) })
                         "Операции" -> Operations(shown, accounts, filter, { filter = it }, { dialog = "expense" }, ::remove, { editingTransaction = it; dialog = "editTransaction" }, currency, auto, rates, search, { search = it }, tagSearch, { tagSearch = it }, newest, { newest = it }, typeFilter, { typeFilter = it }, categoryFilter, { categoryFilter = it }, fromDate, { fromDate = it }, toDate, { toDate = it }, categories.map { it.name }, { original -> repeatSource = original; dialog = if (original.income) "income" else "expense" })
@@ -644,7 +644,7 @@ private fun Home(
     total: Double, c: String, accounts: List<Account>, auto: Boolean, r: Map<String,Double>,
     selected: String?, income: Double, expense: Double, goals: List<Goal>, debts: List<Debt>, reminders: List<Reminder>, categories: List<Category>,
     budgets: List<Budget>, transactions: List<Transaction>,
-    onVoiceTransaction: (Transaction) -> Unit, onOpenBudgets: () -> Unit, onAddAccount: () -> Unit, pick: (String?) -> Unit
+    onVoiceTransaction: (Transaction) -> Unit, onOpenBudgets: () -> Unit, onAddAccount: () -> Unit, onNavigate: (String) -> Unit, pick: (String?) -> Unit
 ) {
     val visible = accounts.filter { !it.hidden }
     val selectedBalance = selected?.let { n -> visible.firstOrNull { it.name == n }?.let { conv(it.balance,it.currency,c,auto,r) } } ?: total
@@ -672,6 +672,82 @@ private fun Home(
                             Surface(shape=RoundedCornerShape(16.dp),color=Color.White.copy(.13f),modifier=Modifier.weight(1f)){Column(Modifier.padding(horizontal=10.dp, vertical=12.dp), verticalArrangement=Arrangement.spacedBy(4.dp)){Text("↑ ДОХОДЫ",color=Color.White.copy(.74f),style=MaterialTheme.typography.labelSmall, maxLines=1);Text(money(income,c),color=Color.White,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.bodyMedium,maxLines=1)}}
                             Surface(shape=RoundedCornerShape(16.dp),color=Color.White.copy(.13f),modifier=Modifier.weight(1f)){Column(Modifier.padding(horizontal=10.dp, vertical=12.dp), verticalArrangement=Arrangement.spacedBy(4.dp)){Text("↓ РАСХОДЫ",color=Color.White.copy(.74f),style=MaterialTheme.typography.labelSmall, maxLines=1);Text(money(expense,c),color=Color.White,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.bodyMedium,maxLines=1)}}
                             Surface(shape=RoundedCornerShape(16.dp),color=Color.White.copy(.13f),modifier=Modifier.weight(1f)){Column(Modifier.padding(horizontal=10.dp, vertical=12.dp), verticalArrangement=Arrangement.spacedBy(4.dp)){Text("↗ ОСТАТОК",color=Color.White.copy(.74f),style=MaterialTheme.typography.labelSmall, maxLines=1);Text(money(net,c),color=Color.White,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.bodyMedium,maxLines=1)}}
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                elevation = CardDefaults.cardElevation(3.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
+            ) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("Быстрый доступ", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                            Text(
+                                SimpleDateFormat("LLLL yyyy", Locale.getDefault()).format(Date()).replaceFirstChar { it.uppercase(Locale.getDefault()) } + " • всё важное рядом",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+                            Text("✦", modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp), color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Card(
+                            modifier = Modifier.weight(1f).clickable { onNavigate("Операции") },
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.58f)),
+                            elevation = CardDefaults.cardElevation(0.dp)
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                Text("↔", color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                Text("Операции", color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                                Text("История и поиск", color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f), style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                        Card(
+                            modifier = Modifier.weight(1f).clickable { onNavigate("Аналитика") },
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.58f)),
+                            elevation = CardDefaults.cardElevation(0.dp)
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                Text("◔", color = MaterialTheme.colorScheme.onSecondaryContainer, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                Text("Аналитика", color = MaterialTheme.colorScheme.onSecondaryContainer, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                                Text("Структура денег", color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.78f), style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Card(
+                            modifier = Modifier.weight(1f).clickable { onNavigate("Бюджеты") },
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)),
+                            elevation = CardDefaults.cardElevation(0.dp)
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                Text("▥", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                Text("Бюджеты", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                                Text("Лимиты и остатки", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                        Card(
+                            modifier = Modifier.weight(1f).clickable { onNavigate("Цели") },
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)),
+                            elevation = CardDefaults.cardElevation(0.dp)
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                Text("◎", color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                Text("Цели", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                                Text("Прогресс накоплений", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                            }
                         }
                     }
                 }
