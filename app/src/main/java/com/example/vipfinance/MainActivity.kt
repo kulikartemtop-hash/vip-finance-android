@@ -92,6 +92,43 @@ private val defaultCategories=listOf(
     Category(name="Продажа вещей",kind="income",icon="shopping_bag",color="#6D4C41"),
     Category(name="Прочие доходы",kind="income",icon="category",color="#757575")
 )
+
+private val categorySearchAliases = mapOf(
+    "Продукты" to listOf("еда", "магазин", "супермаркет", "питание", "покупка еды"),
+    "Транспорт" to listOf("проезд", "такси", "автобус", "метро", "общественный транспорт"),
+    "Жильё" to listOf("аренда", "коммунальные", "квартира", "дом", "жкх"),
+    "Здоровье" to listOf("врач", "аптека", "лекарства", "медицина", "больница"),
+    "Покупки" to listOf("товары", "магазин", "заказы", "маркетплейс"),
+    "Связь" to listOf("телефон", "интернет", "мобильная связь", "сим карта"),
+    "Путешествия" to listOf("отпуск", "отель", "билеты", "поездка"),
+    "Автомобиль" to listOf("авто", "машина", "автомобиль", "мойка", "страховка"),
+    "Топливо" to listOf("бензин", "заправка", "дизель", "газ", "азс"),
+    "Ремонт" to listOf("автосервис", "сто", "мастер", "починка", "запчасти"),
+    "Одежда и обувь" to listOf("одежда", "обувь", "куртка", "кроссовки"),
+    "Рестораны и кафе" to listOf("кафе", "ресторан", "доставка еды", "фастфуд", "обед"),
+    "Домашние животные" to listOf("питомец", "кошка", "собака", "корм", "ветеринар"),
+    "Налоги и комиссии" to listOf("налог", "комиссия", "штраф", "госпошлина"),
+    "Кредиты" to listOf("кредит", "заём", "заем", "ипотека", "платёж по кредиту"),
+    "Зарплата" to listOf("оклад", "работа", "аванс", "зарплатный перевод"),
+    "Премия" to listOf("бонус", "премиальные"),
+    "Подработка" to listOf("фриланс", "дополнительная работа", "халтура"),
+    "Бизнес" to listOf("предпринимательство", "выручка", "прибыль"),
+    "Инвестиции" to listOf("акции", "дивиденды", "инвестиционный доход"),
+    "Проценты по вкладам" to listOf("вклад", "депозит", "проценты"),
+    "Кэшбэк" to listOf("кешбек", "возврат банка", "cashback"),
+    "Подарки" to listOf("подарок", "дарение"),
+    "Пенсия и пособия" to listOf("пенсия", "пособие", "социальные выплаты"),
+    "Возврат средств" to listOf("возврат", "вернули деньги", "рефанд"),
+    "Продажа вещей" to listOf("продажа", "авито", "продал", "объявление"),
+    "Прочие доходы" to listOf("другой доход", "прочее поступление")
+)
+private fun categoryMatchesQuery(category: Category, query: String): Boolean {
+    val q = query.trim().lowercase(Locale.getDefault())
+    if (q.isBlank()) return true
+    return category.name.lowercase(Locale.getDefault()).contains(q) ||
+        categorySearchAliases[category.name].orEmpty().any { it.lowercase(Locale.getDefault()).contains(q) || q.contains(it.lowercase(Locale.getDefault())) }
+}
+
 private fun normalizeCategoryIds(items: List<Category>): List<Category> {
     val used = mutableSetOf<Long>()
     var nextId = maxOf(System.currentTimeMillis(), (items.maxOfOrNull { it.id } ?: 0L) + 1L)
@@ -863,44 +900,64 @@ private fun Categories(
     remove: (Category) -> Unit
 ) {
     var selectedKind by remember { mutableStateOf("expense") }
-    val visibleItems = items.filter { it.kind == selectedKind }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    var query by remember { mutableStateOf("") }
+    val allKindItems = items.filter { it.kind == selectedKind }
+    val visibleItems = allKindItems.filter { categoryMatchesQuery(it, query) }
+        .sortedBy { it.name.lowercase(Locale.getDefault()) }
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-            Column {
+            Column(Modifier.weight(1f)) {
                 Text("Категории", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text("Доходы и расходы отдельно", style = MaterialTheme.typography.bodySmall)
+                Text("Найдите нужную за пару секунд", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             FilledTonalButton(onClick = { add(selectedKind) }) { Text("+ Добавить") }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = selectedKind == "expense", onClick = { selectedKind = "expense" }, label = { Text("Расходы (" + items.count { it.kind == "expense" } + ")") }, modifier = Modifier.weight(1f))
-            FilterChip(selected = selectedKind == "income", onClick = { selectedKind = "income" }, label = { Text("Доходы (" + items.count { it.kind == "income" } + ")") }, modifier = Modifier.weight(1f))
+            FilterChip(selected = selectedKind == "expense", onClick = { selectedKind = "expense"; query = "" }, label = { Text("Расходы (" + items.count { it.kind == "expense" } + ")") }, modifier = Modifier.weight(1f))
+            FilterChip(selected = selectedKind == "income", onClick = { selectedKind = "income"; query = "" }, label = { Text("Доходы (" + items.count { it.kind == "income" } + ")") }, modifier = Modifier.weight(1f))
+        }
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            shape = RoundedCornerShape(18.dp),
+            label = { Text("Поиск категории") },
+            placeholder = { Text("Например: бензин, еда, зарплата…") },
+            leadingIcon = { Text("⌕", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary) },
+            trailingIcon = { if (query.isNotBlank()) TextButton(onClick = { query = "" }) { Text("Очистить") } }
+        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(if (query.isBlank()) "Все категории" else "Результаты поиска", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Text("${visibleItems.size} из ${allKindItems.size}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (visibleItems.isEmpty()) {
             Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
-                Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(if (selectedKind == "income") "Категорий доходов пока нет" else "Категорий расходов пока нет", fontWeight = FontWeight.SemiBold)
-                    Text("Добавьте категорию для этого типа операции.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(if (allKindItems.isEmpty()) "Категорий пока нет" else "Ничего не найдено", fontWeight = FontWeight.SemiBold)
+                    Text(if (allKindItems.isEmpty()) "Добавьте первую категорию." else "Попробуйте другое слово или часть названия.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (allKindItems.isEmpty()) Button(onClick = { add(selectedKind) }) { Text("Добавить категорию") }
                 }
             }
         } else {
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(bottom = 8.dp)
             ) {
-                itemsIndexed(visibleItems, key = { index, c0 -> "${c0.kind}:${c0.id}:$index" }) { _, c0 ->
-                    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-                        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(uiColor(c0.color)), contentAlignment = Alignment.Center) {
-                                Text(iconText(c0.icon), color = Color.White, fontWeight = FontWeight.Bold)
+                itemsIndexed(visibleItems, key = { _, c0 -> "${c0.kind}:${c0.id}" }) { _, c0 ->
+                    ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(19.dp)) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(46.dp).clip(RoundedCornerShape(15.dp)).background(uiColor(c0.color)), contentAlignment = Alignment.Center) {
+                                Text(iconText(c0.icon), color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                             }
                             Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f)) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(c0.name, fontWeight = FontWeight.SemiBold)
-                                Text(if (c0.kind == "income") "Доход" else "Расход", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(if (c0.kind == "income") "Источник дохода" else "Статья расхода", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            TextButton(onClick = { edit(c0) }) { Text("Изменить") }
-                            TextButton(onClick = { remove(c0) }) { Text("Удалить") }
+                            TextButton(onClick = { edit(c0) }, contentPadding = PaddingValues(horizontal = 8.dp)) { Text("Изменить") }
+                            TextButton(onClick = { remove(c0) }, contentPadding = PaddingValues(horizontal = 6.dp)) { Text("⋮") }
                         }
                     }
                 }
@@ -2598,6 +2655,7 @@ private fun TransactionDialog(
     var note by remember { mutableStateOf(source?.note ?: "") }
     var rep by remember { mutableStateOf(source?.repeat ?: "Не повторять") }
     var tags by remember { mutableStateOf(source?.tags ?: "") }
+    var categoryPickerOpen by remember { mutableStateOf(false) }
     var dateText by remember {
         mutableStateOf(
             source?.timestamp?.let { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(it)) }
@@ -2725,18 +2783,33 @@ private fun TransactionDialog(
                 } else {
                     item {
                         DialogGroup("Категория") {
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 2.dp)) {
-                                items(availableCategories) { x ->
-                                    FilterChip(
-                                        selected = cat == x.name,
-                                        onClick = { cat = x.name },
-                                        label = { Text(iconText(x.icon) + "  " + x.name) }
-                                    )
+                            val selectedCategory = availableCategories.firstOrNull { it.name == cat }
+                            if (selectedCategory != null) {
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = uiColor(selectedCategory.color).copy(alpha = 0.12f),
+                                    border = BorderStroke(1.dp, uiColor(selectedCategory.color).copy(alpha = 0.45f))
+                                ) {
+                                    Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(uiColor(selectedCategory.color)), contentAlignment = Alignment.Center) {
+                                            Text(iconText(selectedCategory.icon), color = Color.White, fontWeight = FontWeight.Bold)
+                                        }
+                                        Spacer(Modifier.width(10.dp))
+                                        Column(Modifier.weight(1f)) {
+                                            Text("Выбрано", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text(selectedCategory.name, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
                                 }
+                            } else {
+                                Text("Своя категория: $cat", style = MaterialTheme.typography.bodyMedium)
+                            }
+                            Button(onClick = { categoryPickerOpen = true }, modifier = Modifier.fillMaxWidth()) {
+                                Text("⌕  Найти категорию из списка (${availableCategories.size})")
                             }
                             DialogField(
-                                label = "Своя категория",
-                                supporting = "Можно заменить выбранную категорию своим названием",
+                                label = "Название категории",
+                                supporting = "Можно также ввести своё название",
                                 value = cat,
                                 onValueChange = { cat = it }
                             )
@@ -2811,6 +2884,81 @@ private fun TransactionDialog(
                         ) { Text("Сохранить", fontWeight = FontWeight.Bold) }
                     }
                 }
+            }
+        }
+    }
+    if (categoryPickerOpen && type != "transfer") {
+        CategoryPickerDialog(
+            categories = availableCategories,
+            selectedName = cat,
+            onClose = { categoryPickerOpen = false },
+            onSelect = { selected -> cat = selected.name; categoryPickerOpen = false }
+        )
+    }
+}
+
+@Composable
+private fun CategoryPickerDialog(
+    categories: List<Category>,
+    selectedName: String,
+    onClose: () -> Unit,
+    onSelect: (Category) -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    val filtered = categories.filter { categoryMatchesQuery(it, query) }
+        .sortedBy { it.name.lowercase(Locale.getDefault()) }
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(0.92f).heightIn(max = 680.dp),
+            shape = RoundedCornerShape(26.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 12.dp
+        ) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Выбрать категорию", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Поиск работает по названию и знакомым словам: например, «бензин» найдёт «Топливо».", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
+                    label = { Text("Поиск категории") },
+                    placeholder = { Text("Еда, бензин, машина, зарплата…") },
+                    leadingIcon = { Text("⌕", style = MaterialTheme.typography.headlineSmall) },
+                    trailingIcon = { if (query.isNotBlank()) TextButton(onClick = { query = "" }) { Text("Очистить") } }
+                )
+                Text("${filtered.size} категорий", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (filtered.isEmpty()) {
+                    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                        Text("Ничего не найдено. Попробуйте другое слово.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else {
+                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(filtered, key = { "${it.kind}:${it.id}" }) { item ->
+                            val isSelected = item.name == selectedName
+                            Surface(
+                                modifier = Modifier.fillMaxWidth().clickable { onSelect(item) },
+                                shape = RoundedCornerShape(15.dp),
+                                color = if (isSelected) uiColor(item.color).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                border = if (isSelected) BorderStroke(1.dp, uiColor(item.color)) else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                            ) {
+                                Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(uiColor(item.color)), contentAlignment = Alignment.Center) {
+                                        Text(iconText(item.icon), color = Color.White, fontWeight = FontWeight.Bold)
+                                    }
+                                    Spacer(Modifier.width(10.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(item.name, fontWeight = FontWeight.SemiBold)
+                                        Text(if (isSelected) "Выбрана" else "Нажмите, чтобы выбрать", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    if (isSelected) Text("✓", color = uiColor(item.color), fontWeight = FontWeight.ExtraBold)
+                                }
+                            }
+                        }
+                    }
+                }
+                TextButton(onClick = onClose, modifier = Modifier.align(Alignment.End)) { Text("Закрыть") }
             }
         }
     }
