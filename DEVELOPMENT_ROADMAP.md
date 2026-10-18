@@ -317,3 +317,13 @@ Status: **GREEN / released**
 - 4.7: Final stabilization of the VIP Center and release packaging; current release tag is v4.7.
 
 Current verified release asset: **VIP-Finance.apk**.
+
+
+## VIP Finance 6.4.2 — Searchable category filters in income and expense centers
+- [x] Replace the long horizontal category-chip strip in Expenses and Income with a compact category-filter card.
+- [x] Keep quick access to “All” and the three most-used categories.
+- [x] Add a searchable picker with semantic aliases (for example, “бензин” → “Топливо”, “еда” → “Продукты”, “бонус” → “Премия”).
+- [x] Sort picker results by amounts used in the selected period, then by name.
+- [x] Keep the picker separated by income/expense mode and include historical categories still used by transactions.
+- [ ] Build and verify APK through GitHub Actions; inspect failures and rebuild if needed.
+- [ ] Manual device check: open Expenses and Income, search categories, select a result, clear filter with “Все”.
