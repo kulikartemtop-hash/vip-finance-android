@@ -2033,10 +2033,6 @@ private fun SettingsDialog(
     var menuExpanded by remember { mutableStateOf(false) }
     var confirmReset by remember { mutableStateOf(false) }
     var pinText by remember { mutableStateOf(currentPin) }
-    val latestMenu = rememberUpdatedState(menu)
-    val latestMenuSave = rememberUpdatedState<(List<String>) -> Unit> { updated ->
-        save(c, auto, theme, style, updated)
-    }
     var pinVisible by remember { mutableStateOf(false) }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { uri0 ->
@@ -2253,43 +2249,61 @@ private fun SettingsDialog(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) { change, dragAmount ->
+                                                    change.consume()
+                                                    dragDistance += dragAmount.y
+                                                    if (dragDistance > 48f || dragDistance < -48f) {
+                                                        val updated = menu.toMutableList()
+                                                        val index = updated.indexOf(pageName)
+                                                        val target = if (dragDistance < 0f) index - 1 else index + 1
+                                                        if (index >= 0 && target in updated.indices) {
+                                                            val moving = updated.removeAt(index)
+                                                            updated.add(target, moving)
+                                                            save(c, auto, theme, style, updated)
+                                                        }
+                                                        dragDistance = 0f
+                                                    }
+                                                }
+                                            } else Modifier
+                                        ),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Column(Modifier.weight(1f)) {
                                         Text(pageName, fontWeight = FontWeight.SemiBold)
                                         Text(
-                                            if (visibleInMenu) "Пункт меню • позиция ${menu.indexOf(pageName) + 1} • удерживайте значок ☷ и перетащите"
+                                            if (visibleInMenu) "Пункт меню • позиция ${menu.indexOf(pageName) + 1} • удерживайте и перетащите"
                                             else "Скрыт из меню",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                     if (visibleInMenu) {
+                                        var dragDistance by remember(pageName) { mutableFloatStateOf(0f) }
                                         Box(
                                             modifier = Modifier
                                                 .size(44.dp)
-                                                .pointerInput(pageName) {
-                                                    var dragDistance = 0f
+                                                .pointerInput(pageName, menu) {
                                                     detectDragGesturesAfterLongPress(
-                                                        onDragEnd = { dragDistance = 0f },
+                                                        onDragEnd = {
+                                                            val step = 48.dp.toPx()
+                                                            val moves = (dragDistance / step).toInt()
+                                                            if (moves != 0) {
+                                                                val updated = menu.toMutableList()
+                                                                val from = updated.indexOf(pageName)
+                                                                val to = (from + moves).coerceIn(0, updated.lastIndex)
+                                                                if (from >= 0 && to in updated.indices && from != to) {
+                                                                    val moving = updated.removeAt(from)
+                                                                    updated.add(to, moving)
+                                                                    save(c, auto, theme, style, updated)
+                                                                }
+                                                            }
+                                                            dragDistance = 0f
+                                                        },
                                                         onDragCancel = { dragDistance = 0f }
                                                     ) { change, dragAmount ->
                                                         change.consume()
                                                         dragDistance += dragAmount.y
-                                                        val threshold = 32.dp.toPx()
-                                                        while (dragDistance >= threshold || dragDistance <= -threshold) {
-                                                            val current = latestMenu.value
-                                                            val index = current.indexOf(pageName)
-                                                            val target = if (dragDistance < 0f) index - 1 else index + 1
-                                                            if (index >= 0 && target in current.indices) {
-                                                                val updated = current.toMutableList()
-                                                                val moving = updated.removeAt(index)
-                                                                updated.add(target, moving)
-                                                                latestMenuSave.value(updated)
-                                                                dragDistance += if (dragDistance < 0f) threshold else -threshold
-                                                            } else {
-                                                                dragDistance = 0f
-                                                            }
-                                                        }
                                                     }
                                                 },
                                             contentAlignment = Alignment.Center
@@ -2329,7 +2343,8 @@ private fun SettingsDialog(
                                             val updated = menu.toMutableList()
                                             if (enabled && pageName !in updated) {
                                                 val defaultIndex = pages.indexOf(pageName)
-                                                updated.add(defaultIndex.coerceAtMost(updated.size), pageName)
+                                                val insertAt = (defaultIndex.coerceAtMost(updated.size))
+                                                updated.add(insertAt, pageName)
                                             }
                                             if (!enabled) updated.remove(pageName)
                                             save(c, auto, theme, style, updated)
