@@ -2249,25 +2249,6 @@ private fun SettingsDialog(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) { change, dragAmount ->
-                                                    change.consume()
-                                                    dragDistance += dragAmount.y
-                                                    if (dragDistance > 48f || dragDistance < -48f) {
-                                                        val updated = menu.toMutableList()
-                                                        val index = updated.indexOf(pageName)
-                                                        val target = if (dragDistance < 0f) index - 1 else index + 1
-                                                        if (index >= 0 && target in updated.indices) {
-                                                            val moving = updated.removeAt(index)
-                                                            updated.add(target, moving)
-                                                            save(c, auto, theme, style, updated)
-                                                        }
-                                                        dragDistance = 0f
-                                                    }
-                                                }
-                                            } else Modifier
-                                        ),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Column(Modifier.weight(1f)) {
                                         Text(pageName, fontWeight = FontWeight.SemiBold)
@@ -2291,11 +2272,13 @@ private fun SettingsDialog(
                                                             if (moves != 0) {
                                                                 val updated = menu.toMutableList()
                                                                 val from = updated.indexOf(pageName)
-                                                                val to = (from + moves).coerceIn(0, updated.lastIndex)
-                                                                if (from >= 0 && to in updated.indices && from != to) {
-                                                                    val moving = updated.removeAt(from)
-                                                                    updated.add(to, moving)
-                                                                    save(c, auto, theme, style, updated)
+                                                                if (from >= 0) {
+                                                                    val to = (from + moves).coerceIn(0, updated.lastIndex)
+                                                                    if (from != to) {
+                                                                        val moving = updated.removeAt(from)
+                                                                        updated.add(to, moving)
+                                                                        save(c, auto, theme, style, updated)
+                                                                    }
                                                                 }
                                                             }
                                                             dragDistance = 0f
