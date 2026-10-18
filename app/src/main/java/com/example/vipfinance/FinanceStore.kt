@@ -110,6 +110,8 @@ class FinanceStore(context: Context) {
         val a=JSONArray();items.forEach{x->a.put(JSONObject().apply{put("id",x.id);put("name",x.name);put("category",x.category);put("accountName",x.accountName);put("limit",x.limit);put("currency",x.currency);put("period",x.period)})};prefs.edit().putString("budgets",a.toString()).apply()
     }
 
+    fun resetAllData() { prefs.edit().clear().commit() }
+
     fun loadPin(): String = prefs.getString("app_pin", "") ?: ""
     fun savePin(v: String) = prefs.edit().putString("app_pin", v).apply()
 
