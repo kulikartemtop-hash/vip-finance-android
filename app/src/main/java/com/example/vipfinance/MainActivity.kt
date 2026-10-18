@@ -398,17 +398,52 @@ fun FinanceApp(s: FinanceStore) {
                             .padding(20.dp)
                     ) {
                         Column {
-                            Text("VIP Finance", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                            Text("Ваши финансы под контролем", style = MaterialTheme.typography.bodySmall)
+                            Text("PERSONAL FINANCE • PREMIUM", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.1.sp)
+                            Text("VIP Finance", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+                            Text("Ваши финансы под контролем", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     HorizontalDivider()
                     Text("Разделы", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
                     menu.forEach { item ->
-                        NavigationDrawerItem(label = { Text(item) }, selected = page == item, onClick = {
-                            page = item
-                            drawerScope.launch { drawerState.close() }
-                        }, modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp))
+                        NavigationDrawerItem(
+                            icon = {
+                                Text(
+                                    when (item) {
+                                        "Главная" -> "⌂"
+                                        "Операции" -> "↔"
+                                        "Расходы" -> "↘"
+                                        "Доходы" -> "↗"
+                                        "Счета" -> "▣"
+                                        "Категории" -> "◈"
+                                        "Бюджеты" -> "▥"
+                                        "Аналитика" -> "◔"
+                                        "Календарь" -> "▦"
+                                        "Конвертер" -> "⇄"
+                                        "Долги" -> "↻"
+                                        "Цели" -> "◎"
+                                        "Напоминания" -> "◷"
+                                        "Чеки" -> "▤"
+                                        else -> "✦"
+                                    },
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (page == item) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            label = { Text(item, fontWeight = if (page == item) FontWeight.Bold else FontWeight.Medium) },
+                            selected = page == item,
+                            onClick = {
+                                page = item
+                                drawerScope.launch { drawerState.close() }
+                            },
+                            colors = NavigationDrawerItemDefaults.colors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurface
+                            ),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
+                        )
                     }
                     Spacer(Modifier.height(10.dp))
                     NavigationDrawerItem(label = { Text("Настройки") }, selected = false, onClick = {
@@ -965,6 +1000,53 @@ private fun Operations(
             contentPadding=PaddingValues(bottom=8.dp)
         ){
             val ordered=if(newest)ts.sortedByDescending{it.timestamp}else ts.sortedBy{it.timestamp}
+            if (ordered.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(22.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
+                    ) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(22.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+                                Text(
+                                    if (ts.isEmpty() && (search.isNotBlank() || tagSearch.isNotBlank() || typeFilter != "Все" || categoryFilter != "Все" || filter != null || fromDate.isNotBlank() || toDate.isNotBlank())) "⌕" else "↔",
+                                    modifier = Modifier.padding(14.dp),
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            val filteredOut = search.isNotBlank() || tagSearch.isNotBlank() || typeFilter != "Все" || categoryFilter != "Все" || filter != null || fromDate.isNotBlank() || toDate.isNotBlank()
+                            Text(if (filteredOut) "Ничего не найдено" else "Операций пока нет", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text(
+                                if (filteredOut) "Измените фильтры или сбросьте их, чтобы увидеть операции." else "Добавьте первую операцию — доход или расход.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                            if (filteredOut) {
+                                OutlinedButton(onClick = {
+                                    setSearch("")
+                                    setTagSearch("")
+                                    setTypeFilter("Все")
+                                    setCategoryFilter("Все")
+                                    setFilter(null)
+                                    setFromDate("")
+                                    setToDate("")
+                                }) { Text("Сбросить фильтры") }
+                            } else {
+                                Button(onClick = add) { Text("+ Добавить расход") }
+                            }
+                        }
+                    }
+                }
+            }
             itemsIndexed(ordered){index,t->
                 val day=SimpleDateFormat("dd MMMM yyyy",Locale.getDefault()).format(Date(t.timestamp))
                 val previousDay=ordered.getOrNull(index-1)?.let{SimpleDateFormat("dd MMMM yyyy",Locale.getDefault()).format(Date(it.timestamp))}
