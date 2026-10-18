@@ -290,6 +290,7 @@ fun FlowCenter(
             categories = options,
             selectedName = categoryFilter,
             amounts = counts,
+            currency = currency,
             onClose = { showCategoryPicker = false },
             onSelect = { categoryFilter = it; showCategoryPicker = false }
         )
@@ -303,6 +304,7 @@ private fun CategoryFilterDialog(
     categories: List<String>,
     selectedName: String,
     amounts: Map<String, Double>,
+    currency: String,
     onClose: () -> Unit,
     onSelect: (String) -> Unit
 ) {
@@ -341,7 +343,7 @@ private fun CategoryFilterDialog(
         ) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(if (incomeMode) "Категории доходов" else "Категории расходов", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text("Сначала самые используемые. Ищите по названию или смыслу — например, «бензин» или «зарплата».", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Сначала категории с наибольшей суммой за период. Поиск понимает смысл: «бензин», «еда», «бонус».", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
@@ -376,7 +378,7 @@ private fun CategoryFilterDialog(
                             Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                     Text(name, fontWeight = FontWeight.SemiBold)
-                                    Text(if ((amounts[name] ?: 0.0) > 0.0) "За период: " + money(amounts[name] ?: 0.0, "RUB") else "Нажмите, чтобы показать только эту категорию",
+                                    Text(if ((amounts[name] ?: 0.0) > 0.0) "За период: " + money(amounts[name] ?: 0.0, currency) else "Нажмите, чтобы показать только эту категорию",
                                         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 if (selected) Text("✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
