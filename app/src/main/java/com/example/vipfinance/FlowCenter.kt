@@ -2,6 +2,7 @@ package com.example.vipfinance
 
 import android.content.Intent
 import android.net.Uri
+import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -36,6 +37,7 @@ fun FlowCenter(
     auto: Boolean,
     rates: Map<String, Double>,
     onAdd: () -> Unit,
+    onVoiceAdd: (Transaction) -> Unit,
     onEdit: (Transaction) -> Unit,
     onRemove: (Transaction) -> Unit,
     onUpdate: (Transaction, Transaction) -> Unit
@@ -55,6 +57,17 @@ fun FlowCenter(
             onUpdate(original, original.copy(note = newNote))
         }
         attachTarget = null
+    }
+    var voiceMessage by remember { mutableStateOf("") }
+    val voiceLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val candidates = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS).orEmpty()
+        val spoken = candidates.firstOrNull().orEmpty()
+        val parsed = parseVoiceTransaction(spoken, accounts, categories, System.currentTimeMillis())
+        when {
+            parsed == null -> voiceMessage = "Не удалось определить операцию. Назовите сумму, категорию и счёт или карту."
+            parsed.income != incomeMode -> voiceMessage = "Фраза распознана как " + (if (parsed.income) "доход" else "расход") + ". Откройте соответствующую вкладку."
+            else -> { onVoiceAdd(parsed); voiceMessage = "Добавлено: " + parsed.title + " • " + money(parsed.amount, parsed.currency) + " • " + parsed.category }
+        }
     }
     val exportPicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) runCatching {
@@ -124,6 +137,17 @@ fun FlowCenter(
                             exportPicker.launch(if (incomeMode) "VIP-Finance-income.csv" else "VIP-Finance-expenses.csv")
                         }, modifier = Modifier.weight(1f)) { Text("Экспорт CSV") }
                     }
+                    OutlinedButton(onClick = {
+                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU")
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "ru-RU")
+                            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 8)
+                            putExtra(RecognizerIntent.EXTRA_PROMPT, if (incomeMode) "Скажите: получил зарплату 50000 на счёт" else "Скажите: потратил 2800 на бензин с карты")
+                        }
+                        runCatching { voiceLauncher.launch(intent) }.onFailure { voiceMessage = "Голосовой ввод недоступен на устройстве." }
+                    }, modifier = Modifier.fillMaxWidth()) { Text("🎙 Добавить голосом") }
+                    if (voiceMessage.isNotBlank()) Text(voiceMessage, style = MaterialTheme.typography.bodySmall, color = accent)
                 }
             }
         }
