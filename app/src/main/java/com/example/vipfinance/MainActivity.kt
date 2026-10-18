@@ -2253,30 +2253,11 @@ private fun SettingsDialog(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) { change, dragAmount ->
-                                                    change.consume()
-                                                    dragDistance += dragAmount.y
-                                                    if (dragDistance > 48f || dragDistance < -48f) {
-                                                        val updated = menu.toMutableList()
-                                                        val index = updated.indexOf(pageName)
-                                                        val target = if (dragDistance < 0f) index - 1 else index + 1
-                                                        if (index >= 0 && target in updated.indices) {
-                                                            val moving = updated.removeAt(index)
-                                                            updated.add(target, moving)
-                                                            save(c, auto, theme, style, updated)
-                                                        }
-                                                        dragDistance = 0f
-                                                    }
-                                                }
-                                            } else Modifier
-                                        ),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Column(Modifier.weight(1f)) {
                                         Text(pageName, fontWeight = FontWeight.SemiBold)
                                         Text(
-                                            if (visibleInMenu) "Пункт меню • позиция ${menu.indexOf(pageName) + 1} • удерживайте и перетащите"
+                                            if (visibleInMenu) "Пункт меню • позиция ${menu.indexOf(pageName) + 1} • удерживайте значок ☷ и перетащите"
                                             else "Скрыт из меню",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -2284,31 +2265,37 @@ private fun SettingsDialog(
                                     }
                                     if (visibleInMenu) {
                                         Box(
-                                            modifier = Modifier.size(44.dp).pointerInput(pageName) {
-                                                var dragDistance = 0f
-                                                detectDragGesturesAfterLongPress(
-                                                    onDragEnd = { dragDistance = 0f },
-                                                    onDragCancel = { dragDistance = 0f }
-                                                ) { change, dragAmount ->
-                                                    change.consume()
-                                                    dragDistance += dragAmount.y
-                                                    val threshold = 32.dp.toPx()
-                                                    while (dragDistance >= threshold || dragDistance <= -threshold) {
-                                                        val current = latestMenu.value
-                                                        val index = current.indexOf(pageName)
-                                                        val target = if (dragDistance < 0f) index - 1 else index + 1
-                                                        if (index >= 0 && target in current.indices) {
-                                                            val updated = current.toMutableList()
-                                                            val moving = updated.removeAt(index)
-                                                            updated.add(target, moving)
-                                                            latestMenuSave.value(updated)
-                                                            dragDistance += if (dragDistance < 0f) threshold else -threshold
-                                                        } else dragDistance = 0f
+                                            modifier = Modifier
+                                                .size(44.dp)
+                                                .pointerInput(pageName) {
+                                                    var dragDistance = 0f
+                                                    detectDragGesturesAfterLongPress(
+                                                        onDragEnd = { dragDistance = 0f },
+                                                        onDragCancel = { dragDistance = 0f }
+                                                    ) { change, dragAmount ->
+                                                        change.consume()
+                                                        dragDistance += dragAmount.y
+                                                        val threshold = 32.dp.toPx()
+                                                        while (dragDistance >= threshold || dragDistance <= -threshold) {
+                                                            val current = latestMenu.value
+                                                            val index = current.indexOf(pageName)
+                                                            val target = if (dragDistance < 0f) index - 1 else index + 1
+                                                            if (index >= 0 && target in current.indices) {
+                                                                val updated = current.toMutableList()
+                                                                val moving = updated.removeAt(index)
+                                                                updated.add(target, moving)
+                                                                latestMenuSave.value(updated)
+                                                                dragDistance += if (dragDistance < 0f) threshold else -threshold
+                                                            } else {
+                                                                dragDistance = 0f
+                                                            }
+                                                        }
                                                     }
-                                                }
-                                            },
+                                                },
                                             contentAlignment = Alignment.Center
-                                        ) { Text("☷", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary) }
+                                        ) {
+                                            Text("☷", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                                        }
                                         IconButton(
                                             enabled = menu.indexOf(pageName) > 0,
                                             onClick = {
@@ -2342,8 +2329,7 @@ private fun SettingsDialog(
                                             val updated = menu.toMutableList()
                                             if (enabled && pageName !in updated) {
                                                 val defaultIndex = pages.indexOf(pageName)
-                                                val insertAt = (defaultIndex.coerceAtMost(updated.size))
-                                                updated.add(insertAt, pageName)
+                                                updated.add(defaultIndex.coerceAtMost(updated.size), pageName)
                                             }
                                             if (!enabled) updated.remove(pageName)
                                             save(c, auto, theme, style, updated)
@@ -2353,8 +2339,6 @@ private fun SettingsDialog(
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
                             }
                         }
-                    }
-                }
 
                 if (time > 0) {
                     item {
