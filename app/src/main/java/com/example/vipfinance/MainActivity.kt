@@ -11,8 +11,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.ui.input.pointer.pointerInput
@@ -443,7 +446,7 @@ fun FinanceApp(s: FinanceStore) {
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
                     when (page) {
-                        "Главная" -> Home(total, currency, accounts, auto, rates, selected, inc, exp, goals, debts, reminders, categories, budgets, tx, ::add, { page = "Бюджеты" }) { selected = it }
+                        "Главная" -> Home(total, currency, accounts, auto, rates, selected, inc, exp, goals, debts, reminders, categories, budgets, tx, ::add, { page = "Бюджеты" }, { dialog = "account" }) { selected = it }
                         "Операции" -> Operations(shown, accounts, filter, { filter = it }, { dialog = "expense" }, ::remove, { editingTransaction = it; dialog = "editTransaction" }, currency, auto, rates, search, { search = it }, tagSearch, { tagSearch = it }, newest, { newest = it }, typeFilter, { typeFilter = it }, categoryFilter, { categoryFilter = it }, fromDate, { fromDate = it }, toDate, { toDate = it }, categories.map { it.name }, { original -> repeatSource = original; dialog = if (original.income) "income" else "expense" })
                         "Счета" -> Accounts(accounts, currency, auto, rates, { dialog = "account" }, { selected = it }) { n -> val updated = accounts.map { if (it.name == n) it.copy(hidden = !it.hidden) else it }; accounts = updated; s.saveAccounts(updated) }
                         "Категории" -> Categories(categories, { kind -> newCategoryKind = kind; editingCategory = null; dialog = "category" }, { editingCategory = it; dialog = "category" }, { c0 -> categories = categories.filterNot { it.id == c0.id }; s.saveCategories(categories) })
@@ -512,7 +515,7 @@ private fun Home(
     total: Double, c: String, accounts: List<Account>, auto: Boolean, r: Map<String,Double>,
     selected: String?, income: Double, expense: Double, goals: List<Goal>, debts: List<Debt>, reminders: List<Reminder>, categories: List<Category>,
     budgets: List<Budget>, transactions: List<Transaction>,
-    onVoiceTransaction: (Transaction) -> Unit, onOpenBudgets: () -> Unit, pick: (String?) -> Unit
+    onVoiceTransaction: (Transaction) -> Unit, onOpenBudgets: () -> Unit, onAddAccount: () -> Unit, pick: (String?) -> Unit
 ) {
     val visible = accounts.filter { !it.hidden }
     val selectedBalance = selected?.let { n -> visible.firstOrNull { it.name == n }?.let { conv(it.balance,it.currency,c,auto,r) } } ?: total
@@ -580,23 +583,49 @@ private fun Home(
             }
         }
         item {
-            Column {
-                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text("Счета",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold);Text("${visible.size}",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)}
-                Spacer(Modifier.height(8.dp))
+            Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
+                    Column {
+                        Text("Счета",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)
+                        Text("${visible.size} активных счетов",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Button(onClick=onAddAccount,shape=RoundedCornerShape(14.dp)) {
+                        Text("+ Добавить счёт",fontWeight=FontWeight.Bold)
+                    }
+                }
                 LazyRow(horizontalArrangement=Arrangement.spacedBy(10.dp)){item{FilterChip(selected==null,{pick(null)},label={Text("Все счета")})};items(visible){a->FilterChip(selected==a.name,{pick(a.name)},label={Text(a.name)})}}
             }
         }
         item {
-            LazyRow(horizontalArrangement=Arrangement.spacedBy(12.dp)){items(visible){a->
-                Card(modifier=Modifier.width(210.dp),shape=RoundedCornerShape(22.dp),elevation=CardDefaults.cardElevation(6.dp),colors=CardDefaults.cardColors(containerColor=uiColor(a.iconColor).copy(alpha=.92f))){
-                    Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
-                        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Box(Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(Color.White.copy(.16f)),contentAlignment=Alignment.Center){Text(iconText(a.icon),color=Color.White,fontWeight=FontWeight.Bold)};Text(a.currency,color=Color.White.copy(.78f),style=MaterialTheme.typography.labelSmall)}
-                        Text(a.name,color=Color.White.copy(.82f),style=MaterialTheme.typography.bodySmall)
-                        Text(money(conv(a.balance,a.currency,c,auto,r),c),color=Color.White,fontWeight=FontWeight.ExtraBold,style=MaterialTheme.typography.titleLarge)
-                        Text(a.type,color=Color.White.copy(.68f),style=MaterialTheme.typography.labelSmall)
+            LazyRow(horizontalArrangement=Arrangement.spacedBy(12.dp)){
+                items(visible){a->
+                    Card(modifier=Modifier.width(210.dp),shape=RoundedCornerShape(22.dp),elevation=CardDefaults.cardElevation(6.dp),colors=CardDefaults.cardColors(containerColor=uiColor(a.iconColor).copy(alpha=.92f))){
+                        Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
+                            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Box(Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(Color.White.copy(.16f)),contentAlignment=Alignment.Center){Text(iconText(a.icon),color=Color.White,fontWeight=FontWeight.Bold)};Text(a.currency,color=Color.White.copy(.78f),style=MaterialTheme.typography.labelSmall)}
+                            Text(a.name,color=Color.White.copy(.82f),style=MaterialTheme.typography.bodySmall)
+                            Text(money(conv(a.balance,a.currency,c,auto,r),c),color=Color.White,fontWeight=FontWeight.ExtraBold,style=MaterialTheme.typography.titleLarge)
+                            Text(a.type,color=Color.White.copy(.68f),style=MaterialTheme.typography.labelSmall)
+                        }
                     }
                 }
-            }}
+                item {
+                    Card(
+                        modifier=Modifier.width(210.dp).height(156.dp).clickable(onClick=onAddAccount),
+                        shape=RoundedCornerShape(22.dp),
+                        border=BorderStroke(1.dp,MaterialTheme.colorScheme.primary.copy(alpha=.45f)),
+                        colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.primaryContainer.copy(alpha=.45f))
+                    ) {
+                        Column(Modifier.fillMaxSize().padding(16.dp),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally) {
+                            Box(Modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary),contentAlignment=Alignment.Center) {
+                                Text("+",color=MaterialTheme.colorScheme.onPrimary,style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold)
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            Text("Добавить счёт",fontWeight=FontWeight.Bold,color=MaterialTheme.colorScheme.onSurface)
+                            Text("Новый счёт или карта",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
         }
         item {
             Card(shape = RoundedCornerShape(24.dp), elevation = CardDefaults.cardElevation(4.dp)) {
