@@ -20,6 +20,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
@@ -46,6 +48,7 @@ fun FlowCenter(
     var search by remember { mutableStateOf("") }
     var range by remember { mutableStateOf("Месяц") }
     var categoryFilter by remember { mutableStateOf("Все") }
+    var showCategoryPicker by remember { mutableStateOf(false) }
     var showRecurring by remember { mutableStateOf(false) }
     var attachTarget by remember { mutableStateOf<Transaction?>(null) }
     var exportText by remember { mutableStateOf("") }
@@ -210,9 +213,27 @@ fun FlowCenter(
             OutlinedTextField(search, { search = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Поиск по операциям") }, placeholder = { Text("Название, категория, счёт или комментарий") })
         }
         item {
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                val options = listOf("Все") + categories.filter { it.kind == if (incomeMode) "income" else "expense" }.map { it.name }.distinct()
-                options.forEach { name -> FilterChip(selected = categoryFilter == name, onClick = { categoryFilter = name }, label = { Text(name) }) }
+            val categoryOptions = (categories.filter { it.kind == if (incomeMode) "income" else "expense" }.map { it.name } + typed.map { it.category })
+                .filter { it.isNotBlank() }.distinct()
+            val topCategoryNames = categoryTotals.take(3).map { it.first }.filter { it in categoryOptions }
+            Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("Фильтр по категории", fontWeight = FontWeight.Bold)
+                            Text(if (categoryFilter == "Все") "Показываются все категории" else "Выбрано: $categoryFilter", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        OutlinedButton(onClick = { showCategoryPicker = true }, shape = RoundedCornerShape(14.dp)) {
+                            Text("⌕ Найти")
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        FilterChip(selected = categoryFilter == "Все", onClick = { categoryFilter = "Все" }, label = { Text("Все") })
+                        topCategoryNames.forEach { name ->
+                            FilterChip(selected = categoryFilter == name, onClick = { categoryFilter = name }, label = { Text(name) })
+                        }
+                    }
+                }
             }
         }
         item {
@@ -257,6 +278,113 @@ fun FlowCenter(
                         TextButton(onClick = { onRemove(t) }) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
                     }
                 }
+            }
+        }
+    }
+    if (showCategoryPicker) {
+        val options = (categories.filter { it.kind == if (incomeMode) "income" else "expense" }.map { it.name } + typed.map { it.category })
+            .filter { it.isNotBlank() }.distinct()
+        val counts = period.groupBy { it.category }.mapValues { (_, rows) -> rows.sumOf { conv(it.amount, it.currency, currency, auto, rates) } }
+        CategoryFilterDialog(
+            incomeMode = incomeMode,
+            categories = options,
+            selectedName = categoryFilter,
+            amounts = counts,
+            onClose = { showCategoryPicker = false },
+            onSelect = { categoryFilter = it; showCategoryPicker = false }
+        )
+    }
+}
+
+
+@Composable
+private fun CategoryFilterDialog(
+    incomeMode: Boolean,
+    categories: List<String>,
+    selectedName: String,
+    amounts: Map<String, Double>,
+    onClose: () -> Unit,
+    onSelect: (String) -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    val aliases = mapOf(
+        "Продукты" to listOf("еда", "магазин", "супермаркет", "питание", "покупка еды"),
+        "Топливо" to listOf("бензин", "заправка", "дизель", "азс", "газ"),
+        "Автомобиль" to listOf("авто", "машина", "мойка", "страховка", "транспорт"),
+        "Здоровье" to listOf("аптека", "врач", "лекарства", "медицина"),
+        "Жильё" to listOf("аренда", "квартира", "коммунальные", "жкх", "свет", "вода"),
+        "Одежда и обувь" to listOf("одежда", "обувь", "куртка", "кроссовки"),
+        "Рестораны и кафе" to listOf("кафе", "ресторан", "обед", "доставка еды"),
+        "Транспорт" to listOf("такси", "автобус", "метро", "проезд"),
+        "Зарплата" to listOf("оклад", "аванс", "работа", "зарплатный перевод"),
+        "Премия" to listOf("бонус", "премиальные"),
+        "Подработка" to listOf("фриланс", "халтура", "дополнительная работа"),
+        "Бизнес" to listOf("выручка", "прибыль", "предпринимательство"),
+        "Инвестиции" to listOf("акции", "дивиденды", "вложения"),
+        "Проценты по вкладам" to listOf("вклад", "депозит", "проценты"),
+        "Кэшбэк" to listOf("кешбек", "cashback", "возврат банка"),
+        "Подарки" to listOf("подарок", "дарение"),
+        "Возврат средств" to listOf("возврат", "вернули деньги", "рефанд"),
+        "Продажа вещей" to listOf("продажа", "авито", "продал")
+    )
+    val q = query.trim().lowercase(Locale.getDefault())
+    val filtered = categories.filter { name ->
+        q.isBlank() || name.contains(q, true) ||
+            aliases[name].orEmpty().any { it.contains(q, true) || q.contains(it.lowercase(Locale.getDefault())) }
+    }.sortedWith(compareByDescending<String> { amounts[it] ?: 0.0 }.thenBy { it.lowercase(Locale.getDefault()) })
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(0.93f).heightIn(max = 690.dp),
+            shape = RoundedCornerShape(26.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 12.dp
+        ) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(if (incomeMode) "Категории доходов" else "Категории расходов", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Сначала самые используемые. Ищите по названию или смыслу — например, «бензин» или «зарплата».", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
+                    label = { Text("Найти категорию") },
+                    placeholder = { Text(if (incomeMode) "Зарплата, бонус, возврат…" else "Еда, бензин, аптека…") },
+                    trailingIcon = { if (query.isNotBlank()) TextButton(onClick = { query = "" }) { Text("Очистить") } }
+                )
+                Text("${filtered.size} найдено", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    item {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().clickable { onSelect("Все") },
+                            shape = RoundedCornerShape(15.dp),
+                            color = if (selectedName == "Все") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                        ) {
+                            Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("Все категории", Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                                if (selectedName == "Все") Text("✓", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    items(filtered) { name ->
+                        val selected = selectedName == name
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().clickable { onSelect(name) },
+                            shape = RoundedCornerShape(15.dp),
+                            color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                        ) {
+                            Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(name, fontWeight = FontWeight.SemiBold)
+                                    Text(if ((amounts[name] ?: 0.0) > 0.0) "За период: " + money(amounts[name] ?: 0.0, "RUB") else "Нажмите, чтобы показать только эту категорию",
+                                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                if (selected) Text("✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
+                            }
+                        }
+                    }
+                }
+                TextButton(onClick = onClose, modifier = Modifier.align(Alignment.End)) { Text("Закрыть") }
             }
         }
     }
